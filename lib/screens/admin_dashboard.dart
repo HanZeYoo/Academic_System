@@ -6,7 +6,10 @@ import 'academic_evaluation_screen.dart';
 import 'failure_analytics_screen.dart';
 import 'parent_notification_screen.dart';
 import 'reports_generation_screen.dart';
+import 'announcement_management_screen.dart';
 import 'admin_profile_screen.dart';
+import 'settings_screen.dart';
+import 'login_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -139,7 +142,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       'Reports Generation',
                       hoveredColor,
                     ),
-                    _buildMenuItem(8, Icons.settings, 'Settings', hoveredColor),
+                    _buildMenuItem(
+                      8,
+                      Icons.campaign,
+                      'Announcements',
+                      hoveredColor,
+                    ),
+                    _buildMenuItem(
+                      10,
+                      Icons.settings,
+                      'Settings',
+                      hoveredColor,
+                    ),
                   ],
                 ),
               ),
@@ -159,7 +173,34 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     style: TextStyle(color: textWhite, fontSize: 15),
                   ),
                   onTap: () {
-                    // Handle logout
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Logout'),
+                        content: const Text('Are you sure you want to logout?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(context); // Close dialog
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const LoginScreen(),
+                                ),
+                              );
+                            },
+                            child: const Text(
+                              'Logout',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
                   },
                 ),
               ),
@@ -187,8 +228,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
         return const ParentNotificationScreen();
       case 7:
         return const ReportsGenerationScreen();
+      case 8:
+        return const AnnouncementManagementScreen();
       case 9:
         return const AdminProfileScreen();
+      case 10:
+        return const SettingsScreen();
       default:
         return const Center(child: Text('Placeholder Screen'));
     }

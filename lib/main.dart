@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/admin_dashboard.dart';
+import 'screens/landing_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -13,11 +13,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Academic System Admin',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'Segoe UI',
-        useMaterial3: true,
-      ),
-      home: const AdminDashboard(),
+      theme: ThemeData(fontFamily: 'Segoe UI', useMaterial3: true),
+      home: const LandingScreen(),
     );
   }
 }
