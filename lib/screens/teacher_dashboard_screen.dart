@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
+import 'settings_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
-  const TeacherDashboardScreen({super.key});
+  final String username;
+  const TeacherDashboardScreen({super.key, this.username = 'teacher'});
 
   @override
   State<TeacherDashboardScreen> createState() => _TeacherDashboardScreenState();
@@ -133,6 +135,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       isSelected: _selectedMenu == 'Announcement',
                       onTap: () => _onMenuTap('Announcement'),
                     ),
+                    _buildMenuItem(
+                      title: 'Settings',
+                      icon: Icons.settings,
+                      isSelected: _selectedMenu == 'Settings',
+                      onTap: () => _onMenuTap('Settings'),
+                    ),
                   ],
                 ),
               ),
@@ -187,14 +195,22 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           ),
         ),
       ),
-      body: Center(
-        child: Text(
-          _selectedMenu,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF224A60),
-          ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_selectedMenu == 'Settings') {
+      return SettingsScreen(username: widget.username);
+    }
+    
+    return Center(
+      child: Text(
+        _selectedMenu,
+        style: const TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF224A60),
         ),
       ),
     );

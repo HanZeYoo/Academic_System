@@ -1,8 +1,32 @@
 import 'package:flutter/material.dart';
+import '../database_helper.dart';
 import 'add_student_screen.dart';
 
-class StudentManagementScreen extends StatelessWidget {
+class StudentManagementScreen extends StatefulWidget {
   const StudentManagementScreen({super.key});
+
+  @override
+  State<StudentManagementScreen> createState() => _StudentManagementScreenState();
+}
+
+class _StudentManagementScreenState extends State<StudentManagementScreen> {
+  List<Map<String, dynamic>> _students = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStudents();
+  }
+
+  Future<void> _loadStudents() async {
+    setState(() => _isLoading = true);
+    final students = await DatabaseHelper().getStudents();
+    setState(() {
+      _students = students;
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,19 +49,38 @@ class StudentManagementScreen extends StatelessWidget {
               contentPadding: const EdgeInsets.symmetric(vertical: 0),
             ),
           ),
-          const SizedBox(height: 20),
-          // Title
+          const SizedBox(height: 24),
+
+          // Title and Add button
           Row(
-            children: const [
-              Icon(Icons.layers, color: Color(0xFF1664C5)),
-              SizedBox(width: 8),
-              Text(
-                'Student Management',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Student List',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AddStudentScreen()),
+                  );
+                  if (result == true) {
+                    _loadStudents();
+                  }
+                },
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add Student'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1664C5),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
+
           // Stats Row
           Row(
             children: [
@@ -47,7 +90,7 @@ class StudentManagementScreen extends StatelessWidget {
                   iconBgColor: const Color(0xFFCBEAFB),
                   iconColor: const Color(0xFF1664C5),
                   title: 'Total Students',
-                  value: '1,248',
+                  value: _isLoading ? '-' : _students.length.toString(),
                 ),
               ),
               const SizedBox(width: 12),
@@ -57,59 +100,40 @@ class StudentManagementScreen extends StatelessWidget {
                   iconBgColor: const Color(0xFFE2F6E7),
                   iconColor: const Color(0xFF00A364),
                   title: 'New Students',
-                  value: '86',
+                  value: '0',
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          // Add button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AddStudentScreen()),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1664C5),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: const Text(
-                'Add Student',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.normal),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
+
           // List
           Expanded(
-            child: ListView(
-              children: [
-                _buildStudentCard(
-                  'Juan Dela Cruz',
-                  'ID: 23-12332-146',
-                  '3BSIT-1',
-                ),
-                _buildStudentCard('Jose Rizal', 'ID: 23-12332-146', '3BSIT-1'),
-                _buildStudentCard(
-                  'Heneral Luna',
-                  'ID: 23-12332-146',
-                  '3BSIT-1',
-                ),
-                _buildStudentCard(
-                  'Manuel Quezon',
-                  'ID: 23-12332-146',
-                  '3BSIT-1',
-                ),
-              ],
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _students.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.people_outline, size: 64, color: Colors.black26),
+                            SizedBox(height: 12),
+                            Text('No students yet.', style: TextStyle(color: Colors.black45)),
+                            Text('Tap "Add Student" to get started.', style: TextStyle(color: Colors.black38, fontSize: 13)),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _students.length,
+                        itemBuilder: (context, index) {
+                          final s = _students[index];
+                          return _buildStudentCard(
+                            s['name'] ?? 'Unknown',
+                            'ID: ${s['student_id']}',
+                            '${s['grade_level']} - ${s['section']}',
+                          );
+                        },
+                      ),
           ),
         ],
       ),
@@ -145,10 +169,7 @@ class StudentManagementScreen extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -186,36 +207,16 @@ class StudentManagementScreen extends StatelessWidget {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  id,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  section,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                Text(id, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                Text(section, style: const TextStyle(color: Colors.grey, fontSize: 12)),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(
-              Icons.remove_red_eye_outlined,
-              color: Color(0xFF1664C5),
-            ),
+            icon: const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF1664C5)),
             onPressed: () {},
           ),
           IconButton(

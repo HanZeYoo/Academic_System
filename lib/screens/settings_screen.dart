@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import '../database_helper.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final String username;
+  const SettingsScreen({super.key, this.username = 'admin'});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -11,6 +13,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _obscureCurrent = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
+  bool _isLoading = false;
+
+  final TextEditingController _currentPasswordController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+
+  Future<void> _changePassword() async {
+    final currentPassword = _currentPasswordController.text;
+    final newPassword = _newPasswordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (currentPassword.isEmpty || newPassword.isEmpty || confirmPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all password fields.')),
+      );
+      return;
+    }
+
+    if (newPassword != confirmPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New password and confirm password do not match!'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    // Verify current password first
+    final dbHelper = DatabaseHelper();
+    final user = await dbHelper.login(widget.username, currentPassword);
+
+    if (user == null) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Incorrect current password!'), backgroundColor: Colors.red),
+        );
+      }
+      return;
+    }
+
+    // Update to new password
+    await dbHelper.updatePassword(widget.username, newPassword);
+
+    setState(() => _isLoading = false);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password updated successfully!'), backgroundColor: Colors.green),
+      );
+      
+      // Clear fields
+      _currentPasswordController.clear();
+      _newPasswordController.clear();
+      _confirmPasswordController.clear();
+    }
+  }
+
+  @override
+  void dispose() {
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +90,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
           _buildSecurityCard(),
           const SizedBox(height: 24),
-          // Ready for future settings like Notifications or Theme
           _buildExtraSettingsCard(),
         ],
       ),
@@ -65,13 +131,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.security, color: Color(0xFF1E66B4)),
-              SizedBox(width: 8),
-              Text(
+              const Icon(Icons.security, color: Color(0xFF1E66B4)),
+              const SizedBox(width: 8),
+              const Text(
                 'Security & Password',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              Text(
+                'User: ${widget.username}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic),
               ),
             ],
           ),
@@ -84,6 +155,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildPasswordField(
             label: 'Current Password',
             hint: 'Enter your current password',
+            controller: _currentPasswordController,
             obscureText: _obscureCurrent,
             onToggleVisibility: () {
               setState(() {
@@ -95,6 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildPasswordField(
             label: 'New Password',
             hint: 'Enter your new password',
+            controller: _newPasswordController,
             obscureText: _obscureNew,
             onToggleVisibility: () {
               setState(() {
@@ -106,6 +179,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildPasswordField(
             label: 'Confirm New Password',
             hint: 'Re-enter your new password',
+            controller: _confirmPasswordController,
             obscureText: _obscureConfirm,
             onToggleVisibility: () {
               setState(() {
@@ -117,14 +191,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Align(
             alignment: Alignment.centerRight,
             child: ElevatedButton(
-              onPressed: () {
-                // Handle password change logic here
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Password updated successfully'),
-                  ),
-                );
-              },
+              onPressed: _isLoading ? null : _changePassword,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1E66B4),
                 padding: const EdgeInsets.symmetric(
@@ -135,14 +202,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text(
-                'Change Password',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: _isLoading
+                ? const SizedBox(
+                    width: 20, 
+                    height: 20, 
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                  )
+                : const Text(
+                    'Change Password',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
             ),
           ),
         ],
@@ -153,6 +226,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildPasswordField({
     required String label,
     required String hint,
+    required TextEditingController controller,
     required bool obscureText,
     required VoidCallback onToggleVisibility,
   }) {
@@ -165,6 +239,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 8),
         TextField(
+          controller: controller,
           obscureText: obscureText,
           decoration: InputDecoration(
             hintText: hint,

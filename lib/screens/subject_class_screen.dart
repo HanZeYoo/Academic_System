@@ -1,7 +1,32 @@
 import 'package:flutter/material.dart';
+import 'add_subject_class_screen.dart';
+import '../database_helper.dart';
 
-class SubjectClassScreen extends StatelessWidget {
+class SubjectClassScreen extends StatefulWidget {
   const SubjectClassScreen({super.key});
+
+  @override
+  State<SubjectClassScreen> createState() => _SubjectClassScreenState();
+}
+
+class _SubjectClassScreenState extends State<SubjectClassScreen> {
+  List<Map<String, dynamic>> _subjectClasses = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSubjectClasses();
+  }
+
+  Future<void> _loadSubjectClasses() async {
+    setState(() => _isLoading = true);
+    final data = await DatabaseHelper().getSubjectClasses();
+    setState(() {
+      _subjectClasses = data;
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,6 +50,7 @@ class SubjectClassScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
+          
           // Title
           Row(
             children: const [
@@ -37,36 +63,46 @@ class SubjectClassScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
+          
           // Stats Row
           Row(
             children: [
               Expanded(
                 child: _buildStatCard(
-                  icon: Icons.people,
+                  icon: Icons.menu_book,
                   iconBgColor: const Color(0xFFCBEAFB),
                   iconColor: const Color(0xFF1664C5),
                   title: 'Total Subjects',
-                  value: '1,248',
+                  value: _isLoading ? '-' : _subjectClasses.length.toString(),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
-                  icon: Icons.person_add,
+                  icon: Icons.class_,
                   iconBgColor: const Color(0xFFE2F6E7),
                   iconColor: const Color(0xFF00A364),
                   title: 'Total Classes',
-                  value: '86',
+                  value: _isLoading ? '-' : _subjectClasses.length.toString(),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
+          
           // Add button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AddSubjectClassScreen()),
+                );
+                if (result == true) {
+                  _loadSubjectClasses();
+                }
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1664C5),
                 foregroundColor: Colors.white,
@@ -82,32 +118,34 @@ class SubjectClassScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+          
           // List
           Expanded(
-            child: ListView(
-              children: [
-                _buildSubjectClassCard(
-                  'Networking',
-                  'ID: 23-12332-146',
-                  '3BSIT-1',
-                ),
-                _buildSubjectClassCard(
-                  'IT Elective',
-                  'ID: 23-12332-146',
-                  '3BSIT-1',
-                ),
-                _buildSubjectClassCard(
-                  'Multimedia',
-                  'ID: 23-12332-146',
-                  '3BSIT-1',
-                ),
-                _buildSubjectClassCard(
-                  'Information Assurance',
-                  'ID: 23-12332-146',
-                  '3BSIT-1',
-                ),
-              ],
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _subjectClasses.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(Icons.class_outlined, size: 64, color: Colors.black26),
+                            SizedBox(height: 12),
+                            Text('No subjects or classes found.', style: TextStyle(color: Colors.black45)),
+                            Text('Tap "Add Subject / Class" to create one.', style: TextStyle(color: Colors.black38, fontSize: 13)),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _subjectClasses.length,
+                        itemBuilder: (context, index) {
+                          final item = _subjectClasses[index];
+                          return _buildSubjectClassCard(
+                            item['subject_name'] ?? 'Unknown Subject',
+                            'Code: ${item['subject_code']} | Section: ${item['section_name']}',
+                            'Teacher: ${item['assigned_teacher']}',
+                          );
+                        },
+                      ),
           ),
         ],
       ),
@@ -165,7 +203,7 @@ class SubjectClassScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSubjectClassCard(String name, String id, String section) {
+  Widget _buildSubjectClassCard(String name, String details, String teacher) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -176,7 +214,11 @@ class SubjectClassScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const CircleAvatar(backgroundColor: Color(0xFFD9D9D9), radius: 30),
+          const CircleAvatar(
+            backgroundColor: Color(0xFFD9D9D9), 
+            radius: 30,
+            child: Icon(Icons.menu_book, color: Colors.black54),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -191,7 +233,7 @@ class SubjectClassScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  id,
+                  details,
                   style: const TextStyle(
                     color: Colors.grey,
                     fontSize: 12,
@@ -199,7 +241,7 @@ class SubjectClassScreen extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  section,
+                  teacher,
                   style: const TextStyle(
                     color: Colors.grey,
                     fontSize: 12,

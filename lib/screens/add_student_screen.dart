@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../database_helper.dart';
 
 class AddStudentScreen extends StatefulWidget {
   const AddStudentScreen({super.key});
@@ -9,13 +10,83 @@ class AddStudentScreen extends StatefulWidget {
 
 class _AddStudentScreenState extends State<AddStudentScreen> {
   bool _createParentAccount = true;
+  bool _isLoading = false;
+
+  final TextEditingController _studentIdController = TextEditingController();
+  final TextEditingController _firstNameController = TextEditingController();
+  final TextEditingController _lastNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+
+  String? _selectedGender;
+  String? _selectedGradeLevel;
+  String? _selectedSection;
+  DateTime? _birthdate;
+
+  Future<void> _selectDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF0F52BA),
+              onPrimary: Colors.white,
+              onSurface: Color(0xFF1E293B),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _birthdate = picked);
+    }
+  }
+
+  Future<void> _saveStudent() async {
+    if (_studentIdController.text.isEmpty ||
+        _firstNameController.text.isEmpty ||
+        _lastNameController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all required fields.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final fullName = '${_firstNameController.text} ${_lastNameController.text}';
+
+    await DatabaseHelper().addStudent(
+      studentId: _studentIdController.text,
+      name: fullName,
+      gradeLevel: _selectedGradeLevel ?? 'N/A',
+      section: _selectedSection ?? 'N/A',
+      email: _emailController.text,
+    );
+
+    setState(() => _isLoading = false);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Student saved successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pop(context, true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F9), // Light blue-gray background
+      backgroundColor: const Color(0xFFF0F4F9),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F52BA), // App blue color
+        backgroundColor: const Color(0xFF0F52BA),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -49,10 +120,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               const SizedBox(height: 4),
               const Text(
                 'Create a new student record',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Color(0xFF475569),
-                ),
+                style: TextStyle(fontSize: 15, color: Color(0xFF475569)),
               ),
               const SizedBox(height: 24),
 
@@ -61,9 +129,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                 child: Row(
                   children: [
                     CustomPaint(
-                      painter: _DashedCirclePainter(
-                        color: const Color(0xFF93C5FD),
-                      ),
+                      painter: _DashedCirclePainter(color: const Color(0xFF93C5FD)),
                       child: Container(
                         width: 80,
                         height: 80,
@@ -104,10 +170,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                           SizedBox(height: 4),
                           Text(
                             'JPG, PNG up to 2MB.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF64748B),
-                            ),
+                            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                           ),
                         ],
                       ),
@@ -141,6 +204,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                       label: 'Student ID',
                       hint: 'e.g., STU-000123',
                       isRequired: true,
+                      controller: _studentIdController,
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -150,6 +214,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                             label: 'First Name',
                             hint: 'Enter first name',
                             isRequired: true,
+                            controller: _firstNameController,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -165,6 +230,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                             label: 'Last Name',
                             hint: 'Enter last name',
                             isRequired: true,
+                            controller: _lastNameController,
                           ),
                         ),
                       ],
@@ -177,14 +243,20 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                             label: 'Gender',
                             hint: 'Select gender',
                             isRequired: true,
+                            value: _selectedGender,
+                            items: const ['Male', 'Female', 'Other'],
+                            onChanged: (val) => setState(() => _selectedGender = val),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: _buildDatePicker(
                             label: 'Birthdate',
-                            hint: 'Select birthdate',
+                            hint: _birthdate != null
+                                ? '${_birthdate!.month}/${_birthdate!.day}/${_birthdate!.year}'
+                                : 'Select birthdate',
                             isRequired: true,
+                            onTap: _selectDate,
                           ),
                         ),
                       ],
@@ -197,6 +269,9 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                             label: 'Grade Level',
                             hint: 'Select grade level',
                             isRequired: true,
+                            value: _selectedGradeLevel,
+                            items: const ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'],
+                            onChanged: (val) => setState(() => _selectedGradeLevel = val),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -205,6 +280,9 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                             label: 'Section',
                             hint: 'Select section',
                             isRequired: true,
+                            value: _selectedSection,
+                            items: const ['Section A', 'Section B', 'Section C', 'Section D'],
+                            onChanged: (val) => setState(() => _selectedSection = val),
                           ),
                         ),
                       ],
@@ -213,6 +291,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                     _buildTextField(
                       label: 'Email Address',
                       hint: 'Enter email address',
+                      controller: _emailController,
                     ),
                     const SizedBox(height: 16),
                     _buildTextField(
@@ -266,11 +345,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: const Color(0xFFBFDBFE)),
                         ),
-                        child: const Icon(
-                          Icons.security,
-                          color: Color(0xFF0F52BA),
-                          size: 20,
-                        ),
+                        child: const Icon(Icons.security, color: Color(0xFF0F52BA), size: 20),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -288,10 +363,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                             SizedBox(height: 2),
                             Text(
                               'Credentials are created automatically for the student.',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF64748B),
-                              ),
+                              style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
                             ),
                           ],
                         ),
@@ -324,20 +396,15 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: const [
-                                      Text(
-                                        'Login / Username',
-                                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                                      ),
+                                      Text('Login / Username',
+                                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                                       SizedBox(height: 2),
-                                      Text(
-                                        'Student Email',
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                                      ),
+                                      Text('Student Email',
+                                          style: TextStyle(
+                                              fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
                                       SizedBox(height: 2),
-                                      Text(
-                                        'Used to sign in to the system',
-                                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                                      ),
+                                      Text('Used to sign in to the system',
+                                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                                     ],
                                   ),
                                 ),
@@ -346,11 +413,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                           ),
                           const Padding(
                             padding: EdgeInsets.symmetric(horizontal: 8.0),
-                            child: VerticalDivider(
-                              color: Color(0xFFBFDBFE),
-                              thickness: 1,
-                              width: 16,
-                            ),
+                            child: VerticalDivider(color: Color(0xFFBFDBFE), thickness: 1, width: 16),
                           ),
                           Expanded(
                             child: Row(
@@ -367,20 +430,15 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: const [
-                                      Text(
-                                        'Default Password',
-                                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                                      ),
+                                      Text('Default Password',
+                                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                                       SizedBox(height: 2),
-                                      Text(
-                                        'student123',
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                                      ),
+                                      Text('student123',
+                                          style: TextStyle(
+                                              fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
                                       SizedBox(height: 2),
-                                      Text(
-                                        'Change after first login',
-                                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                                      ),
+                                      Text('Change after first login',
+                                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                                     ],
                                   ),
                                 ),
@@ -396,11 +454,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                     children: [
                       Switch(
                         value: _createParentAccount,
-                        onChanged: (value) {
-                          setState(() {
-                            _createParentAccount = value;
-                          });
-                        },
+                        onChanged: (value) => setState(() => _createParentAccount = value),
                         activeColor: const Color(0xFF0F52BA),
                       ),
                       const SizedBox(width: 8),
@@ -415,11 +469,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      const Icon(
-                        Icons.info_outline,
-                        color: Color(0xFF94A3B8),
-                        size: 18,
-                      ),
+                      const Icon(Icons.info_outline, color: Color(0xFF94A3B8), size: 18),
                     ],
                   ),
                 ],
@@ -436,39 +486,34 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         backgroundColor: Colors.white,
                         side: const BorderSide(color: Color(0xFF0F52BA)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                       child: const Text(
                         'Cancel',
-                        style: TextStyle(
-                          color: Color(0xFF0F52BA),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: TextStyle(color: Color(0xFF0F52BA), fontSize: 16, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.save, size: 20),
-                      label: const Text(
-                        'Save Student',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      onPressed: _isLoading ? null : _saveStudent,
+                      icon: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            )
+                          : const Icon(Icons.save, size: 20),
+                      label: Text(
+                        _isLoading ? 'Saving...' : 'Save Student',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                       ),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         backgroundColor: const Color(0xFF0F52BA),
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                   ),
@@ -491,7 +536,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -507,28 +552,17 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       child: RichText(
         text: TextSpan(
           text: text,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF1E293B),
-          ),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
           children: [
             if (suffix != null)
               TextSpan(
                 text: suffix,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.normal,
-                  color: Color(0xFF64748B),
-                ),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Color(0xFF64748B)),
               ),
             if (isRequired)
               const TextSpan(
                 text: ' *',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
               ),
           ],
         ),
@@ -544,20 +578,19 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     bool enabled = true,
     IconData? suffixIcon,
     int maxLines = 1,
+    TextEditingController? controller,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildLabel(label, isRequired: isRequired, suffix: labelSuffix),
         TextField(
+          controller: controller,
           enabled: enabled,
           maxLines: maxLines,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(
-              color: Color(0xFF94A3B8),
-              fontSize: 14,
-            ),
+            hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
             filled: true,
             fillColor: enabled ? Colors.white : const Color(0xFFF8FAFC),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -586,6 +619,9 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     required String label,
     required String hint,
     bool isRequired = false,
+    required List<String> items,
+    String? value,
+    required ValueChanged<String?> onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -601,16 +637,20 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               isExpanded: true,
-              hint: Text(
-                hint,
-                style: const TextStyle(
-                  color: Color(0xFF94A3B8),
-                  fontSize: 14,
-                ),
-              ),
+              value: value,
+              hint: Text(hint,
+                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                  overflow: TextOverflow.ellipsis),
               icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF94A3B8)),
-              items: [],
-              onChanged: (value) {},
+              items: items.map((String item) {
+                return DropdownMenuItem<String>(
+                  value: item,
+                  child: Text(item,
+                      style: const TextStyle(color: Color(0xFF1E293B), fontSize: 14),
+                      overflow: TextOverflow.ellipsis),
+                );
+              }).toList(),
+              onChanged: onChanged,
             ),
           ),
         ),
@@ -622,35 +662,39 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     required String label,
     required String hint,
     bool isRequired = false,
+    VoidCallback? onTap,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildLabel(label, isRequired: isRequired),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  hint,
-                  style: const TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 14,
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    hint,
+                    style: TextStyle(
+                      color: hint.contains('/') ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                      fontSize: 14,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.calendar_today_outlined, color: Color(0xFF94A3B8), size: 18),
-            ],
+                const SizedBox(width: 8),
+                const Icon(Icons.calendar_today_outlined, color: Color(0xFF94A3B8), size: 18),
+              ],
+            ),
           ),
         ),
       ],

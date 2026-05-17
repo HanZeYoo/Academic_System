@@ -32,12 +32,12 @@ class _LoginScreenState extends State<LoginScreen> {
         if (user['role'] == 'teacher') {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const TeacherDashboardScreen()),
+            MaterialPageRoute(builder: (context) => TeacherDashboardScreen(username: user['username'])),
           );
         } else {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const AdminDashboard()),
+            MaterialPageRoute(builder: (context) => AdminDashboard(username: user['username'])),
           );
         }
       }

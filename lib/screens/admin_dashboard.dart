@@ -13,15 +13,16 @@ import 'settings_screen.dart';
 import 'login_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
-  const AdminDashboard({super.key});
+  final String username;
+  const AdminDashboard({super.key, this.username = 'admin'});
 
   @override
   State<AdminDashboard> createState() => _AdminDashboardState();
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
-  // Set to 1 initially to match the Student Management screen
-  int _selectedIndex = 1;
+  // Set to 0 initially to match the Dashboard Overview screen
+  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -236,7 +237,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       case 9:
         return const AdminProfileScreen();
       case 10:
-        return const SettingsScreen();
+        return SettingsScreen(username: widget.username);
       default:
         return const Center(child: Text('Placeholder Screen'));
     }
