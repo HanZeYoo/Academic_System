@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'add_student_screen.dart';
 
 class StudentManagementScreen extends StatelessWidget {
   const StudentManagementScreen({super.key});
@@ -66,7 +67,12 @@ class StudentManagementScreen extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AddStudentScreen()),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF1664C5),
                 foregroundColor: Colors.white,

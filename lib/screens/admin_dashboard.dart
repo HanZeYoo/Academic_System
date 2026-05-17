@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'admin_overview_screen.dart';
 import 'student_management_screen.dart';
 import 'teacher_management_screen.dart';
 import 'subject_class_screen.dart';
@@ -214,6 +215,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Widget _buildBody() {
     switch (_selectedIndex) {
+      case 0:
+        return const AdminOverviewScreen();
       case 1:
         return const StudentManagementScreen();
       case 2:

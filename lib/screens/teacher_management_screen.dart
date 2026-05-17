@@ -1,7 +1,33 @@
 import 'package:flutter/material.dart';
+import '../database_helper.dart';
+import 'add_teacher_screen.dart';
+import 'teacher_dashboard_screen.dart';
 
-class TeacherManagementScreen extends StatelessWidget {
+class TeacherManagementScreen extends StatefulWidget {
   const TeacherManagementScreen({super.key});
+
+  @override
+  State<TeacherManagementScreen> createState() => _TeacherManagementScreenState();
+}
+
+class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
+  List<Map<String, dynamic>> _teachers = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTeachers();
+  }
+
+  Future<void> _loadTeachers() async {
+    setState(() => _isLoading = true);
+    final teachers = await DatabaseHelper().getTeachers();
+    setState(() {
+      _teachers = teachers;
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,20 +50,46 @@ class TeacherManagementScreen extends StatelessWidget {
               contentPadding: const EdgeInsets.symmetric(vertical: 0),
             ),
           ),
-          const SizedBox(height: 20),
-          // Title
+          const SizedBox(height: 24),
+
+          // Title and Add button
           Row(
-            children: const [
-              Icon(Icons.co_present, color: Color(0xFF1664C5)),
-              SizedBox(width: 8),
-              Text(
-                'Teacher Management',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Teacher List',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AddTeacherScreen(),
+                    ),
+                  );
+                  if (result == true) {
+                    _loadTeachers();
+                  }
+                },
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add Teacher'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1664C5),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          // Stats Row
+
+          // Stats
           Row(
             children: [
               Expanded(
@@ -46,7 +98,7 @@ class TeacherManagementScreen extends StatelessWidget {
                   iconBgColor: const Color(0xFFCBEAFB),
                   iconColor: const Color(0xFF1664C5),
                   title: 'Total Teachers',
-                  value: '1,248',
+                  value: _isLoading ? '-' : _teachers.length.toString(),
                 ),
               ),
               const SizedBox(width: 12),
@@ -56,58 +108,31 @@ class TeacherManagementScreen extends StatelessWidget {
                   iconBgColor: const Color(0xFFE2F6E7),
                   iconColor: const Color(0xFF00A364),
                   title: 'New Teachers',
-                  value: '86',
+                  value: '0',
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          // Add button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1664C5),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: const Text(
-                'Add Teacher',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.normal),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
+
           // List
           Expanded(
-            child: ListView(
-              children: [
-                _buildTeacherCard(
-                  'Juan Dela Cruz',
-                  'ID: 23-12332-146',
-                  'Mathematics Department',
-                ),
-                _buildTeacherCard(
-                  'Jose Rizal',
-                  'ID: 23-12332-146',
-                  'History Department',
-                ),
-                _buildTeacherCard(
-                  'Heneral Luna',
-                  'ID: 23-12332-146',
-                  'Physics Department',
-                ),
-                _buildTeacherCard(
-                  'Manuel Quezon',
-                  'ID: 23-12332-146',
-                  'Filipino Department',
-                ),
-              ],
-            ),
+            child: _isLoading 
+                ? const Center(child: CircularProgressIndicator())
+                : _teachers.isEmpty 
+                    ? const Center(child: Text('No teachers found.'))
+                    : ListView.builder(
+                        itemCount: _teachers.length,
+                        itemBuilder: (context, index) {
+                          final t = _teachers[index];
+                          return _buildTeacherCard(
+                            context,
+                            t['name'] ?? 'Unknown',
+                            'ID: ${t['teacher_id']}',
+                            t['department'] ?? 'No Department',
+                          );
+                        },
+                      ),
           ),
         ],
       ),
@@ -165,7 +190,7 @@ class TeacherManagementScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTeacherCard(String name, String id, String department) {
+  Widget _buildTeacherCard(BuildContext context, String name, String id, String department) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -214,7 +239,12 @@ class TeacherManagementScreen extends StatelessWidget {
               Icons.remove_red_eye_outlined,
               color: Color(0xFF1664C5),
             ),
-            onPressed: () {},
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const TeacherDashboardScreen()),
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
