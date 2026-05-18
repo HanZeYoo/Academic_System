@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../database_helper.dart';
 
 class AddSubjectClassScreen extends StatefulWidget {
-  const AddSubjectClassScreen({super.key});
+  final Map<String, dynamic>? subjectClassToEdit;
+  const AddSubjectClassScreen({super.key, this.subjectClassToEdit});
 
   @override
   State<AddSubjectClassScreen> createState() => _AddSubjectClassScreenState();
@@ -21,8 +22,9 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
   final TextEditingController _unitsController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   
-  final TextEditingController _sectionNameController = TextEditingController();
+  String? _selectedSectionName;
   final TextEditingController _scheduleController = TextEditingController();
+  final TextEditingController _timeController = TextEditingController();
   final TextEditingController _roomController = TextEditingController();
   final TextEditingController _capacityController = TextEditingController();
 
@@ -34,6 +36,25 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
   void initState() {
     super.initState();
     _loadTeachers();
+    if (widget.subjectClassToEdit != null) {
+      final data = widget.subjectClassToEdit!;
+      _subjectCodeController.text = data['subject_code']?.toString() ?? '';
+      _subjectNameController.text = data['subject_name']?.toString() ?? '';
+      _unitsController.text = data['units']?.toString() ?? '';
+      _descriptionController.text = data['description']?.toString() ?? '';
+      _selectedSectionName = data['section_name']?.toString().isNotEmpty == true ? data['section_name'].toString() : null;
+      _scheduleController.text = data['schedule']?.toString() ?? '';
+      _timeController.text = data['time']?.toString() ?? '';
+      _roomController.text = data['room']?.toString() ?? '';
+      _capacityController.text = data['capacity']?.toString() ?? '';
+      
+      _selectedDepartment = data['department']?.toString().isNotEmpty == true ? data['department'].toString() : null;
+      _selectedGradeLevel = data['grade_level']?.toString().isNotEmpty == true ? data['grade_level'].toString() : null;
+      _selectedSemester = data['semester']?.toString().isNotEmpty == true ? data['semester'].toString() : null;
+      _selectedTeacher = data['assigned_teacher']?.toString().isNotEmpty == true ? data['assigned_teacher'].toString() : null;
+      _selectedClassType = data['class_type']?.toString().isNotEmpty == true ? data['class_type'].toString() : null;
+      _selectedStatus = data['status']?.toString().isNotEmpty == true ? data['status'].toString() : null;
+    }
   }
 
   Future<void> _loadTeachers() async {
@@ -47,7 +68,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
   Future<void> _saveSubjectClass() async {
     if (_subjectCodeController.text.isEmpty ||
         _subjectNameController.text.isEmpty ||
-        _sectionNameController.text.isEmpty) {
+        (_selectedSectionName == null || _selectedSectionName!.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all required fields.')),
       );
@@ -64,16 +85,21 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
       'semester': _selectedSemester ?? '',
       'units': _unitsController.text,
       'description': _descriptionController.text,
-      'section_name': _sectionNameController.text,
+      'section_name': _selectedSectionName ?? '',
       'assigned_teacher': _selectedTeacher ?? '',
       'schedule': _scheduleController.text,
+      'time': _timeController.text,
       'room': _roomController.text,
       'capacity': _capacityController.text,
       'class_type': _selectedClassType ?? '',
       'status': _selectedStatus ?? '',
     };
 
-    await DatabaseHelper().addSubjectClass(data);
+    if (widget.subjectClassToEdit != null) {
+      await DatabaseHelper().updateSubjectClass(widget.subjectClassToEdit!['id'] as int, data);
+    } else {
+      await DatabaseHelper().addSubjectClass(data);
+    }
 
     setState(() => _isSaving = false);
 
@@ -118,18 +144,18 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Add Subject / Class',
-                style: TextStyle(
+              Text(
+                widget.subjectClassToEdit != null ? 'Edit Subject / Class' : 'Add Subject / Class',
+                style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF0F172A),
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'Create a new subject and class record',
-                style: TextStyle(
+              Text(
+                widget.subjectClassToEdit != null ? 'Update existing subject and class record' : 'Create a new subject and class record',
+                style: const TextStyle(
                   fontSize: 15,
                   color: Color(0xFF475569),
                 ),
@@ -241,12 +267,14 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: _buildTextField(
+                          child: _buildDropdown(
                             label: 'Section / Class Name',
-                            hint: 'e.g., Section A',
+                            hint: 'Select Section',
                             isRequired: true,
                             prefixIcon: Icons.people_outline,
-                            controller: _sectionNameController,
+                            value: _selectedSectionName,
+                            items: const ['Section A', 'Section B', 'Section C', 'Section D', 'Section E'],
+                            onChanged: (val) => setState(() => _selectedSectionName = val),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -270,8 +298,8 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                       children: [
                         Expanded(
                           child: _buildTextField(
-                            label: 'Schedule',
-                            hint: 'e.g., Mon, Wed, Fri 9:00 AM - 10:30 AM',
+                            label: 'Schedule (Days)',
+                            hint: 'e.g., Mon, Wed, Fri',
                             isRequired: true,
                             prefixIcon: Icons.calendar_today_outlined,
                             controller: _scheduleController,
@@ -280,11 +308,11 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _buildTextField(
-                            label: 'Room',
-                            hint: 'e.g., Room 201',
+                            label: 'Time',
+                            hint: 'e.g., 9:00 AM - 10:30 AM',
                             isRequired: true,
-                            prefixIcon: Icons.door_front_door_outlined,
-                            controller: _roomController,
+                            prefixIcon: Icons.access_time,
+                            controller: _timeController,
                           ),
                         ),
                       ],
@@ -294,6 +322,16 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                       children: [
                         Expanded(
                           child: _buildTextField(
+                            label: 'Room',
+                            hint: 'e.g., Room 201',
+                            isRequired: true,
+                            prefixIcon: Icons.door_front_door_outlined,
+                            controller: _roomController,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildTextField(
                             label: 'Capacity',
                             hint: 'e.g., 40',
                             isRequired: true,
@@ -301,7 +339,11 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             controller: _capacityController,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
                         Expanded(
                           child: _buildDropdown(
                             label: 'Class Type',
@@ -313,11 +355,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             onChanged: (val) => setState(() => _selectedClassType = val),
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
+                        const SizedBox(width: 12),
                         Expanded(
                           child: _buildDropdown(
                             label: 'Status',
@@ -329,8 +367,6 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             onChanged: (val) => setState(() => _selectedStatus = val),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        const Expanded(child: SizedBox()), // Empty space for layout
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -397,7 +433,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                           )
                         : const Icon(Icons.save, size: 20),
                       label: Text(
-                        _isSaving ? 'Saving...' : 'Save Subject',
+                        _isSaving ? 'Saving...' : (widget.subjectClassToEdit != null ? 'Update Subject' : 'Save Subject'),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

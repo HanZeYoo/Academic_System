@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
+import 'my_classes_screen.dart';
+import 'assessment_setup_screen.dart';
+import 'encode_scores_screen.dart';
+import 'teacher_student_screen.dart';
+import 'teacher_profile_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   final String username;
@@ -29,10 +34,17 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.white,
-              radius: 18,
-              child: const Icon(Icons.person, color: Color(0xFF3383B3), size: 24),
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedMenu = 'Profile';
+                });
+              },
+              child: const CircleAvatar(
+                backgroundColor: Colors.white,
+                radius: 18,
+                child: Icon(Icons.person, color: Color(0xFF3383B3), size: 24),
+              ),
             ),
           ),
         ],
@@ -93,11 +105,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       isSelected: _selectedMenu == 'Student',
                       onTap: () => _onMenuTap('Student'),
                     ),
-                    _buildMenuItem(
+                    _buildExpandableMenuItem(
                       title: 'Grade Encoding',
                       icon: Icons.assignment_add,
-                      isSelected: _selectedMenu == 'Grade Encoding',
-                      onTap: () => _onMenuTap('Grade Encoding'),
+                      subItems: ['Encode score', 'Assessment setup'],
                     ),
                     _buildMenuItem(
                       title: 'Academic Evaluation',
@@ -203,6 +214,21 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     if (_selectedMenu == 'Settings') {
       return SettingsScreen(username: widget.username);
     }
+    if (_selectedMenu == 'My Classes') {
+      return MyClassesScreen(username: widget.username);
+    }
+    if (_selectedMenu == 'Student') {
+      return TeacherStudentScreen(username: widget.username);
+    }
+    if (_selectedMenu == 'Assessment setup') {
+      return AssessmentSetupScreen(username: widget.username);
+    }
+    if (_selectedMenu == 'Encode score') {
+      return EncodeScoresScreen(username: widget.username);
+    }
+    if (_selectedMenu == 'Profile') {
+      return TeacherProfileScreen(username: widget.username);
+    }
     
     return Center(
       child: Text(
@@ -248,6 +274,65 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
         visualDensity: const VisualDensity(horizontal: 0, vertical: -2), // Makes it a bit more compact
+      ),
+    );
+  }
+
+  Widget _buildExpandableMenuItem({
+    required String title,
+    required IconData icon,
+    required List<String> subItems,
+  }) {
+    bool isExpandedOrSelected = subItems.contains(_selectedMenu);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      decoration: BoxDecoration(
+        color: isExpandedOrSelected ? const Color(0xFF36617A).withOpacity(0.3) : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
+        ),
+        child: ExpansionTile(
+          initiallyExpanded: isExpandedOrSelected,
+          leading: Icon(icon, color: Colors.white, size: 24),
+          iconColor: Colors.white,
+          collapsedIconColor: Colors.white,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
+          title: Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          childrenPadding: EdgeInsets.zero,
+          children: subItems.map((subItem) {
+            final isSubItemSelected = _selectedMenu == subItem;
+            return Container(
+              margin: const EdgeInsets.only(left: 40, right: 8, bottom: 4),
+              decoration: BoxDecoration(
+                color: isSubItemSelected ? const Color(0xFF36617A) : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ListTile(
+                title: Text(
+                  subItem,
+                  style: TextStyle(
+                    color: isSubItemSelected ? Colors.white : Colors.white70,
+                    fontSize: 13,
+                    fontWeight: isSubItemSelected ? FontWeight.w500 : FontWeight.normal,
+                  ),
+                ),
+                onTap: () => _onMenuTap(subItem),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
+                visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }

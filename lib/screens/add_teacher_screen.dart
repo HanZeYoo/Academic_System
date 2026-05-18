@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../database_helper.dart';
 
 class AddTeacherScreen extends StatefulWidget {
-  const AddTeacherScreen({super.key});
+  final Map<String, dynamic>? teacherToEdit;
+  const AddTeacherScreen({super.key, this.teacherToEdit});
 
   @override
   State<AddTeacherScreen> createState() => _AddTeacherScreenState();
@@ -26,6 +27,24 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
   DateTime? _hiringDate;
 
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.teacherToEdit != null) {
+      final data = widget.teacherToEdit!;
+      _teacherIdController.text = data['teacher_id']?.toString() ?? '';
+      _emailController.text = data['email']?.toString() ?? '';
+      
+      final names = data['name']?.toString().split(' ') ?? [];
+      _firstNameController.text = names.isNotEmpty ? names.first : '';
+      if (names.length > 1) {
+        _lastNameController.text = names.sublist(1).join(' ');
+      }
+      
+      _selectedDepartment = data['department']?.toString().isNotEmpty == true ? data['department'].toString() : null;
+    }
+  }
 
   Future<void> _selectDate(BuildContext context, bool isBirthdate) async {
     final DateTime? picked = await showDatePicker(
@@ -67,12 +86,22 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
     
     final fullName = '${_firstNameController.text} ${_lastNameController.text}';
     
-    await DatabaseHelper().addTeacher(
-      teacherId: _teacherIdController.text,
-      name: fullName,
-      department: _selectedDepartment ?? 'Unknown Department',
-      email: _emailController.text,
-    );
+    if (widget.teacherToEdit != null) {
+      await DatabaseHelper().updateTeacher(
+        widget.teacherToEdit!['id'] as int,
+        teacherId: _teacherIdController.text,
+        name: fullName,
+        department: _selectedDepartment ?? 'Unknown Department',
+        email: _emailController.text,
+      );
+    } else {
+      await DatabaseHelper().addTeacher(
+        teacherId: _teacherIdController.text,
+        name: fullName,
+        department: _selectedDepartment ?? 'Unknown Department',
+        email: _emailController.text,
+      );
+    }
     
     setState(() => _isLoading = false);
     
@@ -110,18 +139,18 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Add Teacher',
-                style: TextStyle(
+              Text(
+                widget.teacherToEdit != null ? 'Edit Teacher' : 'Add Teacher',
+                style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF0F172A),
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'Create a new teacher record',
-                style: TextStyle(
+              Text(
+                widget.teacherToEdit != null ? 'Update existing teacher record' : 'Create a new teacher record',
+                style: const TextStyle(
                   fontSize: 15,
                   color: Color(0xFF475569),
                 ),
@@ -569,7 +598,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                           : const Icon(Icons.save, size: 20),
                       label: Text(
-                        _isLoading ? 'Saving...' : 'Save Teacher',
+                        _isLoading ? 'Saving...' : (widget.teacherToEdit != null ? 'Update Teacher' : 'Save Teacher'),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,

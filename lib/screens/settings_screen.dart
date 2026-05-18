@@ -131,18 +131,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              const Icon(Icons.security, color: Color(0xFF1E66B4)),
-              const SizedBox(width: 8),
-              const Text(
-                'Security & Password',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.security, color: Color(0xFF1E66B4)),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Security & Password',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
-              const Spacer(),
-              Text(
-                'User: ${widget.username}',
-                style: const TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'User: ${widget.username}',
+                  style: const TextStyle(fontSize: 12, color: Colors.black87, fontStyle: FontStyle.italic),
+                ),
               ),
             ],
           ),

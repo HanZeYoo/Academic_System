@@ -125,12 +125,7 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
                         itemCount: _teachers.length,
                         itemBuilder: (context, index) {
                           final t = _teachers[index];
-                          return _buildTeacherCard(
-                            context,
-                            t['name'] ?? 'Unknown',
-                            'ID: ${t['teacher_id']}',
-                            t['department'] ?? 'No Department',
-                          );
+                          return _buildTeacherCard(context, t);
                         },
                       ),
           ),
@@ -190,7 +185,11 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
     );
   }
 
-  Widget _buildTeacherCard(BuildContext context, String name, String id, String department) {
+  Widget _buildTeacherCard(BuildContext context, Map<String, dynamic> teacher) {
+    final name = teacher['name']?.toString() ?? 'Unknown';
+    final id = 'ID: ${teacher['teacher_id']}';
+    final department = teacher['department']?.toString() ?? 'No Department';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -239,16 +238,75 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
               Icons.remove_red_eye_outlined,
               color: Color(0xFF1664C5),
             ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const TeacherDashboardScreen()),
-              );
-            },
+            onPressed: () => _showViewDialog(teacher),
           ),
           IconButton(
             icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
-            onPressed: () {},
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => AddTeacherScreen(teacherToEdit: teacher)),
+              );
+              if (result == true) {
+                _loadTeachers();
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showViewDialog(Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Teacher Details', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDetailRow('Teacher ID', item['teacher_id']),
+              _buildDetailRow('Name', item['name']),
+              _buildDetailRow('Department', item['department']),
+              _buildDetailRow('Email', item['email']),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, dynamic value) {
+    if (value == null || value.toString().isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value.toString(),
+              style: const TextStyle(fontSize: 13, color: Colors.black54),
+            ),
           ),
         ],
       ),

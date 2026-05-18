@@ -139,11 +139,7 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
                         itemCount: _subjectClasses.length,
                         itemBuilder: (context, index) {
                           final item = _subjectClasses[index];
-                          return _buildSubjectClassCard(
-                            item['subject_name'] ?? 'Unknown Subject',
-                            'Code: ${item['subject_code']} | Section: ${item['section_name']}',
-                            'Teacher: ${item['assigned_teacher']}',
-                          );
+                          return _buildSubjectClassCard(item);
                         },
                       ),
           ),
@@ -203,7 +199,11 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
     );
   }
 
-  Widget _buildSubjectClassCard(String name, String details, String teacher) {
+  Widget _buildSubjectClassCard(Map<String, dynamic> item) {
+    final name = item['subject_name']?.toString() ?? 'Unknown Subject';
+    final details = 'Code: ${item['subject_code']} | Section: ${item['section_name']}';
+    final teacher = 'Teacher: ${item['assigned_teacher']}';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -256,11 +256,88 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
               Icons.remove_red_eye_outlined,
               color: Color(0xFF1664C5),
             ),
-            onPressed: () {},
+            onPressed: () => _showViewDialog(item),
           ),
           IconButton(
             icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
-            onPressed: () {},
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => AddSubjectClassScreen(subjectClassToEdit: item)),
+              );
+              if (result == true) {
+                _loadSubjectClasses();
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showViewDialog(Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(item['subject_name']?.toString() ?? 'Subject Details', style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildDetailRow('Code', item['subject_code']),
+              _buildDetailRow('Department', item['department']),
+              _buildDetailRow('Grade Level', item['grade_level']),
+              _buildDetailRow('Semester', item['semester']),
+              _buildDetailRow('Units', item['units']),
+              _buildDetailRow('Section', item['section_name']),
+              _buildDetailRow('Teacher', item['assigned_teacher']),
+              _buildDetailRow('Schedule', item['schedule']),
+              _buildDetailRow('Time', item['time']),
+              _buildDetailRow('Room', item['room']),
+              _buildDetailRow('Capacity', item['capacity']),
+              _buildDetailRow('Class Type', item['class_type']),
+              _buildDetailRow('Status', item['status']),
+              const SizedBox(height: 12),
+              const Text('Description:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+              const SizedBox(height: 4),
+              Text(item['description']?.toString() ?? 'None', style: const TextStyle(fontSize: 13, color: Colors.black54)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, dynamic value) {
+    if (value == null || value.toString().isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value.toString(),
+              style: const TextStyle(fontSize: 13, color: Colors.black54),
+            ),
           ),
         ],
       ),
