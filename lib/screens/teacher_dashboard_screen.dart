@@ -6,6 +6,7 @@ import 'assessment_setup_screen.dart';
 import 'encode_scores_screen.dart';
 import 'teacher_student_screen.dart';
 import 'teacher_profile_screen.dart';
+import 'teacher_academic_evaluation_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   final String username;
@@ -228,6 +229,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     }
     if (_selectedMenu == 'Profile') {
       return TeacherProfileScreen(username: widget.username);
+    }
+    if (_selectedMenu == 'Academic Evaluation') {
+      return TeacherAcademicEvaluationScreen(username: widget.username);
     }
     
     return Center(

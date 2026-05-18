@@ -323,6 +323,37 @@ class DatabaseHelper {
     );
   }
 
+
+  // Get all scores for a student in a subject/period
+  Future<List<Map<String, dynamic>>> getScoresByStudentSubjectPeriod({
+    required String studentId,
+    required String subjectCode,
+    required String gradingPeriod,
+  }) async {
+    final db = await database;
+    return await db.query(
+      'scores',
+      where: 'student_id = ? AND subject_code = ? AND grading_period = ?',
+      whereArgs: [studentId, subjectCode, gradingPeriod],
+    );
+  }
+
+  // Get all scores for a subject/section/period (for class-wide evaluation)
+  Future<List<Map<String, dynamic>>> getScoresForClass({
+    required String subjectCode,
+    required String sectionName,
+    required String gradeLevel,
+    required String gradingPeriod,
+  }) async {
+    final db = await database;
+    return await db.query(
+      'scores',
+      where: 'subject_code = ? AND section_name = ? AND grade_level = ? AND grading_period = ?',
+      whereArgs: [subjectCode, sectionName, gradeLevel, gradingPeriod],
+      orderBy: 'student_name ASC',
+    );
+  }
+
   // Save (upsert) assessment setup for a class/period
   Future<void> saveAssessmentSetup(Map<String, dynamic> data) async {
     final db = await database;
