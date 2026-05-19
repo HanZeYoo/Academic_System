@@ -16,6 +16,11 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _parentEmailController = TextEditingController();
+  final TextEditingController _contactNumberController = TextEditingController();
+  final TextEditingController _parentNameController = TextEditingController();
+  final TextEditingController _parentContactController = TextEditingController();
+  final TextEditingController _homeAddressController = TextEditingController();
 
   String? _selectedGender;
   String? _selectedGradeLevel;
@@ -66,6 +71,13 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       gradeLevel: _selectedGradeLevel ?? 'N/A',
       section: _selectedSection ?? 'N/A',
       email: _emailController.text,
+      parentEmail: _parentEmailController.text,
+      gender: _selectedGender,
+      birthdate: _birthdate != null ? '${_birthdate!.month}/${_birthdate!.day}/${_birthdate!.year}' : null,
+      contactNumber: _contactNumberController.text,
+      parentName: _parentNameController.text,
+      parentContact: _parentContactController.text,
+      address: _homeAddressController.text,
     );
 
     setState(() => _isLoading = false);
@@ -298,6 +310,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                       label: 'Contact Number',
                       hint: 'Enter contact number',
                       isRequired: true,
+                      controller: _contactNumberController,
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -307,6 +320,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                             label: 'Parent/Guardian Name',
                             hint: 'Enter parent/guardian name',
                             isRequired: true,
+                            controller: _parentNameController,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -315,9 +329,16 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                             label: 'Parent Contact Number',
                             hint: 'Enter parent contact number',
                             isRequired: true,
+                            controller: _parentContactController,
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      label: 'Parent Email Address',
+                      hint: 'Enter parent email address',
+                      controller: _parentEmailController,
                     ),
                     const SizedBox(height: 16),
                     _buildTextField(
@@ -325,6 +346,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                       hint: 'Enter complete home address',
                       isRequired: true,
                       maxLines: 3,
+                      controller: _homeAddressController,
                     ),
                   ],
                 ),
@@ -378,75 +400,70 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: const Color(0xFFDBEAFE)),
                     ),
-                    child: IntrinsicHeight(
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                const CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: Color(0xFFDBEAFE),
-                                  child: Icon(Icons.mail_outline, color: Color(0xFF0F52BA)),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Text('Login / Username',
-                                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                                      SizedBox(height: 2),
-                                      Text('Student Email',
-                                          style: TextStyle(
-                                              fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-                                      SizedBox(height: 2),
-                                      Text('Used to sign in to the system',
-                                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const CircleAvatar(
+                              radius: 24,
+                              backgroundColor: Color(0xFFDBEAFE),
+                              child: Icon(Icons.mail_outline, color: Color(0xFF0F52BA)),
                             ),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8.0),
-                            child: VerticalDivider(color: Color(0xFFBFDBFE), thickness: 1, width: 16),
-                          ),
-                          Expanded(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                const CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: Color(0xFFDBEAFE),
-                                  child: Icon(Icons.lock_outline, color: Color(0xFF0F52BA)),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Text('Default Password',
-                                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                                      SizedBox(height: 2),
-                                      Text('student123',
-                                          style: TextStyle(
-                                              fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-                                      SizedBox(height: 2),
-                                      Text('Change after first login',
-                                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Text('Login / Username',
+                                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                                  SizedBox(height: 2),
+                                  Text('Student Email',
+                                      style: TextStyle(
+                                          fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                                  SizedBox(height: 2),
+                                  Text('Used to sign in to the system',
+                                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12.0),
+                          child: Divider(color: Color(0xFFBFDBFE), thickness: 1, height: 1),
+                        ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const CircleAvatar(
+                              radius: 24,
+                              backgroundColor: Color(0xFFDBEAFE),
+                              child: Icon(Icons.lock_outline, color: Color(0xFF0F52BA)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Text('Default Password',
+                                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                                  SizedBox(height: 2),
+                                  Text('student123',
+                                      style: TextStyle(
+                                          fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                                  SizedBox(height: 2),
+                                  Text('Change after first login',
+                                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),

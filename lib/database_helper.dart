@@ -19,7 +19,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'academic_system.db');
     return await openDatabase(
       path, 
-      version: 7, 
+      version: 10, 
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -123,6 +123,39 @@ class DatabaseHelper {
         )
       ''');
     }
+    if (oldVersion < 8) {
+      try {
+        await db.execute('ALTER TABLE students ADD COLUMN parent_email TEXT');
+      } catch (e) {
+        // Ignore if column already exists
+      }
+    }
+    if (oldVersion < 9) {
+      try {
+        await db.execute('ALTER TABLE students ADD COLUMN gender TEXT');
+        await db.execute('ALTER TABLE students ADD COLUMN birthdate TEXT');
+        await db.execute('ALTER TABLE students ADD COLUMN contact_number TEXT');
+        await db.execute('ALTER TABLE students ADD COLUMN parent_name TEXT');
+        await db.execute('ALTER TABLE students ADD COLUMN parent_contact TEXT');
+        await db.execute('ALTER TABLE students ADD COLUMN address TEXT');
+      } catch (e) {
+        // Ignore
+      }
+    }
+    if (oldVersion < 10) {
+      try {
+        await db.execute('ALTER TABLE teachers ADD COLUMN gender TEXT');
+        await db.execute('ALTER TABLE teachers ADD COLUMN birthdate TEXT');
+        await db.execute('ALTER TABLE teachers ADD COLUMN contact_number TEXT');
+        await db.execute('ALTER TABLE teachers ADD COLUMN address TEXT');
+        await db.execute('ALTER TABLE teachers ADD COLUMN specialization TEXT');
+        await db.execute('ALTER TABLE teachers ADD COLUMN employment_status TEXT');
+        await db.execute('ALTER TABLE teachers ADD COLUMN hiring_date TEXT');
+        await db.execute('ALTER TABLE teachers ADD COLUMN assigned_section TEXT');
+      } catch (e) {
+        // Ignore
+      }
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -143,7 +176,15 @@ class DatabaseHelper {
         teacher_id TEXT,
         name TEXT,
         department TEXT,
-        email TEXT
+        email TEXT,
+        gender TEXT,
+        birthdate TEXT,
+        contact_number TEXT,
+        address TEXT,
+        specialization TEXT,
+        employment_status TEXT,
+        hiring_date TEXT,
+        assigned_section TEXT
       )
     ''');
 
@@ -155,7 +196,14 @@ class DatabaseHelper {
         name TEXT,
         grade_level TEXT,
         section TEXT,
-        email TEXT
+        email TEXT,
+        parent_email TEXT,
+        gender TEXT,
+        birthdate TEXT,
+        contact_number TEXT,
+        parent_name TEXT,
+        parent_contact TEXT,
+        address TEXT
       )
     ''');
 
@@ -241,6 +289,13 @@ class DatabaseHelper {
     required String gradeLevel,
     required String section,
     required String email,
+    required String parentEmail,
+    String? gender,
+    String? birthdate,
+    String? contactNumber,
+    String? parentName,
+    String? parentContact,
+    String? address,
   }) async {
     final db = await database;
     await db.transaction((txn) async {
@@ -250,6 +305,13 @@ class DatabaseHelper {
         'grade_level': gradeLevel,
         'section': section,
         'email': email,
+        'parent_email': parentEmail,
+        'gender': gender,
+        'birthdate': birthdate,
+        'contact_number': contactNumber,
+        'parent_name': parentName,
+        'parent_contact': parentContact,
+        'address': address,
       });
       // Auto-create user account for student
       if (email.isNotEmpty) {
@@ -445,6 +507,14 @@ class DatabaseHelper {
     required String name,
     required String department,
     required String email,
+    String? gender,
+    String? birthdate,
+    String? contactNumber,
+    String? address,
+    String? specialization,
+    String? employmentStatus,
+    String? hiringDate,
+    String? assignedSection,
   }) async {
     final db = await database;
     await db.transaction((txn) async {
@@ -453,6 +523,14 @@ class DatabaseHelper {
         'name': name,
         'department': department,
         'email': email,
+        'gender': gender,
+        'birthdate': birthdate,
+        'contact_number': contactNumber,
+        'address': address,
+        'specialization': specialization,
+        'employment_status': employmentStatus,
+        'hiring_date': hiringDate,
+        'assigned_section': assignedSection,
       });
       // Automatically create a user account for the teacher
       await txn.insert('users', {
@@ -464,20 +542,37 @@ class DatabaseHelper {
   }
 
   // Update a teacher
-  Future<void> updateTeacher(int id, {
-    required String teacherId,
-    required String name,
-    required String department,
-    required String email,
+  Future<void> updateTeacher(
+    int id, {
+    String? teacherId,
+    String? name,
+    String? department,
+    String? email,
+    String? gender,
+    String? birthdate,
+    String? contactNumber,
+    String? address,
+    String? specialization,
+    String? employmentStatus,
+    String? hiringDate,
+    String? assignedSection,
   }) async {
     final db = await database;
     await db.update(
       'teachers',
       {
-        'teacher_id': teacherId,
-        'name': name,
-        'department': department,
-        'email': email,
+        if (teacherId != null) 'teacher_id': teacherId,
+        if (name != null) 'name': name,
+        if (department != null) 'department': department,
+        if (email != null) 'email': email,
+        if (gender != null) 'gender': gender,
+        if (birthdate != null) 'birthdate': birthdate,
+        if (contactNumber != null) 'contact_number': contactNumber,
+        if (address != null) 'address': address,
+        if (specialization != null) 'specialization': specialization,
+        if (employmentStatus != null) 'employment_status': employmentStatus,
+        if (hiringDate != null) 'hiring_date': hiringDate,
+        if (assignedSection != null) 'assigned_section': assignedSection,
       },
       where: 'id = ?',
       whereArgs: [id],

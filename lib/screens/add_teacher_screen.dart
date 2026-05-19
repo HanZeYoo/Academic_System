@@ -16,6 +16,8 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _contactNumberController = TextEditingController();
+  final TextEditingController _homeAddressController = TextEditingController();
   
   String? _selectedGender;
   String? _selectedDepartment;
@@ -43,6 +45,35 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
       }
       
       _selectedDepartment = data['department']?.toString().isNotEmpty == true ? data['department'].toString() : null;
+      _selectedGender = data['gender']?.toString().isNotEmpty == true ? data['gender'].toString() : null;
+      _selectedSubjectSpecialization = data['specialization']?.toString().isNotEmpty == true ? data['specialization'].toString() : null;
+      _selectedEmploymentStatus = data['employment_status']?.toString().isNotEmpty == true ? data['employment_status'].toString() : null;
+      _selectedAssignedSection = data['assigned_section']?.toString().isNotEmpty == true ? data['assigned_section'].toString() : null;
+      
+      _contactNumberController.text = data['contact_number']?.toString() ?? '';
+      _homeAddressController.text = data['address']?.toString() ?? '';
+      
+      if (data['birthdate'] != null && data['birthdate'].toString().isNotEmpty) {
+        try {
+          final parts = data['birthdate'].toString().split('/');
+          if (parts.length == 3) {
+            _birthdate = DateTime(int.parse(parts[2]), int.parse(parts[0]), int.parse(parts[1]));
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+      
+      if (data['hiring_date'] != null && data['hiring_date'].toString().isNotEmpty) {
+        try {
+          final parts = data['hiring_date'].toString().split('/');
+          if (parts.length == 3) {
+            _hiringDate = DateTime(int.parse(parts[2]), int.parse(parts[0]), int.parse(parts[1]));
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
     }
   }
 
@@ -93,6 +124,14 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         name: fullName,
         department: _selectedDepartment ?? 'Unknown Department',
         email: _emailController.text,
+        gender: _selectedGender,
+        birthdate: _birthdate != null ? '${_birthdate!.month}/${_birthdate!.day}/${_birthdate!.year}' : null,
+        contactNumber: _contactNumberController.text,
+        address: _homeAddressController.text,
+        specialization: _selectedSubjectSpecialization,
+        employmentStatus: _selectedEmploymentStatus,
+        hiringDate: _hiringDate != null ? '${_hiringDate!.month}/${_hiringDate!.day}/${_hiringDate!.year}' : null,
+        assignedSection: _selectedAssignedSection,
       );
     } else {
       await DatabaseHelper().addTeacher(
@@ -100,6 +139,14 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         name: fullName,
         department: _selectedDepartment ?? 'Unknown Department',
         email: _emailController.text,
+        gender: _selectedGender,
+        birthdate: _birthdate != null ? '${_birthdate!.month}/${_birthdate!.day}/${_birthdate!.year}' : null,
+        contactNumber: _contactNumberController.text,
+        address: _homeAddressController.text,
+        specialization: _selectedSubjectSpecialization,
+        employmentStatus: _selectedEmploymentStatus,
+        hiringDate: _hiringDate != null ? '${_hiringDate!.month}/${_hiringDate!.day}/${_hiringDate!.year}' : null,
+        assignedSection: _selectedAssignedSection,
       );
     }
     
@@ -345,6 +392,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                       label: 'Contact Number',
                       hint: 'Enter contact number',
                       isRequired: true,
+                      controller: _contactNumberController,
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -386,6 +434,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                       hint: 'Enter complete home address',
                       isRequired: true,
                       maxLines: 3,
+                      controller: _homeAddressController,
                     ),
                   ],
                 ),
@@ -446,89 +495,80 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: const Color(0xFFDBEAFE)),
                     ),
-                    child: IntrinsicHeight(
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                const CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: Color(0xFFDBEAFE),
-                                  child: Icon(Icons.mail_outline, color: Color(0xFF0F52BA)),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Text(
-                                        'Login / Username',
-                                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                                      ),
-                                      SizedBox(height: 2),
-                                      Text(
-                                        'Teacher Email',
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                                      ),
-                                      SizedBox(height: 2),
-                                      Text(
-                                        'Used to sign in to the system',
-                                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                                      ),
-                                    ],
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const CircleAvatar(
+                              radius: 24,
+                              backgroundColor: Color(0xFFDBEAFE),
+                              child: Icon(Icons.mail_outline, color: Color(0xFF0F52BA)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Text(
+                                    'Login / Username',
+                                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8.0),
-                            child: VerticalDivider(
-                              color: Color(0xFFBFDBFE),
-                              thickness: 1,
-                              width: 16,
-                            ),
-                          ),
-                          Expanded(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                const CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: Color(0xFFDBEAFE),
-                                  child: Icon(Icons.lock_outline, color: Color(0xFF0F52BA)),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: const [
-                                      Text(
-                                        'Default Password',
-                                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                                      ),
-                                      SizedBox(height: 2),
-                                      Text(
-                                        'teacher123',
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                                      ),
-                                      SizedBox(height: 2),
-                                      Text(
-                                        'Change after first login',
-                                        style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                                      ),
-                                    ],
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Teacher Email',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
                                   ),
-                                ),
-                              ],
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Used to sign in to the system',
+                                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12.0),
+                          child: Divider(color: Color(0xFFBFDBFE), thickness: 1, height: 1),
+                        ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const CircleAvatar(
+                              radius: 24,
+                              backgroundColor: Color(0xFFDBEAFE),
+                              child: Icon(Icons.lock_outline, color: Color(0xFF0F52BA)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Text(
+                                    'Default Password',
+                                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'teacher123',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Change after first login',
+                                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),

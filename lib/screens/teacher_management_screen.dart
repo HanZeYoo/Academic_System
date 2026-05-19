@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import 'add_teacher_screen.dart';
 import 'teacher_dashboard_screen.dart';
+import 'teacher_detail_screen.dart';
 
 class TeacherManagementScreen extends StatefulWidget {
   const TeacherManagementScreen({super.key});
@@ -238,7 +239,14 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
               Icons.remove_red_eye_outlined,
               color: Color(0xFF1664C5),
             ),
-            onPressed: () => _showViewDialog(teacher),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TeacherDetailScreen(teacher: teacher),
+                ),
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
@@ -257,59 +265,4 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
     );
   }
 
-  void _showViewDialog(Map<String, dynamic> item) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Teacher Details', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDetailRow('Teacher ID', item['teacher_id']),
-              _buildDetailRow('Name', item['name']),
-              _buildDetailRow('Department', item['department']),
-              _buildDetailRow('Email', item['email']),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, dynamic value) {
-    if (value == null || value.toString().isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value.toString(),
-              style: const TextStyle(fontSize: 13, color: Colors.black54),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import 'class_evaluation_report_screen.dart';
 
 class TeacherAcademicEvaluationScreen extends StatefulWidget {
   final String username;
@@ -184,6 +185,17 @@ class _TeacherAcademicEvaluationScreenState
       classAvg = _students.fold(0.0, (sum, s) => sum + _computeGrade(s['student_id'].toString())) / totalStudents;
     }
 
+    // Prepare data for the detailed report screen
+    final List<Map<String, dynamic>> studentGradesForReport = gradeList.map((s) {
+      final grade = _computeGrade(s['student_id'].toString());
+      return {
+        'name': s['name'].toString(),
+        'id': s['student_id'].toString(),
+        'grade': grade,
+        'isPassed': grade >= 75,
+      };
+    }).toList();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F8FA),
       body: SingleChildScrollView(
@@ -307,6 +319,35 @@ class _TeacherAcademicEvaluationScreenState
               actAvg: _classCategoryAvg('Activity'),
               prjAvg: _classCategoryAvg('Project'),
               examAvg: _classCategoryAvg('Exam'),
+            ),
+            const SizedBox(height: 24),
+
+            // View Detailed Report Button
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ClassEvaluationReportScreen(
+                        className: '${_selectedClassData!["grade_level"]} - ${_selectedClassData!["section_name"]}',
+                        subjectCode: _selectedClassData!["subject_name"]?.toString() ?? 'Subject',
+                        gradingPeriod: _selectedPeriod,
+                        studentGrades: studentGradesForReport,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.analytics_outlined),
+                label: const Text('View Detailed Class Report', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F52BA),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
             ),
             const SizedBox(height: 24),
 

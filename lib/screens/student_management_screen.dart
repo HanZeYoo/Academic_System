@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import 'add_student_screen.dart';
+import 'student_detail_screen.dart';
 
 class StudentManagementScreen extends StatefulWidget {
   const StudentManagementScreen({super.key});
@@ -127,11 +128,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                         itemCount: _students.length,
                         itemBuilder: (context, index) {
                           final s = _students[index];
-                          return _buildStudentCard(
-                            s['name'] ?? 'Unknown',
-                            'ID: ${s['student_id']}',
-                            '${s['grade_level']} - ${s['section']}',
-                          );
+                          return _buildStudentCard(context, s);
                         },
                       ),
           ),
@@ -188,7 +185,11 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
     );
   }
 
-  Widget _buildStudentCard(String name, String id, String section) {
+  Widget _buildStudentCard(BuildContext context, Map<String, dynamic> student) {
+    final name = student['name'] ?? 'Unknown';
+    final id = 'ID: ${student['student_id']}';
+    final section = '${student['grade_level']} - ${student['section']}';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -217,7 +218,14 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF1664C5)),
-            onPressed: () {},
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => StudentDetailScreen(student: student),
+                ),
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
