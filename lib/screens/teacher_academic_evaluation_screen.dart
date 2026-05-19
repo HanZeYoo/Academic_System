@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import 'class_evaluation_report_screen.dart';
+import 'student_evaluation_detail_screen.dart';
 
 class TeacherAcademicEvaluationScreen extends StatefulWidget {
   final String username;
@@ -424,6 +425,23 @@ class _TeacherAcademicEvaluationScreenState
                   examColor: examPct > 0 && examPct < 75
                       ? const Color(0xFFEF4444)
                       : const Color(0xFF3B82F6),
+                  onViewDetails: () {
+                    final studentScores = _allScores
+                        .where((r) => r['student_id'].toString() == sid)
+                        .toList();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => StudentEvaluationDetailScreen(
+                          student: student,
+                          subjectName: _selectedClassData?["subject_name"]?.toString() ?? 'Subject',
+                          gradingPeriod: _selectedPeriod,
+                          scores: studentScores,
+                          assessmentSetup: _assessmentSetup,
+                        ),
+                      ),
+                    );
+                  },
                 );
               }),
 
@@ -771,6 +789,7 @@ class _TeacherAcademicEvaluationScreenState
     required String examAvg,
     Color quizColor = const Color(0xFF3B82F6),
     Color examColor = const Color(0xFF3B82F6),
+    VoidCallback? onViewDetails,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -961,7 +980,7 @@ class _TeacherAcademicEvaluationScreenState
               _buildPill('Quiz Avg.', quizAvg, quizColor),
               _buildPill('Exam Avg.', examAvg, examColor),
               _buildOutlinedButton(Icons.visibility_outlined, 'View Details',
-                  const Color(0xFF3B82F6)),
+                  const Color(0xFF3B82F6), onTap: onViewDetails),
               _buildOutlinedButton(
                   Icons.chat_bubble_outline, 'Remarks', const Color(0xFF3B82F6)),
             ],
@@ -998,9 +1017,9 @@ class _TeacherAcademicEvaluationScreenState
     );
   }
 
-  Widget _buildOutlinedButton(IconData icon, String label, Color color) {
+  Widget _buildOutlinedButton(IconData icon, String label, Color color, {VoidCallback? onTap}) {
     return InkWell(
-      onTap: () {},
+      onTap: onTap ?? () {},
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
