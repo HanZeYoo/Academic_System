@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../database_helper.dart';
 
 class AddStudentScreen extends StatefulWidget {
-  const AddStudentScreen({super.key});
+  final Map<String, dynamic>? existingStudent;
+  const AddStudentScreen({super.key, this.existingStudent});
 
   @override
   State<AddStudentScreen> createState() => _AddStudentScreenState();
@@ -26,6 +27,51 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   String? _selectedGradeLevel;
   String? _selectedSection;
   DateTime? _birthdate;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existingStudent != null) {
+      final s = widget.existingStudent!;
+      _studentIdController.text = s['student_id'] ?? '';
+      
+      final nameParts = (s['name'] ?? '').toString().split(' ');
+      if (nameParts.length > 1) {
+        _lastNameController.text = nameParts.last;
+        _firstNameController.text = nameParts.sublist(0, nameParts.length - 1).join(' ');
+      } else {
+        _firstNameController.text = s['name'] ?? '';
+      }
+      
+      _emailController.text = s['email'] ?? '';
+      _parentEmailController.text = s['parent_email'] ?? '';
+      _contactNumberController.text = s['contact_number'] ?? '';
+      _parentNameController.text = s['parent_name'] ?? '';
+      _parentContactController.text = s['parent_contact'] ?? '';
+      _homeAddressController.text = s['address'] ?? '';
+      
+      if (['Male', 'Female', 'Other'].contains(s['gender'])) {
+        _selectedGender = s['gender'];
+      }
+      if (['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'].contains(s['grade_level'])) {
+        _selectedGradeLevel = s['grade_level'];
+      }
+      if (['Section A', 'Section B', 'Section C', 'Section D'].contains(s['section'])) {
+        _selectedSection = s['section'];
+      }
+      
+      if (s['birthdate'] != null && s['birthdate'].toString().isNotEmpty) {
+        try {
+          final parts = s['birthdate'].toString().split('/');
+          if (parts.length == 3) {
+            _birthdate = DateTime(int.parse(parts[2]), int.parse(parts[0]), int.parse(parts[1]));
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+  }
 
   Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
@@ -65,20 +111,38 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
     final fullName = '${_firstNameController.text} ${_lastNameController.text}';
 
-    await DatabaseHelper().addStudent(
-      studentId: _studentIdController.text,
-      name: fullName,
-      gradeLevel: _selectedGradeLevel ?? 'N/A',
-      section: _selectedSection ?? 'N/A',
-      email: _emailController.text,
-      parentEmail: _parentEmailController.text,
-      gender: _selectedGender,
-      birthdate: _birthdate != null ? '${_birthdate!.month}/${_birthdate!.day}/${_birthdate!.year}' : null,
-      contactNumber: _contactNumberController.text,
-      parentName: _parentNameController.text,
-      parentContact: _parentContactController.text,
-      address: _homeAddressController.text,
-    );
+    if (widget.existingStudent != null) {
+      await DatabaseHelper().updateStudent(
+        widget.existingStudent!['id'],
+        studentId: _studentIdController.text,
+        name: fullName,
+        gradeLevel: _selectedGradeLevel ?? 'N/A',
+        section: _selectedSection ?? 'N/A',
+        email: _emailController.text,
+        parentEmail: _parentEmailController.text,
+        gender: _selectedGender,
+        birthdate: _birthdate != null ? '${_birthdate!.month}/${_birthdate!.day}/${_birthdate!.year}' : null,
+        contactNumber: _contactNumberController.text,
+        parentName: _parentNameController.text,
+        parentContact: _parentContactController.text,
+        address: _homeAddressController.text,
+      );
+    } else {
+      await DatabaseHelper().addStudent(
+        studentId: _studentIdController.text,
+        name: fullName,
+        gradeLevel: _selectedGradeLevel ?? 'N/A',
+        section: _selectedSection ?? 'N/A',
+        email: _emailController.text,
+        parentEmail: _parentEmailController.text,
+        gender: _selectedGender,
+        birthdate: _birthdate != null ? '${_birthdate!.month}/${_birthdate!.day}/${_birthdate!.year}' : null,
+        contactNumber: _contactNumberController.text,
+        parentName: _parentNameController.text,
+        parentContact: _parentContactController.text,
+        address: _homeAddressController.text,
+      );
+    }
 
     setState(() => _isLoading = false);
 
@@ -121,18 +185,18 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Add Student',
-                style: TextStyle(
+              Text(
+                widget.existingStudent != null ? 'Edit Student' : 'Add Student',
+                style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF0F172A),
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'Create a new student record',
-                style: TextStyle(fontSize: 15, color: Color(0xFF475569)),
+              Text(
+                widget.existingStudent != null ? 'Update student record details' : 'Create a new student record',
+                style: const TextStyle(fontSize: 15, color: Color(0xFF475569)),
               ),
               const SizedBox(height: 24),
 

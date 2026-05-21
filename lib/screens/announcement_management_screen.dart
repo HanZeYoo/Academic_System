@@ -1,61 +1,325 @@
 import 'package:flutter/material.dart';
+import '../database_helper.dart';
 
-class AnnouncementManagementScreen extends StatelessWidget {
-  const AnnouncementManagementScreen({super.key});
+class AnnouncementManagementScreen extends StatefulWidget {
+  final String? username;
+  final String? role;
+  const AnnouncementManagementScreen({super.key, this.username, this.role});
+
+  @override
+  State<AnnouncementManagementScreen> createState() => _AnnouncementManagementScreenState();
+}
+
+class _AnnouncementManagementScreenState extends State<AnnouncementManagementScreen> {
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _announcements = [];
+  List<String> _audienceOptions = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final db = DatabaseHelper();
+    
+    // Load audience options based on role
+    if (widget.role != 'student') {
+      if (widget.username != null) {
+        final teacher = await db.getTeacherByEmail(widget.username!);
+        if (teacher != null) {
+          final classes = await db.getSubjectClassesByTeacher(teacher['name'].toString());
+          _audienceOptions = classes.map((c) => '${c["grade_level"]} - ${c["section_name"]} (${c["subject_name"]})').toList();
+        }
+      } else {
+        _audienceOptions = ['System-wide', 'All Students', 'All Teachers'];
+      }
+    }
+
+    // Load announcements
+    final announcements = await db.getAnnouncements(widget.username, role: widget.role);
+    
+    if (mounted) {
+      setState(() {
+        _announcements = announcements;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _deleteAnnouncement(int id) async {
+    await DatabaseHelper().deleteAnnouncement(id);
+    _loadData();
+  }
+
+  void _confirmDelete(int id) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.warning, color: Colors.red, size: 24),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Delete Announcement',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: const Text('Are you sure you want to delete this announcement? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(foregroundColor: Colors.grey.shade600),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteAnnouncement(id);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPostDialog({Map<String, dynamic>? existingAnnouncement}) {
+    final isEditing = existingAnnouncement != null;
+    final titleCtrl = TextEditingController(text: isEditing ? existingAnnouncement['title'] : '');
+    final contentCtrl = TextEditingController(text: isEditing ? existingAnnouncement['content'] : '');
+    
+    String selectedAudience = 'System-wide';
+    if (isEditing) {
+      selectedAudience = existingAnnouncement['audience'];
+      if (!_audienceOptions.contains(selectedAudience)) {
+        _audienceOptions.add(selectedAudience); // Ensure it's in the dropdown options
+      }
+    } else if (_audienceOptions.isNotEmpty) {
+      selectedAudience = _audienceOptions.first;
+    }
+    
+    bool isPinned = isEditing ? (existingAnnouncement['is_pinned'] == 1) : false;
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateModal) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E66B4).withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(isEditing ? Icons.edit : Icons.campaign, color: const Color(0xFF1E66B4), size: 24),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isEditing ? 'Edit Announcement' : 'Post Announcement',
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.85,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: titleCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Title',
+                      hintText: 'Enter announcement title',
+                      labelStyle: const TextStyle(color: Color(0xFF1E66B4)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFF1E66B4), width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade400),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: contentCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Content',
+                      hintText: 'Enter announcement content...',
+                      labelStyle: const TextStyle(color: Color(0xFF1E66B4)),
+                      alignLabelWithHint: true,
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFF1E66B4), width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade400),
+                      ),
+                    ),
+                    maxLines: 4,
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: selectedAudience,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Audience',
+                      labelStyle: const TextStyle(color: Color(0xFF1E66B4)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: Color(0xFF1E66B4), width: 2),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: Colors.grey.shade400),
+                      ),
+                    ),
+                    items: _audienceOptions.map((opt) => DropdownMenuItem(
+                      value: opt,
+                      child: Text(
+                        opt,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    )).toList(),
+                    onChanged: (val) {
+                      setStateModal(() => selectedAudience = val!);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () {
+                      setStateModal(() => isPinned = !isPinned);
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: isPinned,
+                            activeColor: const Color(0xFF1E66B4),
+                            onChanged: (val) {
+                              setStateModal(() => isPinned = val ?? false);
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Pin announcement to the top',
+                              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                if (titleCtrl.text.isEmpty || contentCtrl.text.isEmpty) return;
+                
+                final announcementData = {
+                  'title': titleCtrl.text,
+                  'content': contentCtrl.text,
+                  'audience': selectedAudience,
+                  'date_posted': isEditing ? existingAnnouncement['date_posted'] : DateTime.now().toString().split(' ')[0],
+                  'status': 'Active',
+                  'is_pinned': isPinned ? 1 : 0,
+                  'author': isEditing ? existingAnnouncement['author'] : (widget.username ?? 'admin'),
+                };
+                
+                if (isEditing) {
+                  await DatabaseHelper().updateAnnouncement(existingAnnouncement['id'], announcementData);
+                } else {
+                  await DatabaseHelper().addAnnouncement(announcementData);
+                }
+                
+                if (mounted) {
+                  Navigator.pop(context);
+                  _loadData();
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E66B4),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(isEditing ? 'Save Changes' : 'Post'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeader(),
-          const SizedBox(height: 20),
-          _buildPostButton(),
+          if (widget.role != 'student') ...[
+            const SizedBox(height: 20),
+            _buildPostButton(),
+          ],
           const SizedBox(height: 24),
           const Text(
-            'Active Announcements',
+            'Announcements',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          _buildAnnouncementCard(
-            title: 'Final Examination Schedule',
-            date: 'May 16, 2026',
-            audience: 'All Students & Teachers',
-            status: 'Active',
-            statusColor: const Color(0xFF4DC271),
-            content:
-                'Please be reminded that the final examinations will commence next week. Refer to the updated schedule posted in the portal.',
-            isPinned: true,
-          ),
-          const SizedBox(height: 12),
-          _buildAnnouncementCard(
-            title: 'System Maintenance Downtime',
-            date: 'May 14, 2026',
-            audience: 'System-wide',
-            status: 'Active',
-            statusColor: const Color(0xFF4DC271),
-            content:
-                'The academic system will undergo scheduled maintenance this coming Saturday from 12:00 AM to 4:00 AM.',
-            isPinned: false,
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Scheduled / Drafts',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          _buildAnnouncementCard(
-            title: 'Upcoming Intramurals 2026',
-            date: 'Starts: June 1, 2026',
-            audience: 'All Students',
-            status: 'Scheduled',
-            statusColor: const Color(0xFFF6A65C),
-            content:
-                'Get ready for this year\'s campus intramurals! Registration for various sports events will open soon.',
-            isPinned: false,
-          ),
+          if (_announcements.isEmpty)
+            const Text('No announcements posted yet.', style: TextStyle(color: Colors.grey)),
+          ..._announcements.map((a) => _buildAnnouncementCard(
+                id: a['id'] as int,
+                title: a['title']?.toString() ?? '',
+                date: a['date_posted']?.toString() ?? '',
+                audience: a['audience']?.toString() ?? '',
+                status: a['status']?.toString() ?? 'Active',
+                statusColor: const Color(0xFF4DC271),
+                content: a['content']?.toString() ?? '',
+                isPinned: (a['is_pinned'] as int?) == 1,
+                author: a['author']?.toString(),
+              )),
         ],
       ),
     );
@@ -89,7 +353,7 @@ class AnnouncementManagementScreen extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: () {},
+        onPressed: () => _showPostDialog(),
         icon: const Icon(Icons.add_alert, color: Colors.white),
         label: const Text(
           'Post New Announcement',
@@ -107,6 +371,7 @@ class AnnouncementManagementScreen extends StatelessWidget {
   }
 
   Widget _buildAnnouncementCard({
+    required int id,
     required String title,
     required String date,
     required String audience,
@@ -114,8 +379,13 @@ class AnnouncementManagementScreen extends StatelessWidget {
     required Color statusColor,
     required String content,
     required bool isPinned,
+    String? author,
   }) {
+    // Admin (widget.username == null) can edit anything. Teacher can only edit their own. Student cannot edit.
+    bool canEdit = widget.role != 'student' && (widget.username == null || author == widget.username);
+
     return Container(
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -199,41 +469,55 @@ class AnnouncementManagementScreen extends StatelessWidget {
           Text(
             content,
             style: const TextStyle(fontSize: 14, color: Colors.black87),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 16),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _buildActionButton(Icons.edit, 'Edit', Colors.orange),
-              const SizedBox(width: 16),
-              _buildActionButton(Icons.delete, 'Delete', Colors.red),
-            ],
-          ),
+          if (canEdit) ...[
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                _buildActionButton(Icons.edit, 'Edit', const Color(0xFF1E66B4), () {
+                  _showPostDialog(existingAnnouncement: {
+                    'id': id,
+                    'title': title,
+                    'content': content,
+                    'audience': audience,
+                    'is_pinned': isPinned ? 1 : 0,
+                    'date_posted': date,
+                    'author': author,
+                  });
+                }),
+                const SizedBox(width: 16),
+                _buildActionButton(Icons.delete, 'Delete', Colors.red, () => _confirmDelete(id)),
+              ],
+            ),
+          ]
         ],
       ),
     );
   }
 
-  Widget _buildActionButton(IconData icon, String label, Color color) {
+  Widget _buildActionButton(IconData icon, String label, Color color, VoidCallback onTap) {
     return InkWell(
-      onTap: () {},
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              color: color,
-              fontWeight: FontWeight.w600,
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.all(4.0),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -10,6 +10,8 @@ import 'teacher_academic_evaluation_screen.dart';
 import 'failure_analytics_screen.dart';
 import 'teacher_parent_notification_screen.dart';
 import 'teacher_attendance_screen.dart';
+import 'reports_generation_screen.dart';
+import 'announcement_management_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   final String username;
@@ -247,6 +249,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     }
     if (_selectedMenu == 'Attendance') {
       return TeacherAttendanceScreen(username: widget.username);
+    }
+    if (_selectedMenu == 'Reports') {
+      return ReportsGenerationScreen(username: widget.username);
+    }
+    if (_selectedMenu == 'Announcement') {
+      return AnnouncementManagementScreen(username: widget.username);
     }
 
     return Center(

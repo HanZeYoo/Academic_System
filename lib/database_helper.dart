@@ -19,7 +19,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'academic_system.db');
     return await openDatabase(
       path, 
-      version: 12, 
+      version: 13, 
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -175,6 +175,20 @@ class DatabaseHelper {
         // Ignore
       }
     }
+    if (oldVersion < 13) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS announcements (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT,
+          content TEXT,
+          audience TEXT,
+          date_posted TEXT,
+          status TEXT,
+          is_pinned INTEGER,
+          author TEXT
+        )
+      ''');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -245,6 +259,20 @@ class DatabaseHelper {
         capacity TEXT,
         class_type TEXT,
         status TEXT
+      )
+    ''');
+
+    // Create announcements table
+    await db.execute('''
+      CREATE TABLE announcements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        content TEXT,
+        audience TEXT,
+        date_posted TEXT,
+        status TEXT,
+        is_pinned INTEGER,
+        author TEXT
       )
     ''');
 
@@ -356,10 +384,73 @@ class DatabaseHelper {
     });
   }
 
+  // Update a student
+  Future<void> updateStudent(
+    int id, {
+    String? studentId,
+    String? name,
+    String? gradeLevel,
+    String? section,
+    String? email,
+    String? parentEmail,
+    String? gender,
+    String? birthdate,
+    String? contactNumber,
+    String? parentName,
+    String? parentContact,
+    String? address,
+  }) async {
+    final db = await database;
+    await db.update(
+      'students',
+      {
+        if (studentId != null) 'student_id': studentId,
+        if (name != null) 'name': name,
+        if (gradeLevel != null) 'grade_level': gradeLevel,
+        if (section != null) 'section': section,
+        if (email != null) 'email': email,
+        if (parentEmail != null) 'parent_email': parentEmail,
+        if (gender != null) 'gender': gender,
+        if (birthdate != null) 'birthdate': birthdate,
+        if (contactNumber != null) 'contact_number': contactNumber,
+        if (parentName != null) 'parent_name': parentName,
+        if (parentContact != null) 'parent_contact': parentContact,
+        if (address != null) 'address': address,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   // Get all students
   Future<List<Map<String, dynamic>>> getStudents() async {
     final db = await database;
     return await db.query('students', orderBy: 'id DESC');
+  }
+
+  // Get a single student by email
+  Future<Map<String, dynamic>?> getStudentByEmail(String email) async {
+    final db = await database;
+    final result = await db.query('students', where: 'email = ?', whereArgs: [email], limit: 1);
+    if (result.isNotEmpty) {
+      return result.first;
+    }
+    return null;
+  }
+
+  // Get student schedule based on enrolled grade level and section
+  Future<List<Map<String, dynamic>>> getStudentSchedule(String email) async {
+    final db = await database;
+    final studentQuery = await db.query('students', where: 'email = ?', whereArgs: [email], limit: 1);
+    if (studentQuery.isNotEmpty) {
+      final s = studentQuery.first;
+      return await db.query(
+        'subjects_classes',
+        where: 'grade_level = ? AND section_name = ?',
+        whereArgs: [s['grade_level'], s['section']],
+      );
+    }
+    return [];
   }
 
   // Get students by grade level and section
@@ -399,6 +490,21 @@ class DatabaseHelper {
     } else {
       await db.insert('scores', scoreData);
     }
+  }
+
+  // Get all scores for a student by email
+  Future<List<Map<String, dynamic>>> getStudentAllScores(String email) async {
+    final db = await database;
+    final studentQuery = await db.query('students', where: 'email = ?', whereArgs: [email], limit: 1);
+    if (studentQuery.isNotEmpty) {
+      final s = studentQuery.first;
+      return await db.query(
+        'scores',
+        where: 'student_id = ?',
+        whereArgs: [s['student_id']],
+      );
+    }
+    return [];
   }
 
   // Get scores for a specific class/subject/category/item/period
@@ -692,5 +798,78 @@ class DatabaseHelper {
       where: 'class_name = ?',
       whereArgs: [className],
     );
+  }
+
+  // Add Announcement
+  Future<void> addAnnouncement(Map<String, dynamic> announcementData) async {
+    final db = await database;
+    await db.insert('announcements', announcementData);
+  }
+
+  // Get student attendance
+  Future<List<Map<String, dynamic>>> getStudentAttendance(String email) async {
+    final db = await database;
+    final studentQuery = await db.query('students', where: 'email = ?', whereArgs: [email], limit: 1);
+    if (studentQuery.isNotEmpty) {
+      final s = studentQuery.first;
+      return await db.query(
+        'attendance',
+        where: 'student_id = ?',
+        whereArgs: [s['student_id']],
+        orderBy: 'date DESC',
+      );
+    }
+    return [];
+  }
+
+  // Get Announcements
+  Future<List<Map<String, dynamic>>> getAnnouncements(String? username, {String? role}) async {
+    final db = await database;
+    
+    if (role == 'student' && username != null) {
+      // Find the student's grade and section
+      final studentQuery = await db.query('students', where: 'email = ?', whereArgs: [username], limit: 1);
+      if (studentQuery.isNotEmpty) {
+        final s = studentQuery.first;
+        final sectionPattern = '${s["grade_level"]} - ${s["section"]}%';
+        return await db.query(
+          'announcements',
+          where: 'audience = ? OR audience = ? OR audience LIKE ?',
+          whereArgs: ['System-wide', 'All Students', sectionPattern],
+          orderBy: 'is_pinned DESC, id DESC',
+        );
+      } else {
+        // Fallback if student details not found
+        return await db.query(
+          'announcements',
+          where: 'audience = ? OR audience = ?',
+          whereArgs: ['System-wide', 'All Students'],
+          orderBy: 'is_pinned DESC, id DESC',
+        );
+      }
+    } else if (username != null) {
+      // Teacher: get their own, OR system-wide, OR All Teachers
+      return await db.query(
+        'announcements',
+        where: 'author = ? OR audience = ? OR audience = ?',
+        whereArgs: [username, 'System-wide', 'All Teachers'],
+        orderBy: 'is_pinned DESC, id DESC',
+      );
+    } else {
+      // Admin: get all
+      return await db.query('announcements', orderBy: 'is_pinned DESC, id DESC');
+    }
+  }
+
+  // Delete Announcement
+  Future<void> deleteAnnouncement(int id) async {
+    final db = await database;
+    await db.delete('announcements', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Update Announcement
+  Future<void> updateAnnouncement(int id, Map<String, dynamic> announcementData) async {
+    final db = await database;
+    await db.update('announcements', announcementData, where: 'id = ?', whereArgs: [id]);
   }
 }

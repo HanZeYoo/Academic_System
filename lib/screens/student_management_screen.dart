@@ -229,7 +229,17 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
-            onPressed: () {},
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AddStudentScreen(existingStudent: student),
+                ),
+              );
+              if (result == true) {
+                _loadStudents();
+              }
+            },
           ),
         ],
       ),

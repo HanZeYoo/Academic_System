@@ -1,10 +1,59 @@
 import 'package:flutter/material.dart';
+import '../database_helper.dart';
 
-class ReportsGenerationScreen extends StatelessWidget {
-  const ReportsGenerationScreen({super.key});
+class ReportsGenerationScreen extends StatefulWidget {
+  final String? username;
+  const ReportsGenerationScreen({super.key, this.username});
+
+  @override
+  State<ReportsGenerationScreen> createState() => _ReportsGenerationScreenState();
+}
+
+class _ReportsGenerationScreenState extends State<ReportsGenerationScreen> {
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _classes = [];
+  Map<String, dynamic>? _selectedClassData;
+  String _selectedPeriod = '1st Quarter';
+  static const _periods = ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClasses();
+  }
+
+  Future<void> _loadClasses() async {
+    final db = DatabaseHelper();
+    List<Map<String, dynamic>> classes = [];
+    
+    if (widget.username != null) {
+      final teacher = await db.getTeacherByEmail(widget.username!);
+      if (teacher != null) {
+        classes = await db.getSubjectClassesByTeacher(teacher['name'].toString());
+      }
+    } else {
+      classes = await db.getSubjectClasses();
+    }
+    
+    if (mounted) {
+      setState(() {
+        _classes = classes;
+        _selectedClassData = classes.isNotEmpty ? classes.first : null;
+        _isLoading = false;
+      });
+    }
+  }
+
+  String get _classLabel {
+    if (_selectedClassData == null) return 'No class selected';
+    return '${_selectedClassData!["grade_level"]} - ${_selectedClassData!["section_name"]} (${_selectedClassData!["subject_name"]})';
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -13,6 +62,8 @@ class ReportsGenerationScreen extends StatelessWidget {
           _buildSearchBar(),
           const SizedBox(height: 20),
           _buildHeader(),
+          const SizedBox(height: 16),
+          _buildFilterCard(),
           const SizedBox(height: 16),
           _buildStatCards(),
           const SizedBox(height: 16),
@@ -63,6 +114,86 @@ class ReportsGenerationScreen extends StatelessWidget {
             fontSize: 24,
             fontWeight: FontWeight.bold,
             color: Color(0xFF1E66B4), // Matches the text color in mockup
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Filters', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: _buildDropdownField(
+                  label: 'Class',
+                  value: _classLabel,
+                  items: _classes.isEmpty 
+                    ? ['No class selected'] 
+                    : _classes.map((c) => '${c["grade_level"]} - ${c["section_name"]} (${c["subject_name"]})').toList(),
+                  onChanged: (val) {
+                    if (_classes.isEmpty) return;
+                    final match = _classes.firstWhere((c) =>
+                      '${c["grade_level"]} - ${c["section_name"]} (${c["subject_name"]})' == val,
+                      orElse: () => _classes.first);
+                    setState(() => _selectedClassData = match);
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildDropdownField(
+                  label: 'Grading Period',
+                  value: _selectedPeriod,
+                  items: _periods.toList(),
+                  onChanged: (val) {
+                    setState(() => _selectedPeriod = val!);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdownField({
+    required String label,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: value,
+              items: items.map((item) => DropdownMenuItem(value: item, child: Text(item, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 14)))).toList(),
+              onChanged: onChanged,
+            ),
           ),
         ),
       ],
