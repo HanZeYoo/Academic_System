@@ -6,6 +6,7 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
   final String gradingPeriod;
   final List<Map<String, dynamic>> scores;
   final Map<String, dynamic>? assessmentSetup;
+  final double attendancePct;
 
   const StudentEvaluationDetailScreen({
     super.key,
@@ -14,6 +15,7 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
     required this.gradingPeriod,
     required this.scores,
     this.assessmentSetup,
+    this.attendancePct = 0.0,
   });
 
   double _categoryAvg(String category) {
@@ -36,12 +38,14 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
       final wActivity = (assessmentSetup!['activity_weight'] as num?)?.toDouble() ?? 20;
       final wProject = (assessmentSetup!['project_weight'] as num?)?.toDouble() ?? 15;
       final wExam = (assessmentSetup!['exam_weight'] as num?)?.toDouble() ?? 30;
+      final wAttendance = (assessmentSetup!['attendance_weight'] as num?)?.toDouble() ?? 0;
 
       return (_categoryAvg('Quiz') * (wQuiz / 100)) +
              (_categoryAvg('Assignment') * (wAssignment / 100)) +
              (_categoryAvg('Activity') * (wActivity / 100)) +
              (_categoryAvg('Project') * (wProject / 100)) +
-             (_categoryAvg('Exam') * (wExam / 100));
+             (_categoryAvg('Exam') * (wExam / 100)) +
+             (attendancePct * (wAttendance / 100));
     }
 
     double total = 0, max = 0;
@@ -251,6 +255,8 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
           _buildProgressRow('Activities', _categoryAvg('Activity'), assessmentSetup?['activity_weight'] ?? 20, const Color(0xFF10B981)),
           const Divider(height: 24, color: Color(0xFFF1F5F9)),
           _buildProgressRow('Assignments', _categoryAvg('Assignment'), assessmentSetup?['assignment_weight'] ?? 15, const Color(0xFFEC4899)),
+          const Divider(height: 24, color: Color(0xFFF1F5F9)),
+          _buildProgressRow('Attendance', attendancePct, assessmentSetup?['attendance_weight'] ?? 0, const Color(0xFF0DCAF0)),
         ],
       ),
     );
@@ -297,7 +303,7 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
   }
 
   Widget _buildAcademicSnapshot(bool isPassed) {
-    final attendanceStr = student['attendance']?.toString() ?? '95%';
+    final attendanceStr = '${attendancePct.toStringAsFixed(1)}%';
     
     return Row(
       children: [

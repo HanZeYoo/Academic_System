@@ -38,14 +38,17 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
       TextEditingController(text: '15');
   final TextEditingController _examWeightCtrl =
       TextEditingController(text: '30');
+  final TextEditingController _attendanceWeightCtrl =
+      TextEditingController(text: '0');
 
   int get _quizWeight => int.tryParse(_quizWeightCtrl.text) ?? 0;
   int get _assignWeight => int.tryParse(_assignWeightCtrl.text) ?? 0;
   int get _actWeight => int.tryParse(_actWeightCtrl.text) ?? 0;
   int get _projWeight => int.tryParse(_projWeightCtrl.text) ?? 0;
   int get _examWeight => int.tryParse(_examWeightCtrl.text) ?? 0;
+  int get _attendanceWeight => int.tryParse(_attendanceWeightCtrl.text) ?? 0;
   int get _totalWeight =>
-      _quizWeight + _assignWeight + _actWeight + _projWeight + _examWeight;
+      _quizWeight + _assignWeight + _actWeight + _projWeight + _examWeight + _attendanceWeight;
 
   @override
   void initState() {
@@ -55,7 +58,8 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
       _assignWeightCtrl,
       _actWeightCtrl,
       _projWeightCtrl,
-      _examWeightCtrl
+      _examWeightCtrl,
+      _attendanceWeightCtrl
     ]) {
       c.addListener(() => setState(() {}));
     }
@@ -69,7 +73,8 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
       _assignWeightCtrl,
       _actWeightCtrl,
       _projWeightCtrl,
-      _examWeightCtrl
+      _examWeightCtrl,
+      _attendanceWeightCtrl
     ]) {
       c.dispose();
     }
@@ -122,6 +127,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
         _actWeightCtrl.text = '${(saved['activity_weight'] as int?) ?? 20}';
         _projWeightCtrl.text = '${(saved['project_weight'] as int?) ?? 15}';
         _examWeightCtrl.text = '${(saved['exam_weight'] as int?) ?? 30}';
+        _attendanceWeightCtrl.text = '${(saved['attendance_weight'] as int?) ?? 0}';
       });
     } else {
       // Defaults
@@ -136,6 +142,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
         _actWeightCtrl.text = '20';
         _projWeightCtrl.text = '15';
         _examWeightCtrl.text = '30';
+        _attendanceWeightCtrl.text = '0';
       });
     }
   }
@@ -172,6 +179,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
       'activity_weight': _actWeight,
       'project_weight': _projWeight,
       'exam_weight': _examWeight,
+      'attendance_weight': _attendanceWeight,
       'created_at': DateTime.now().toIso8601String(),
     });
 
@@ -330,6 +338,12 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                                 _exams,
                                 _examWeightCtrl,
                                 (v) => setState(() => _exams = v)),
+                            _divider(),
+                            _buildWeightOnlyRow(
+                                'Attendance',
+                                Icons.assignment_turned_in,
+                                const Color(0xFF0DCAF0), // cyan
+                                _attendanceWeightCtrl),
 
                             const SizedBox(height: 16),
                             const Divider(color: Colors.black12),
@@ -776,4 +790,99 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
       ),
     );
   }
+
+  Widget _buildDropdownField({
+    required String label,
+    required String value,
+    required List<String> items,
+    required ValueChanged<String?> onChanged,
+  }) {
+    // ... not needed here, already have dropdowns ...
+    return Container();
+  }
+
+  Widget _buildWeightOnlyRow(
+    String title,
+    IconData icon,
+    Color color,
+    TextEditingController weightCtrl,
+  ) {
+    return Row(
+      children: [
+        // Label
+        Expanded(
+          flex: 4,
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Icon(icon, color: color, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(title,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87),
+                    overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+        ),
+        // Auto badge instead of stepper
+        Expanded(
+          flex: 3,
+          child: Container(
+            alignment: Alignment.center,
+            child: const Text('Auto',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey)),
+          ),
+        ),
+        // Weight input
+        Expanded(
+          flex: 2,
+          child: Container(
+            margin: const EdgeInsets.only(left: 4),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: weightCtrl,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w500),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(right: 6),
+                  child: Text('%',
+                      style:
+                          TextStyle(fontSize: 12, color: Colors.black54)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
+

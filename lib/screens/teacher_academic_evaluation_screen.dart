@@ -24,6 +24,7 @@ class _TeacherAcademicEvaluationScreenState
 
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _allScores = [];
+  List<Map<String, dynamic>> _attendanceRecords = [];
   Map<String, dynamic>? _assessmentSetup;
 
   static const _periods = [
@@ -81,13 +82,37 @@ class _TeacherAcademicEvaluationScreenState
       gradeLevel: grade,
       gradingPeriod: _selectedPeriod,
     );
+    final attendance = await db.getAttendanceForClass('$grade - $section');
 
     setState(() {
       _students = students;
       _allScores = scores;
       _assessmentSetup = setup;
+      _attendanceRecords = attendance;
       _isLoading = false;
     });
+  }
+
+  int get _totalClassDays {
+    final uniqueDates = _attendanceRecords.map((r) => r['date'].toString()).toSet();
+    return uniqueDates.length;
+  }
+
+  double _attendancePct(String studentId) {
+    final studentAtt = _attendanceRecords.where((r) => r['student_id'].toString() == studentId).toList();
+    final totalDays = _totalClassDays;
+    if (totalDays == 0) return 0.0;
+    
+    double points = 0.0;
+    for (final record in studentAtt) {
+      final status = record['status']?.toString() ?? '';
+      if (status == 'Present' || status == 'Excused') {
+        points += 1.0;
+      } else if (status == 'Late') {
+        points += 0.5;
+      }
+    }
+    return (points / totalDays) * 100;
   }
 
   /// Compute weighted average for a student from scores.
@@ -100,18 +125,21 @@ class _TeacherAcademicEvaluationScreenState
       final wActivity = (_assessmentSetup!['activity_weight'] as num?)?.toDouble() ?? 20;
       final wProject = (_assessmentSetup!['project_weight'] as num?)?.toDouble() ?? 15;
       final wExam = (_assessmentSetup!['exam_weight'] as num?)?.toDouble() ?? 30;
+      final wAttendance = (_assessmentSetup!['attendance_weight'] as num?)?.toDouble() ?? 0;
 
       final qAvg = _categoryAvg(studentId, 'Quiz');
       final asgAvg = _categoryAvg(studentId, 'Assignment');
       final actAvg = _categoryAvg(studentId, 'Activity');
       final prjAvg = _categoryAvg(studentId, 'Project');
       final exmAvg = _categoryAvg(studentId, 'Exam');
+      final attAvg = _attendancePct(studentId);
 
       return (qAvg * (wQuiz / 100)) +
              (asgAvg * (wAssignment / 100)) +
              (actAvg * (wActivity / 100)) +
              (prjAvg * (wProject / 100)) +
-             (exmAvg * (wExam / 100));
+             (exmAvg * (wExam / 100)) +
+             (attAvg * (wAttendance / 100));
     }
 
     // Fallback: simple average of all scores if no setup is defined
@@ -150,6 +178,15 @@ class _TeacherAcademicEvaluationScreenState
     }
     if (max == 0) return 0.0;
     return (total / max) * 100;
+  }
+
+  double _classAttendanceAvg() {
+    if (_students.isEmpty) return 0.0;
+    double total = 0.0;
+    for (final s in _students) {
+      total += _attendancePct(s['student_id'].toString());
+    }
+    return total / _students.length;
   }
 
   String get _classLabel {
@@ -320,6 +357,7 @@ class _TeacherAcademicEvaluationScreenState
               actAvg: _classCategoryAvg('Activity'),
               prjAvg: _classCategoryAvg('Project'),
               examAvg: _classCategoryAvg('Exam'),
+              attAvg: _classAttendanceAvg(),
             ),
             const SizedBox(height: 24),
 
@@ -438,6 +476,7 @@ class _TeacherAcademicEvaluationScreenState
                           gradingPeriod: _selectedPeriod,
                           scores: studentScores,
                           assessmentSetup: _assessmentSetup,
+                          attendancePct: _attendancePct(sid),
                         ),
                       ),
                     );
@@ -659,6 +698,7 @@ class _TeacherAcademicEvaluationScreenState
     required double actAvg,
     required double prjAvg,
     required double examAvg,
+    required double attAvg,
   }) {
     return Container(
       width: double.infinity,
@@ -742,6 +782,8 @@ class _TeacherAcademicEvaluationScreenState
                         Icons.folder_outlined, const Color(0xFF8B5CF6)),
                     _buildComponentAvg('Exam', examAvg > 0 ? '${examAvg.toStringAsFixed(1)}%' : '--',
                         Icons.assignment_outlined, const Color(0xFFF97316)),
+                    _buildComponentAvg('Attendance', attAvg > 0 ? '${attAvg.toStringAsFixed(1)}%' : '--',
+                        Icons.assignment_turned_in, const Color(0xFF0DCAF0)),
                   ],
                 );
               },

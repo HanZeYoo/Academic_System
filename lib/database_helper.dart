@@ -19,7 +19,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'academic_system.db');
     return await openDatabase(
       path, 
-      version: 10, 
+      version: 12, 
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -156,6 +156,25 @@ class DatabaseHelper {
         // Ignore
       }
     }
+    if (oldVersion < 11) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS attendance (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          student_id TEXT,
+          student_name TEXT,
+          class_name TEXT,
+          date TEXT,
+          status TEXT
+        )
+      ''');
+    }
+    if (oldVersion < 12) {
+      try {
+        await db.execute('ALTER TABLE assessment_setups ADD COLUMN attendance_weight INTEGER DEFAULT 0');
+      } catch (e) {
+        // Ignore
+      }
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -269,8 +288,21 @@ class DatabaseHelper {
         activity_weight INTEGER DEFAULT 20,
         project_weight INTEGER DEFAULT 15,
         exam_weight INTEGER DEFAULT 30,
+        attendance_weight INTEGER DEFAULT 0,
         created_at TEXT,
         UNIQUE(subject_code, section_name, grade_level, grading_period)
+      )
+    ''');
+
+    // Create attendance table
+    await db.execute('''
+      CREATE TABLE attendance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id TEXT,
+        student_name TEXT,
+        class_name TEXT,
+        date TEXT,
+        status TEXT
       )
     ''');
 
@@ -618,6 +650,47 @@ class DatabaseHelper {
       {'password': newPassword},
       where: 'username = ?',
       whereArgs: [username],
+    );
+  }
+
+  // Save or update attendance
+  Future<void> saveAttendance(Map<String, dynamic> data) async {
+    final db = await database;
+    final existing = await db.query(
+      'attendance',
+      where: 'student_id = ? AND class_name = ? AND date = ?',
+      whereArgs: [data['student_id'], data['class_name'], data['date']],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) {
+      await db.update(
+        'attendance',
+        data,
+        where: 'id = ?',
+        whereArgs: [existing.first['id']],
+      );
+    } else {
+      await db.insert('attendance', data);
+    }
+  }
+
+  // Get attendance for a specific class and date
+  Future<List<Map<String, dynamic>>> getAttendanceForClassAndDate(String className, String date) async {
+    final db = await database;
+    return await db.query(
+      'attendance',
+      where: 'class_name = ? AND date = ?',
+      whereArgs: [className, date],
+    );
+  }
+
+  // Get all attendance for a specific class (used for grade computation)
+  Future<List<Map<String, dynamic>>> getAttendanceForClass(String className) async {
+    final db = await database;
+    return await db.query(
+      'attendance',
+      where: 'class_name = ?',
+      whereArgs: [className],
     );
   }
 }
