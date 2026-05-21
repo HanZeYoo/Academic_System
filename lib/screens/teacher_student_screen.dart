@@ -13,7 +13,13 @@ class TeacherStudentScreen extends StatefulWidget {
 
 class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
   String _selectedFilter = 'All';
-  final List<String> _filters = ['All', 'At-Risk', 'Passed', 'Needs Attention'];
+  final List<String> _filters = [
+    'All',
+    'At-Risk',
+    'Passed',
+    'Needs Attention',
+    'No Data',
+  ];
 
   bool _isLoading = true;
   List<Map<String, dynamic>> _students = [];
@@ -44,8 +50,12 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     setState(() => _isLoading = true);
 
     // Get teacher name from email
-    final teacherRecord = await DatabaseHelper().getTeacherByEmail(widget.username);
-    _teacherName = teacherRecord != null ? teacherRecord['name']?.toString() : null;
+    final teacherRecord = await DatabaseHelper().getTeacherByEmail(
+      widget.username,
+    );
+    _teacherName = teacherRecord != null
+        ? teacherRecord['name']?.toString()
+        : null;
 
     // Get assigned classes for this teacher
     final classes = _teacherName != null
@@ -56,7 +66,8 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     final Set<String> assignedKeys = {};
     for (final cls in classes) {
       final grade = cls['grade_level']?.toString().trim().toLowerCase() ?? '';
-      final section = cls['section_name']?.toString().trim().toLowerCase() ?? '';
+      final section =
+          cls['section_name']?.toString().trim().toLowerCase() ?? '';
       if (grade.isNotEmpty || section.isNotEmpty) {
         assignedKeys.add('$grade|$section');
       }
@@ -78,52 +89,166 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     }
 
     // Build class filter labels for dropdown
-    final classLabels = classes.map((c) {
-      final grade = c['grade_level']?.toString() ?? '';
-      final section = c['section_name']?.toString() ?? '';
-      return '$grade - $section'.trim();
-    }).where((s) => s.isNotEmpty && s != '-').toSet().toList();
+    final classLabels = classes
+        .map((c) {
+          final grade = c['grade_level']?.toString() ?? '';
+          final section = c['section_name']?.toString() ?? '';
+          return '$grade - $section'.trim();
+        })
+        .where((s) => s.isNotEmpty && s != '-')
+        .toSet()
+        .toList();
 
     setState(() {
       _assignedClasses = classes;
       _classFilterOptions = classLabels;
-      _students = filtered.map((s) {
-        final idStr = s['student_id']?.toString() ?? s['id']?.toString() ?? '';
-        final hash = idStr.codeUnits.fold(0, (prev, curr) => prev + curr);
-        
-        String status = 'Passed';
-        String statusDesc = 'Good Standing';
-        bool isGood = true;
+    });
 
-        if (hash % 10 == 0 || hash % 10 == 1) {
-          status = 'At-Risk';
-          statusDesc = 'Failing Grades';
-          isGood = false;
-        } else if (hash % 10 == 2 || hash % 10 == 3) {
-          status = 'Needs Attention';
-          statusDesc = 'Irregular Attendance';
-          isGood = false;
+    // We need to fetch scores to determine status
+    List<Map<String, dynamic>> studentsWithStats = [];
+
+    // Default grading period (could be improved with a selector)
+    const String period = '1st Quarter';
+
+    for (var s in filtered) {
+      final studentId = s['student_id']?.toString() ?? '';
+
+      double lowestGrade = 100;
+      bool hasFailing = false;
+      bool hasData = false;
+
+      // Check all classes taught by this teacher for this student's grade
+      for (var c in _assignedClasses) {
+        if (c['grade_level']?.toString() == s['grade_level']?.toString() &&
+            c['section_name']?.toString() == s['section']?.toString()) {
+          final subjectCode = c['subject_code'].toString();
+          final section = c['section_name'].toString();
+          final gradeLevel = c['grade_level'].toString();
+
+          final setup = await DatabaseHelper().getAssessmentSetup(
+            subjectCode: subjectCode,
+            sectionName: section,
+            gradeLevel: gradeLevel,
+            gradingPeriod: period,
+          );
+
+          final scores = await DatabaseHelper().getScoresByStudentSubjectPeriod(
+            studentId: studentId,
+            subjectCode: subjectCode,
+            gradingPeriod: period,
+          );
+
+          if (scores.isNotEmpty) {
+            hasData = true;
+            final grade = _computeGrade(studentId, scores, setup);
+            if (grade > 0) {
+              if (grade < lowestGrade) lowestGrade = grade;
+              if (grade < 75) hasFailing = true;
+            }
+          }
         }
-        
-        return {
-          ...s,
-          'status': status,
-          'statusDesc': statusDesc,
-          'isGood': isGood,
-          'actions': ['View Profile', 'Grades'],
-        };
-      }).toList();
+      }
+
+      String status = 'Passed';
+      String statusDesc = 'Good Standing';
+      bool isGood = true;
+
+      if (!hasData) {
+        status = 'No Data';
+        statusDesc = 'No scores recorded';
+      } else if (hasFailing) {
+        status = 'At-Risk';
+        statusDesc = 'Failing in one or more subjects';
+        isGood = false;
+      } else if (lowestGrade < 80) {
+        status = 'Needs Attention';
+        statusDesc = 'Borderline grades';
+        isGood = false;
+      }
+
+      studentsWithStats.add({
+        ...s,
+        'status': status,
+        'statusDesc': statusDesc,
+        'isGood': isGood,
+        'actions': ['View Profile', 'Grades'],
+      });
+    }
+
+    setState(() {
+      _students = studentsWithStats;
       _isLoading = false;
     });
   }
 
+  double _computeGrade(
+    String studentId,
+    List<Map<String, dynamic>> allScores,
+    Map<String, dynamic>? setup,
+  ) {
+    if (setup != null) {
+      final wQuiz = (setup['quiz_weight'] as num?)?.toDouble() ?? 20;
+      final wAssignment =
+          (setup['assignment_weight'] as num?)?.toDouble() ?? 15;
+      final wActivity = (setup['activity_weight'] as num?)?.toDouble() ?? 20;
+      final wProject = (setup['project_weight'] as num?)?.toDouble() ?? 15;
+      final wExam = (setup['exam_weight'] as num?)?.toDouble() ?? 30;
+
+      final qAvg = _categoryAvg(studentId, 'Quiz', allScores);
+      final asgAvg = _categoryAvg(studentId, 'Assignment', allScores);
+      final actAvg = _categoryAvg(studentId, 'Activity', allScores);
+      final prjAvg = _categoryAvg(studentId, 'Project', allScores);
+      final exmAvg = _categoryAvg(studentId, 'Exam', allScores);
+
+      return (qAvg * (wQuiz / 100)) +
+          (asgAvg * (wAssignment / 100)) +
+          (actAvg * (wActivity / 100)) +
+          (prjAvg * (wProject / 100)) +
+          (exmAvg * (wExam / 100));
+    }
+
+    if (allScores.isEmpty) return 0.0;
+    double total = 0, max = 0;
+    for (final r in allScores) {
+      total += (r['score'] as num?)?.toDouble() ?? 0;
+      max += (r['total_score'] as num?)?.toDouble() ?? 0;
+    }
+    if (max == 0) return 0.0;
+    return (total / max) * 100;
+  }
+
+  double _categoryAvg(
+    String studentId,
+    String category,
+    List<Map<String, dynamic>> allScores,
+  ) {
+    final s = allScores
+        .where(
+          (r) =>
+              r['category'].toString().toLowerCase() == category.toLowerCase(),
+        )
+        .toList();
+    if (s.isEmpty) return 0.0;
+    double total = 0, max = 0;
+    for (final r in s) {
+      total += (r['score'] as num?)?.toDouble() ?? 0;
+      max += (r['total_score'] as num?)?.toDouble() ?? 0;
+    }
+    if (max == 0) return 0.0;
+    return (total / max) * 100;
+  }
+
   List<Map<String, dynamic>> get _filteredStudents {
     return _students.where((s) {
-      final matchesSearch = _searchQuery.isEmpty ||
-          (s['name']?.toString().toLowerCase().contains(_searchQuery) ?? false) ||
-          (s['student_id']?.toString().toLowerCase().contains(_searchQuery) ?? false);
-      final matchesFilter = _selectedFilter == 'All' || s['status'] == _selectedFilter;
-      
+      final matchesSearch =
+          _searchQuery.isEmpty ||
+          (s['name']?.toString().toLowerCase().contains(_searchQuery) ??
+              false) ||
+          (s['student_id']?.toString().toLowerCase().contains(_searchQuery) ??
+              false);
+      final matchesFilter =
+          _selectedFilter == 'All' || s['status'] == _selectedFilter;
+
       bool matchesClass = true;
       if (_selectedClass != null) {
         final sGrade = s['grade_level']?.toString() ?? '';
@@ -131,12 +256,13 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
         final sClassLabel = '$sGrade - $sSection'.trim();
         matchesClass = sClassLabel == _selectedClass;
       }
-      
+
       return matchesSearch && matchesFilter && matchesClass;
     }).toList();
   }
 
-  int get _atRiskCount => _students.where((s) => s['status'] == 'At-Risk').length;
+  int get _atRiskCount =>
+      _students.where((s) => s['status'] == 'At-Risk').length;
 
   @override
   Widget build(BuildContext context) {
@@ -155,17 +281,30 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(30),
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2)),
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
                       ],
                     ),
                     child: TextField(
                       controller: _searchController,
                       decoration: const InputDecoration(
                         hintText: 'Search students...',
-                        hintStyle: TextStyle(color: Colors.black38, fontSize: 14),
-                        prefixIcon: Icon(Icons.search_outlined, color: Color(0xFF0D6EFD)),
+                        hintStyle: TextStyle(
+                          color: Colors.black38,
+                          fontSize: 14,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search_outlined,
+                          color: Color(0xFF0D6EFD),
+                        ),
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
                       ),
                     ),
                   ),
@@ -177,11 +316,19 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.layers, color: Color(0xFF0D6EFD), size: 24),
+                          const Icon(
+                            Icons.layers,
+                            color: Color(0xFF0D6EFD),
+                            size: 24,
+                          ),
                           const SizedBox(width: 8),
                           const Text(
                             'Students',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
                           ),
                         ],
                       ),
@@ -197,12 +344,30 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String>(
                               value: _selectedClass,
-                              hint: const Text('All Classes', style: TextStyle(fontSize: 13)),
-                              icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF0D6EFD)),
-                              style: const TextStyle(fontSize: 13, color: Colors.black87, fontWeight: FontWeight.w500),
+                              hint: const Text(
+                                'All Classes',
+                                style: TextStyle(fontSize: 13),
+                              ),
+                              icon: const Icon(
+                                Icons.arrow_drop_down,
+                                color: Color(0xFF0D6EFD),
+                              ),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w500,
+                              ),
                               items: [
-                                const DropdownMenuItem(value: null, child: Text('All Classes')),
-                                ..._classFilterOptions.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                                const DropdownMenuItem(
+                                  value: null,
+                                  child: Text('All Classes'),
+                                ),
+                                ..._classFilterOptions.map(
+                                  (c) => DropdownMenuItem(
+                                    value: c,
+                                    child: Text(c),
+                                  ),
+                                ),
                               ],
                               onChanged: (val) {
                                 setState(() {
@@ -228,20 +393,29 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                             label: Text(
                               filter,
                               style: TextStyle(
-                                color: isSelected ? Colors.white : Colors.black87,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.black87,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
                                 fontSize: 13,
                               ),
                             ),
                             selected: isSelected,
                             onSelected: (selected) {
-                              if (selected) setState(() => _selectedFilter = filter);
+                              if (selected)
+                                setState(() => _selectedFilter = filter);
                             },
                             backgroundColor: Colors.white,
                             selectedColor: const Color(0xFF0D6EFD),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
-                              side: BorderSide(color: isSelected ? const Color(0xFF0D6EFD) : Colors.transparent),
+                              side: BorderSide(
+                                color: isSelected
+                                    ? const Color(0xFF0D6EFD)
+                                    : Colors.transparent,
+                              ),
                             ),
                             showCheckmark: false,
                           ),
@@ -258,7 +432,8 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                         child: _buildStatCard(
                           title: 'Total Students',
                           value: '${_students.length}',
-                          subtitle: '${_assignedClasses.length} class(es) assigned',
+                          subtitle:
+                              '${_assignedClasses.length} class(es) assigned',
                           subtitleColor: const Color(0xFF198754),
                           icon: Icons.people,
                           iconBgColor: const Color(0xFFE7F1FF),
@@ -285,7 +460,9 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                   if (_filteredStudents.isEmpty)
                     _buildEmptyState()
                   else
-                    ..._filteredStudents.map((student) => _buildStudentCard(student)).toList(),
+                    ..._filteredStudents
+                        .map((student) => _buildStudentCard(student))
+                        .toList(),
 
                   const SizedBox(height: 32),
                 ],
@@ -307,7 +484,9 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
           Icon(Icons.people_outline, size: 64, color: Colors.grey.shade300),
           const SizedBox(height: 16),
           Text(
-            _searchQuery.isNotEmpty ? 'No students found for "$_searchQuery"' : 'No students in your classes yet.',
+            _searchQuery.isNotEmpty
+                ? 'No students found for "$_searchQuery"'
+                : 'No students in your classes yet.',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
           ),
@@ -331,13 +510,24 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87)),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -347,11 +537,25 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                 child: Icon(icon, color: iconColor, size: 20),
               ),
               const SizedBox(width: 12),
-              Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: iconColor)),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: iconColor,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(subtitle, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: subtitleColor)),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+              color: subtitleColor,
+            ),
+          ),
         ],
       ),
     );
@@ -359,8 +563,14 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
 
   Widget _buildStudentCard(Map<String, dynamic> student) {
     bool isPassed = student['status'] == 'Passed';
-    Color statusBgColor = isPassed ? const Color(0xFFE8F5E9) : const Color(0xFFFEF2E8);
-    Color statusTextColor = isPassed ? const Color(0xFF198754) : const Color(0xFFE67E22);
+    bool isNoData = student['status'] == 'No Data';
+
+    Color statusBgColor = isPassed
+        ? const Color(0xFFE8F5E9)
+        : (isNoData ? Colors.grey.shade100 : const Color(0xFFFEF2E8));
+    Color statusTextColor = isPassed
+        ? const Color(0xFF198754)
+        : (isNoData ? Colors.grey.shade600 : const Color(0xFFE67E22));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -369,7 +579,11 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
@@ -385,7 +599,11 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                   (student['name']?.toString().isNotEmpty == true)
                       ? student['name'].toString()[0].toUpperCase()
                       : '?',
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF0D6EFD)),
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0D6EFD),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -398,17 +616,29 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                   children: [
                     Text(
                       student['name']?.toString() ?? 'Unknown',
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${student['grade_level'] ?? ''} - ${student['section'] ?? ''}'.trim().replaceAll(RegExp(r'^-\s*|\s*-$'), ''),
-                      style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      '${student['grade_level'] ?? ''} - ${student['section'] ?? ''}'
+                          .trim()
+                          .replaceAll(RegExp(r'^-\s*|\s*-$'), ''),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'ID: ${student['student_id'] ?? 'N/A'}',
-                      style: const TextStyle(fontSize: 10, color: Colors.black38),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.black38,
+                      ),
                     ),
                   ],
                 ),
@@ -421,14 +651,21 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: statusBgColor,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         student['status'],
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusTextColor),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: statusTextColor,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -436,9 +673,13 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          student['isGood'] ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+                          student['isGood']
+                              ? Icons.check_circle_outline
+                              : Icons.warning_amber_rounded,
                           size: 12,
-                          color: student['isGood'] ? const Color(0xFF198754) : const Color(0xFFE67E22),
+                          color: student['isGood']
+                              ? const Color(0xFF198754)
+                              : const Color(0xFFE67E22),
                         ),
                         const SizedBox(width: 4),
                         Flexible(
@@ -447,7 +688,9 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                             style: TextStyle(
                               fontSize: 9,
                               fontWeight: FontWeight.bold,
-                              color: student['isGood'] ? const Color(0xFF198754) : const Color(0xFFE67E22),
+                              color: student['isGood']
+                                  ? const Color(0xFF198754)
+                                  : const Color(0xFFE67E22),
                             ),
                             textAlign: TextAlign.right,
                             maxLines: 2,
@@ -475,14 +718,16 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => StudentDetailScreen(student: student),
+                            builder: (context) =>
+                                StudentDetailScreen(student: student),
                           ),
                         );
                       } else if (action == 'Grades') {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => StudentGradesScreen(student: student),
+                            builder: (context) =>
+                                StudentGradesScreen(student: student),
                           ),
                         );
                       }
@@ -491,12 +736,20 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                       foregroundColor: const Color(0xFF0D6EFD),
                       side: BorderSide(color: Colors.blue.shade100),
                       padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       minimumSize: const Size(0, 32),
                     ),
                     child: FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: Text(action, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        action,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ),

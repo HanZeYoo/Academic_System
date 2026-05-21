@@ -7,6 +7,8 @@ import 'encode_scores_screen.dart';
 import 'teacher_student_screen.dart';
 import 'teacher_profile_screen.dart';
 import 'teacher_academic_evaluation_screen.dart';
+import 'failure_analytics_screen.dart';
+import 'teacher_parent_notification_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   final String username;
@@ -57,7 +59,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             children: [
               // Drawer Header
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 16.0,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -82,7 +87,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               ),
               const Divider(color: Colors.white24, height: 1, thickness: 1),
               const SizedBox(height: 8),
-              
+
               // Drawer Menu Items
               Expanded(
                 child: ListView(
@@ -233,7 +238,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     if (_selectedMenu == 'Academic Evaluation') {
       return TeacherAcademicEvaluationScreen(username: widget.username);
     }
-    
+    if (_selectedMenu == 'Failure Analytics') {
+      return FailureAnalyticsScreen(username: widget.username);
+    }
+    if (_selectedMenu == 'Parent Notification') {
+      return TeacherParentNotificationScreen(username: widget.username);
+    }
+
     return Center(
       child: Text(
         _selectedMenu,
@@ -259,11 +270,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListTile(
-        leading: Icon(
-          icon,
-          color: Colors.white,
-          size: 24,
-        ),
+        leading: Icon(icon, color: Colors.white, size: 24),
         title: Text(
           title,
           style: const TextStyle(
@@ -273,11 +280,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           ),
         ),
         onTap: onTap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16.0,
+          vertical: 0.0,
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
-        visualDensity: const VisualDensity(horizontal: 0, vertical: -2), // Makes it a bit more compact
+        visualDensity: const VisualDensity(
+          horizontal: 0,
+          vertical: -2,
+        ), // Makes it a bit more compact
       ),
     );
   }
@@ -291,19 +302,22 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
-        color: isExpandedOrSelected ? const Color(0xFF36617A).withOpacity(0.3) : Colors.transparent,
+        color: isExpandedOrSelected
+            ? const Color(0xFF36617A).withOpacity(0.3)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Theme(
-        data: Theme.of(context).copyWith(
-          dividerColor: Colors.transparent,
-        ),
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           initiallyExpanded: isExpandedOrSelected,
           leading: Icon(icon, color: Colors.white, size: 24),
           iconColor: Colors.white,
           collapsedIconColor: Colors.white,
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
+          tilePadding: const EdgeInsets.symmetric(
+            horizontal: 16.0,
+            vertical: 0.0,
+          ),
           title: Text(
             title,
             style: const TextStyle(
@@ -318,7 +332,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             return Container(
               margin: const EdgeInsets.only(left: 40, right: 8, bottom: 4),
               decoration: BoxDecoration(
-                color: isSubItemSelected ? const Color(0xFF36617A) : Colors.transparent,
+                color: isSubItemSelected
+                    ? const Color(0xFF36617A)
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: ListTile(
@@ -327,7 +343,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   style: TextStyle(
                     color: isSubItemSelected ? Colors.white : Colors.white70,
                     fontSize: 13,
-                    fontWeight: isSubItemSelected ? FontWeight.w500 : FontWeight.normal,
+                    fontWeight: isSubItemSelected
+                        ? FontWeight.w500
+                        : FontWeight.normal,
                   ),
                 ),
                 onTap: () => _onMenuTap(subItem),

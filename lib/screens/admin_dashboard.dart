@@ -227,7 +227,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       case 4:
         return const AcademicEvaluationScreen();
       case 5:
-        return const FailureAnalyticsScreen();
+        return FailureAnalyticsScreen(username: widget.username);
       case 6:
         return const ParentNotificationScreen();
       case 7:

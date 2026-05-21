@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import 'add_teacher_screen.dart';
-import 'teacher_dashboard_screen.dart';
 import 'teacher_detail_screen.dart';
 
 class TeacherManagementScreen extends StatefulWidget {
   const TeacherManagementScreen({super.key});
 
   @override
-  State<TeacherManagementScreen> createState() => _TeacherManagementScreenState();
+  State<TeacherManagementScreen> createState() =>
+      _TeacherManagementScreenState();
 }
 
 class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
@@ -59,10 +59,7 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
             children: [
               const Text(
                 'Teacher List',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               ElevatedButton.icon(
                 onPressed: () async {
@@ -118,17 +115,17 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
 
           // List
           Expanded(
-            child: _isLoading 
+            child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _teachers.isEmpty 
-                    ? const Center(child: Text('No teachers found.'))
-                    : ListView.builder(
-                        itemCount: _teachers.length,
-                        itemBuilder: (context, index) {
-                          final t = _teachers[index];
-                          return _buildTeacherCard(context, t);
-                        },
-                      ),
+                : _teachers.isEmpty
+                ? const Center(child: Text('No teachers found.'))
+                : ListView.builder(
+                    itemCount: _teachers.length,
+                    itemBuilder: (context, index) {
+                      final t = _teachers[index];
+                      return _buildTeacherCard(context, t);
+                    },
+                  ),
           ),
         ],
       ),
@@ -253,7 +250,10 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
             onPressed: () async {
               final result = await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => AddTeacherScreen(teacherToEdit: teacher)),
+                MaterialPageRoute(
+                  builder: (context) =>
+                      AddTeacherScreen(teacherToEdit: teacher),
+                ),
               );
               if (result == true) {
                 _loadTeachers();
@@ -264,5 +264,4 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
       ),
     );
   }
-
 }
