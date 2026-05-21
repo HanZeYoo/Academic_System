@@ -19,7 +19,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'academic_system.db');
     return await openDatabase(
       path, 
-      version: 13, 
+      version: 15, 
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -189,6 +189,20 @@ class DatabaseHelper {
         )
       ''');
     }
+    if (oldVersion < 14) {
+      try {
+        await db.execute('ALTER TABLE students ADD COLUMN profile_picture TEXT');
+      } catch (e) {
+        // Ignore if column already exists
+      }
+    }
+    if (oldVersion < 15) {
+      try {
+        await db.execute('ALTER TABLE teachers ADD COLUMN profile_picture TEXT');
+      } catch (e) {
+        // Ignore if column already exists
+      }
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -236,7 +250,8 @@ class DatabaseHelper {
         contact_number TEXT,
         parent_name TEXT,
         parent_contact TEXT,
-        address TEXT
+        address TEXT,
+        profile_picture TEXT
       )
     ''');
 
@@ -436,6 +451,17 @@ class DatabaseHelper {
       return result.first;
     }
     return null;
+  }
+
+  // Update student profile picture path
+  Future<void> updateStudentProfilePicture(String email, String imagePath) async {
+    final db = await database;
+    await db.update(
+      'students',
+      {'profile_picture': imagePath},
+      where: 'email = ?',
+      whereArgs: [email],
+    );
   }
 
   // Get student schedule based on enrolled grade level and section
@@ -677,6 +703,17 @@ class DatabaseHelper {
         'role': 'teacher',
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
     });
+  }
+
+  // Update teacher profile picture path
+  Future<void> updateTeacherProfilePicture(String email, String imagePath) async {
+    final db = await database;
+    await db.update(
+      'teachers',
+      {'profile_picture': imagePath},
+      where: 'email = ?',
+      whereArgs: [email],
+    );
   }
 
   // Update a teacher
