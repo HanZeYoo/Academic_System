@@ -396,7 +396,25 @@ class DatabaseHelper {
           'role': 'student',
         }, conflictAlgorithm: ConflictAlgorithm.ignore);
       }
+      // Auto-create user account for parent
+      if (parentEmail.isNotEmpty) {
+        await txn.insert('users', {
+          'username': parentEmail,
+          'password': 'parent123',
+          'role': 'parent',
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+      }
     });
+  }
+
+  // Get students by parent email
+  Future<List<Map<String, dynamic>>> getStudentsByParentEmail(String parentEmail) async {
+    final db = await database;
+    return await db.query(
+      'students',
+      where: 'parent_email = ?',
+      whereArgs: [parentEmail],
+    );
   }
 
   // Update a student

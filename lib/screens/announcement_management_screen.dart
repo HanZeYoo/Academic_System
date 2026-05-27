@@ -297,7 +297,7 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeader(),
-          if (widget.role != 'student') ...[
+          if (widget.role != 'student' && widget.role != 'parent') ...[
             const SizedBox(height: 20),
             _buildPostButton(),
           ],
@@ -381,8 +381,8 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
     required bool isPinned,
     String? author,
   }) {
-    // Admin (widget.username == null) can edit anything. Teacher can only edit their own. Student cannot edit.
-    bool canEdit = widget.role != 'student' && (widget.username == null || author == widget.username);
+    // Admin (widget.username == null) can edit anything. Teacher can only edit their own. Student/Parent cannot edit.
+    bool canEdit = widget.role != 'student' && widget.role != 'parent' && (widget.username == null || author == widget.username);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

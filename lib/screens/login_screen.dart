@@ -3,6 +3,7 @@ import '../database_helper.dart';
 import 'admin_dashboard.dart';
 import 'teacher_dashboard_screen.dart';
 import 'student_dashboard_screen.dart';
+import 'parent_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -39,6 +40,11 @@ class _LoginScreenState extends State<LoginScreen> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => StudentDashboardScreen(username: user['username'])),
+          );
+        } else if (user['role'] == 'parent') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => ParentDashboardScreen(username: user['username'])),
           );
         } else {
           Navigator.pushReplacement(
