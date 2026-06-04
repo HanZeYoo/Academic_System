@@ -23,6 +23,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   List<Map<String, dynamic>> _schedule = [];
   List<Map<String, dynamic>> _subjectGrades = [];
+  List<Map<String, dynamic>> _dbNotifications = [];
   double _overallAverage = 0.0;
   double _attendancePercentage = 0.0;
   bool _hasAttendance = false;
@@ -31,6 +32,18 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   void initState() {
     super.initState();
     _fetchParentAndChildrenData();
+    _fetchDatabaseNotifications();
+  }
+
+  Future<void> _fetchDatabaseNotifications() async {
+    final dbHelper = DatabaseHelper();
+    // Use widget.username which contains the parent's email/username
+    final List<Map<String, dynamic>> notes = await dbHelper.getNotificationsForUser(widget.username);
+    if (mounted) {
+      setState(() {
+        _dbNotifications = notes;
+      });
+    }
   }
 
   Future<void> _fetchParentAndChildrenData() async {
@@ -1158,6 +1171,21 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         'body': 'Attendance for ${_selectedChild?['name'] ?? 'your child'} has not been recorded yet this quarter.',
         'time': 'This quarter',
       });
+    }
+
+    // Add Direct Teacher/Admin Notifications from Database
+    final childId = _selectedChild?['student_id']?.toString() ?? '';
+    for (final dbNotif in _dbNotifications) {
+      // Show if it's for this specific child or if it doesn't specify a student_id
+      if (dbNotif['student_id'] == null || dbNotif['student_id'].toString() == childId || childId.isEmpty) {
+        notifications.insert(0, {
+          'icon': Icons.mail_rounded,
+          'color': Colors.indigo,
+          'title': dbNotif['title'] ?? 'Teacher Notification',
+          'body': dbNotif['message'] ?? 'You have a new message.',
+          'time': dbNotif['date'] ?? 'Recent',
+        });
+      }
     }
 
     return SingleChildScrollView(

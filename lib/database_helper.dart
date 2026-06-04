@@ -19,7 +19,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'academic_system.db');
     return await openDatabase(
       path, 
-      version: 15, 
+      version: 16, 
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -203,6 +203,20 @@ class DatabaseHelper {
         // Ignore if column already exists
       }
     }
+    if (oldVersion < 16) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS notifications (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          sender_username TEXT,
+          receiver_username TEXT,
+          student_id TEXT,
+          title TEXT,
+          message TEXT,
+          date TEXT,
+          status TEXT
+        )
+      ''');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -288,6 +302,20 @@ class DatabaseHelper {
         status TEXT,
         is_pinned INTEGER,
         author TEXT
+      )
+    ''');
+
+    // Create notifications table
+    await db.execute('''
+      CREATE TABLE notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender_username TEXT,
+        receiver_username TEXT,
+        student_id TEXT,
+        title TEXT,
+        message TEXT,
+        date TEXT,
+        status TEXT
       )
     ''');
 
@@ -926,5 +954,41 @@ class DatabaseHelper {
   Future<void> updateAnnouncement(int id, Map<String, dynamic> announcementData) async {
     final db = await database;
     await db.update('announcements', announcementData, where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- NOTIFICATIONS --- //
+  Future<int> insertNotification(Map<String, dynamic> notification) async {
+    final db = await database;
+    return await db.insert('notifications', notification);
+  }
+
+  Future<List<Map<String, dynamic>>> getNotificationsForUser(String username) async {
+    final db = await database;
+    return await db.query(
+      'notifications',
+      where: 'receiver_username = ?',
+      whereArgs: [username],
+      orderBy: 'id DESC', // Newest first
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getNotificationsSentBy(String senderUsername) async {
+    final db = await database;
+    return await db.query(
+      'notifications',
+      where: 'sender_username = ?',
+      whereArgs: [senderUsername],
+      orderBy: 'id DESC',
+    );
+  }
+
+  Future<void> markNotificationAsRead(int id) async {
+    final db = await database;
+    await db.update(
+      'notifications',
+      {'status': 'Read'},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 }

@@ -39,6 +39,9 @@ class _TeacherParentNotificationScreenState
     _loadInitialData();
   }
 
+  // History List
+  List<Map<String, dynamic>> _history = [];
+
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
 
@@ -66,8 +69,34 @@ class _TeacherParentNotificationScreenState
       }
       _students = allMyStudents;
     }
+    
+    await _loadHistory();
 
     setState(() => _isLoading = false);
+  }
+
+  Future<void> _loadHistory() async {
+    final notifications = await db.getNotificationsSentBy(widget.username);
+    
+    List<Map<String, dynamic>> loadedHistory = [];
+    for (var n in notifications) {
+      final student = _students.firstWhere(
+        (s) => s['student_id'].toString() == n['student_id'].toString(),
+        orElse: () => {'name': 'Unknown Student', 'parent_name': 'Unknown Parent'},
+      );
+      
+      loadedHistory.add({
+        'studentName': student['name'] ?? 'Unknown',
+        'parentName': student['parent_name'] ?? n['receiver_username'],
+        'reason': n['title'] ?? 'No Reason',
+        'date': n['date'] ?? '',
+        'status': n['status'] ?? 'Sent',
+      });
+    }
+    
+    setState(() {
+      _history = loadedHistory;
+    });
   }
 
   void _updateDraftMessage() {
@@ -105,24 +134,6 @@ class _TeacherParentNotificationScreenState
       _messageController.text = message;
     });
   }
-
-  // Example dummy data for history since there is no table for notifications yet
-  final List<Map<String, dynamic>> _dummyHistory = [
-    {
-      'studentName': 'Juan Dela Cruz',
-      'parentName': 'Maria Dela Cruz',
-      'reason': 'Failing Grades in Math',
-      'date': 'May 18, 2026',
-      'status': 'Sent',
-    },
-    {
-      'studentName': 'Maria Santos',
-      'parentName': 'Pedro Santos',
-      'reason': 'Frequent Absences',
-      'date': 'May 15, 2026',
-      'status': 'Read',
-    },
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +224,7 @@ class _TeacherParentNotificationScreenState
                       iconBgColor: const Color(0xFFE2F6E7),
                       iconColor: const Color(0xFF00A364),
                       title: 'Notifications Sent',
-                      value: '142',
+                      value: _history.length.toString(),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -429,10 +440,12 @@ class _TeacherParentNotificationScreenState
         ),
         const SizedBox(height: 12),
         Expanded(
-          child: ListView.builder(
-            itemCount: _dummyHistory.length,
+          child: _history.isEmpty 
+              ? const Center(child: Text("No notifications sent yet."))
+              : ListView.builder(
+            itemCount: _history.length,
             itemBuilder: (context, index) {
-              final item = _dummyHistory[index];
+              final item = _history[index];
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(16),
@@ -647,7 +660,7 @@ class _TeacherParentNotificationScreenState
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
+              onPressed: () async {
                 if (_selectedStudentId == null || _selectedReason == null) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -656,14 +669,47 @@ class _TeacherParentNotificationScreenState
                   );
                   return;
                 }
+                
+                final student = _students.firstWhere((s) => s['student_id'].toString() == _selectedStudentId);
+                final parentEmail = student['parent_email']?.toString() ?? '';
+                
+                if (parentEmail.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Parent email varies or is not configured for this student.'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  // We'll still send it so we can test the mock, we can use a mock email
+                }
+
+                String dateNow = "${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}";
+                
+                await db.insertNotification({
+                  'sender_username': widget.username,
+                  'receiver_username': parentEmail.isNotEmpty ? parentEmail : 'mock_parent@test.com',
+                  'student_id': _selectedStudentId,
+                  'title': _selectedReason,
+                  'message': _messageController.text,
+                  'date': dateNow,
+                  'status': 'Sent'
+                });
+
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Notification sent successfully!'),
+                    content: Text('Notification sent successfully! (In-app + Email Mock)'),
+                    backgroundColor: Color(0xFF198754),
                   ),
                 );
+                
                 setState(() {
+                  _selectedStudentId = null;
+                  _selectedReason = null;
+                  _messageController.clear();
                   _selectedTab = 'History';
                 });
+                
+                await _loadHistory();
               },
               icon: const Icon(Icons.send, size: 18),
               label: const Text('Send to Parent'),

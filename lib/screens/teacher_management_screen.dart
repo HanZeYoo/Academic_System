@@ -187,6 +187,7 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
     final name = teacher['name']?.toString() ?? 'Unknown';
     final id = 'ID: ${teacher['teacher_id']}';
     final department = teacher['department']?.toString() ?? 'No Department';
+    final email = teacher['email']?.toString() ?? 'No email found';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -227,6 +228,16 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
+                ),
+                Text(
+                  email,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
