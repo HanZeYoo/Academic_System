@@ -337,11 +337,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const Text('Class', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                              Text(
-                                value, 
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                              Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
                             ],
                           ),
                         );
@@ -519,8 +515,6 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
                     Text(
                       'ID: ${student['id']} • ${student['class']}',
                       style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
                     ),
                   ],
                 ),
