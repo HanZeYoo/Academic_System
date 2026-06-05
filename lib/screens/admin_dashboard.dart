@@ -24,6 +24,30 @@ class _AdminDashboardState extends State<AdminDashboard> {
   // Set to 0 initially to match the Dashboard Overview screen
   int _selectedIndex = 0;
 
+  Future<bool> _showLogoutDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color appBarColor = Color(0xFF2B81B7);
@@ -32,185 +56,204 @@ class _AdminDashboardState extends State<AdminDashboard> {
     const Color backgroundColor = Color(0xFFCBEAFB);
     const Color textWhite = Colors.white;
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: appBarColor,
-        iconTheme: const IconThemeData(color: textWhite),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: InkWell(
-              onTap: () {
-                setState(() {
-                  _selectedIndex = 9; // Index para sa Admin Profile
-                });
-              },
-              child: const CircleAvatar(
-                backgroundColor: Colors.white,
-                child: Icon(Icons.person, color: Colors.black),
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        if (_selectedIndex != 0) {
+          setState(() {
+            _selectedIndex = 0;
+          });
+          return;
+        }
+        final shouldLogout = await _showLogoutDialog();
+        if (shouldLogout && mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: backgroundColor,
+        appBar: AppBar(
+          backgroundColor: appBarColor,
+          iconTheme: const IconThemeData(color: textWhite),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _selectedIndex = 9; // Index para sa Admin Profile
+                  });
+                },
+                child: const CircleAvatar(
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.person, color: Colors.black),
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-      drawer: Drawer(
-        backgroundColor: drawerColor,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.only(
-                  top: 20,
-                  left: 24,
-                  right: 16,
-                  bottom: 20,
-                ),
-                decoration: const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Colors.white24, width: 0.5),
+          ],
+        ),
+        drawer: Drawer(
+          backgroundColor: drawerColor,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          child: SafeArea(
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.only(
+                    top: 20,
+                    left: 24,
+                    right: 16,
+                    bottom: 20,
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Menu',
-                      style: TextStyle(
-                        color: textWhite,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: Colors.white24, width: 0.5),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Menu',
+                        style: TextStyle(
+                          color: textWhite,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    InkWell(
-                      onTap: () {
-                        Navigator.pop(context);
-                      },
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: textWhite,
-                        size: 20,
+                      InkWell(
+                        onTap: () {
+                          Navigator.pop(context);
+                        },
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: textWhite,
+                          size: 20,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
-                    _buildMenuItem(0, Icons.home, 'Dashboard', hoveredColor),
-                    _buildMenuItem(
-                      1,
-                      Icons.people,
-                      'Student Management',
-                      hoveredColor,
-                    ),
-                    _buildMenuItem(
-                      2,
-                      Icons.co_present,
-                      'Teacher Management',
-                      hoveredColor,
-                    ),
-                    _buildMenuItem(
-                      3,
-                      Icons.menu_book,
-                      'Subject & Classes',
-                      hoveredColor,
-                    ),
-                    _buildMenuItem(
-                      4,
-                      Icons.assignment_turned_in,
-                      'Academic Evaluation',
-                      hoveredColor,
-                    ),
-                    _buildMenuItem(
-                      5,
-                      Icons.show_chart,
-                      'Failure Analytics',
-                      hoveredColor,
-                    ),
-                    _buildMenuItem(
-                      6,
-                      Icons.notifications,
-                      'Parent Notification',
-                      hoveredColor,
-                    ),
-                    _buildMenuItem(
-                      7,
-                      Icons.pie_chart,
-                      'Reports Generation',
-                      hoveredColor,
-                    ),
-                    _buildMenuItem(
-                      8,
-                      Icons.campaign,
-                      'Announcements',
-                      hoveredColor,
-                    ),
-                    _buildMenuItem(
-                      10,
-                      Icons.settings,
-                      'Settings',
-                      hoveredColor,
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                decoration: const BoxDecoration(
-                  border: Border(
-                    top: BorderSide(color: Colors.white24, width: 0.5),
+                    ],
                   ),
                 ),
-                child: ListTile(
-                  leading: const Padding(
-                    padding: EdgeInsets.only(left: 16.0),
-                    child: Icon(Icons.logout, color: textWhite),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.zero,
+                    children: [
+                      _buildMenuItem(0, Icons.home, 'Dashboard', hoveredColor),
+                      _buildMenuItem(
+                        1,
+                        Icons.people,
+                        'Student Management',
+                        hoveredColor,
+                      ),
+                      _buildMenuItem(
+                        2,
+                        Icons.co_present,
+                        'Teacher Management',
+                        hoveredColor,
+                      ),
+                      _buildMenuItem(
+                        3,
+                        Icons.menu_book,
+                        'Subject & Classes',
+                        hoveredColor,
+                      ),
+                      _buildMenuItem(
+                        4,
+                        Icons.assignment_turned_in,
+                        'Academic Evaluation',
+                        hoveredColor,
+                      ),
+                      _buildMenuItem(
+                        5,
+                        Icons.show_chart,
+                        'Failure Analytics',
+                        hoveredColor,
+                      ),
+                      _buildMenuItem(
+                        6,
+                        Icons.notifications,
+                        'Parent Notification',
+                        hoveredColor,
+                      ),
+                      _buildMenuItem(
+                        7,
+                        Icons.pie_chart,
+                        'Reports Generation',
+                        hoveredColor,
+                      ),
+                      _buildMenuItem(
+                        8,
+                        Icons.campaign,
+                        'Announcements',
+                        hoveredColor,
+                      ),
+                      _buildMenuItem(
+                        10,
+                        Icons.settings,
+                        'Settings',
+                        hoveredColor,
+                      ),
+                    ],
                   ),
-                  title: const Text(
-                    'Logout',
-                    style: TextStyle(color: textWhite, fontSize: 15),
+                ),
+                Container(
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      top: BorderSide(color: Colors.white24, width: 0.5),
+                    ),
                   ),
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Logout'),
-                        content: const Text('Are you sure you want to logout?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context); // Close dialog
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const LoginScreen(),
-                                ),
-                              );
-                            },
-                            child: const Text(
-                              'Logout',
-                              style: TextStyle(color: Colors.red),
+                  child: ListTile(
+                    leading: const Padding(
+                      padding: EdgeInsets.only(left: 16.0),
+                      child: Icon(Icons.logout, color: textWhite),
+                    ),
+                    title: const Text(
+                      'Logout',
+                      style: TextStyle(color: textWhite, fontSize: 15),
+                    ),
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Logout'),
+                          content: const Text('Are you sure you want to logout?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Cancel'),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(context); // Close dialog
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const LoginScreen(),
+                                  ),
+                                );
+                              },
+                              child: const Text(
+                                'Logout',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
+        body: _buildBody(),
       ),
-      body: _buildBody(),
     );
   }
 

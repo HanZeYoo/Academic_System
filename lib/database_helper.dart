@@ -711,6 +711,32 @@ class DatabaseHelper {
     return results.isNotEmpty ? results.first : null;
   }
 
+  // Generate the next teacher ID automatically
+  Future<String> generateNextTeacherId() async {
+    final db = await database;
+    final List<Map<String, dynamic>> results = await db.query(
+      'teachers',
+      columns: ['teacher_id'],
+    );
+    int maxIdNum = 0;
+    final regex = RegExp(r'^TCH-(\d+)$');
+    for (var row in results) {
+      final tId = row['teacher_id']?.toString() ?? '';
+      final match = regex.firstMatch(tId);
+      if (match != null) {
+        final numStr = match.group(1);
+        if (numStr != null) {
+          final val = int.tryParse(numStr) ?? 0;
+          if (val > maxIdNum) {
+            maxIdNum = val;
+          }
+        }
+      }
+    }
+    final nextIdNum = maxIdNum + 1;
+    return 'TCH-${nextIdNum.toString().padLeft(6, '0')}';
+  }
+
   // Add a teacher
   Future<void> addTeacher({
     required String teacherId,

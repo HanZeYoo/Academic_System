@@ -183,175 +183,218 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFD6F0FA), // Light blue background
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF3383B3), // App bar blue color
-        elevation: 0,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
+  Future<bool> _showLogoutDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedMenu = 'Profile';
-                });
-              },
-              child: const CircleAvatar(
-                backgroundColor: Colors.white,
-                radius: 18,
-                child: Icon(Icons.person, color: Color(0xFF3383B3), size: 24),
-              ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.red),
             ),
           ),
         ],
       ),
-      drawer: Drawer(
-        backgroundColor: const Color(0xFF224A60), // Dark teal drawer background
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Drawer Header
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16.0,
-                  vertical: 16.0,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Student Menu',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(color: Colors.white24, height: 1, thickness: 1),
-              const SizedBox(height: 8),
+    );
+    return result ?? false;
+  }
 
-              // Drawer Menu Items
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                  children: [
-                    _buildMenuItem(
-                      title: 'Dashboard',
-                      icon: Icons.home,
-                      isSelected: _selectedMenu == 'Dashboard',
-                      onTap: () => _onMenuTap('Dashboard'),
-                    ),
-                    _buildMenuItem(
-                      title: 'My Grades',
-                      icon: Icons.grade,
-                      isSelected: _selectedMenu == 'My Grades',
-                      onTap: () => _onMenuTap('My Grades'),
-                    ),
-                    _buildMenuItem(
-                      title: 'Class Schedule',
-                      icon: Icons.schedule,
-                      isSelected: _selectedMenu == 'Class Schedule',
-                      onTap: () => _onMenuTap('Class Schedule'),
-                    ),
-                    _buildMenuItem(
-                      title: 'Attendance',
-                      icon: Icons.assignment_turned_in,
-                      isSelected: _selectedMenu == 'Attendance',
-                      onTap: () => _onMenuTap('Attendance'),
-                    ),
-                    _buildMenuItem(
-                      title: 'Announcements',
-                      icon: Icons.campaign,
-                      isSelected: _selectedMenu == 'Announcements',
-                      onTap: () => _onMenuTap('Announcements'),
-                    ),
-                    _buildMenuItem(
-                      title: 'Profile',
-                      icon: Icons.person,
-                      isSelected: _selectedMenu == 'Profile',
-                      onTap: () => _onMenuTap('Profile'),
-                    ),
-                    _buildMenuItem(
-                      title: 'Settings',
-                      icon: Icons.settings,
-                      isSelected: _selectedMenu == 'Settings',
-                      onTap: () => _onMenuTap('Settings'),
-                    ),
-                  ],
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        if (_selectedMenu != 'Dashboard') {
+          setState(() {
+            _selectedMenu = 'Dashboard';
+          });
+          return;
+        }
+        final shouldLogout = await _showLogoutDialog();
+        if (shouldLogout && mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFD6F0FA), // Light blue background
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF3383B3), // App bar blue color
+          elevation: 0,
+          leading: Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu, color: Colors.white),
+              onPressed: () => Scaffold.of(context).openDrawer(),
+            ),
+          ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedMenu = 'Profile';
+                  });
+                },
+                child: const CircleAvatar(
+                  backgroundColor: Colors.white,
+                  radius: 18,
+                  child: Icon(Icons.person, color: Color(0xFF3383B3), size: 24),
                 ),
               ),
-              Container(
-                decoration: const BoxDecoration(
-                  border: Border(
-                    top: BorderSide(color: Colors.white24, width: 0.5),
+            ),
+          ],
+        ),
+        drawer: Drawer(
+          backgroundColor: const Color(0xFF224A60), // Dark teal drawer background
+          child: SafeArea(
+            child: Column(
+              children: [
+                // Drawer Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 16.0,
                   ),
-                ),
-                child: ListTile(
-                  leading: const Padding(
-                    padding: EdgeInsets.only(left: 16.0),
-                    child: Icon(Icons.logout, color: Colors.white),
-                  ),
-                  title: const Text(
-                    'Logout',
-                    style: TextStyle(color: Colors.white, fontSize: 15),
-                  ),
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Logout'),
-                        content: const Text('Are you sure you want to logout?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context); // Close dialog
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const LoginScreen(),
-                                ),
-                              );
-                            },
-                            child: const Text(
-                              'Logout',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Student Menu',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    );
-                  },
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const Divider(color: Colors.white24, height: 1, thickness: 1),
+                const SizedBox(height: 8),
+
+                // Drawer Menu Items
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    children: [
+                      _buildMenuItem(
+                        title: 'Dashboard',
+                        icon: Icons.home,
+                        isSelected: _selectedMenu == 'Dashboard',
+                        onTap: () => _onMenuTap('Dashboard'),
+                      ),
+                      _buildMenuItem(
+                        title: 'My Grades',
+                        icon: Icons.grade,
+                        isSelected: _selectedMenu == 'My Grades',
+                        onTap: () => _onMenuTap('My Grades'),
+                      ),
+                      _buildMenuItem(
+                        title: 'Class Schedule',
+                        icon: Icons.schedule,
+                        isSelected: _selectedMenu == 'Class Schedule',
+                        onTap: () => _onMenuTap('Class Schedule'),
+                      ),
+                      _buildMenuItem(
+                        title: 'Attendance',
+                        icon: Icons.assignment_turned_in,
+                        isSelected: _selectedMenu == 'Attendance',
+                        onTap: () => _onMenuTap('Attendance'),
+                      ),
+                      _buildMenuItem(
+                        title: 'Announcements',
+                        icon: Icons.campaign,
+                        isSelected: _selectedMenu == 'Announcements',
+                        onTap: () => _onMenuTap('Announcements'),
+                      ),
+                      _buildMenuItem(
+                        title: 'Profile',
+                        icon: Icons.person,
+                        isSelected: _selectedMenu == 'Profile',
+                        onTap: () => _onMenuTap('Profile'),
+                      ),
+                      _buildMenuItem(
+                        title: 'Settings',
+                        icon: Icons.settings,
+                        isSelected: _selectedMenu == 'Settings',
+                        onTap: () => _onMenuTap('Settings'),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      top: BorderSide(color: Colors.white24, width: 0.5),
+                    ),
+                  ),
+                  child: ListTile(
+                    leading: const Padding(
+                      padding: EdgeInsets.only(left: 16.0),
+                      child: Icon(Icons.logout, color: Colors.white),
+                    ),
+                    title: const Text(
+                      'Logout',
+                      style: TextStyle(color: Colors.white, fontSize: 15),
+                    ),
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Logout'),
+                          content: const Text('Are you sure you want to logout?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(context); // Close dialog
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const LoginScreen(),
+                                  ),
+                                );
+                              },
+                              child: const Text(
+                                'Logout',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
+        body: _buildBody(),
       ),
-      body: _buildBody(),
     );
   }
 

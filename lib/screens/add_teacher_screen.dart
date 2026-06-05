@@ -74,6 +74,21 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
           // Ignore parse errors
         }
       }
+    } else {
+      _generateAndSetTeacherId();
+    }
+  }
+
+  Future<void> _generateAndSetTeacherId() async {
+    try {
+      final nextId = await DatabaseHelper().generateNextTeacherId();
+      setState(() {
+        _teacherIdController.text = nextId;
+      });
+    } catch (e) {
+      setState(() {
+        _teacherIdController.text = 'TCH-000001';
+      });
     }
   }
 
@@ -108,6 +123,15 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
   }
 
   Future<void> _saveTeacher() async {
+    if (_teacherIdController.text.isEmpty) {
+      try {
+        final nextId = await DatabaseHelper().generateNextTeacherId();
+        _teacherIdController.text = nextId;
+      } catch (e) {
+        _teacherIdController.text = 'TCH-000001';
+      }
+    }
+
     if (_teacherIdController.text.isEmpty || _firstNameController.text.isEmpty || _lastNameController.text.isEmpty || _emailController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill all required fields.')));
       return;
@@ -292,6 +316,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                             label: 'Teacher ID',
                             hint: 'e.g., TCH-000123',
                             isRequired: true,
+                            enabled: false,
                             controller: _teacherIdController,
                           ),
                         ),

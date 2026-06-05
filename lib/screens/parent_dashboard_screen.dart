@@ -223,36 +223,75 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFD6F0FA),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF3383B3),
-        elevation: 0,
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        if (_selectedMenu != 'Dashboard') {
+          setState(() {
+            _selectedMenu = 'Dashboard';
+          });
+          return;
+        }
+        // Show logout confirmation
+        final result = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Logout'),
+            content: const Text('Are you sure you want to logout?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  'Logout',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
           ),
-        ),
-        title: Text(
-          _selectedMenu,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: CircleAvatar(
-              backgroundColor: Colors.white,
-              radius: 18,
-              child: const Icon(Icons.family_restroom,
-                  color: Color(0xFF3383B3), size: 22),
+        );
+        if (result == true && mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFD6F0FA),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF3383B3),
+          elevation: 0,
+          leading: Builder(
+            builder: (ctx) => IconButton(
+              icon: const Icon(Icons.menu, color: Colors.white),
+              onPressed: () => Scaffold.of(ctx).openDrawer(),
             ),
           ),
-        ],
+          title: Text(
+            _selectedMenu,
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+          ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: CircleAvatar(
+                backgroundColor: Colors.white,
+                radius: 18,
+                child: const Icon(Icons.family_restroom,
+                    color: Color(0xFF3383B3), size: 22),
+              ),
+            ),
+          ],
+        ),
+        drawer: _buildDrawer(),
+        body: _buildBody(),
       ),
-      drawer: _buildDrawer(),
-      body: _buildBody(),
     );
   }
 
