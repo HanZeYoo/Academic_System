@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import 'teacher_student_screen.dart';
 
 class MyClassesScreen extends StatefulWidget {
   final String username; // teacher's login email
@@ -467,8 +468,15 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Opening $subject details...')),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TeacherStudentScreen(
+                          username: widget.username,
+                          initialClass: gradeLine.isNotEmpty ? gradeLine : null,
+                          showAppBar: true,
+                        ),
+                      ),
                     );
                   },
                   style: OutlinedButton.styleFrom(
@@ -480,44 +488,6 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   child: const Text('View Class', style: TextStyle(fontSize: 12)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Opening Attendance for $subject...')),
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF0D6EFD),
-                    side: BorderSide(color: Colors.blue.shade100),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: const Text('Attendance', style: TextStyle(fontSize: 12)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Opening Grades for $subject...')),
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF0D6EFD),
-                    side: BorderSide(color: Colors.blue.shade100),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: const Text('Grades', style: TextStyle(fontSize: 12)),
                 ),
               ),
             ],

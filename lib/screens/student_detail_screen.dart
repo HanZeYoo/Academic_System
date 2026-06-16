@@ -1,12 +1,70 @@
 import 'package:flutter/material.dart';
+import '../database_helper.dart';
 
-class StudentDetailScreen extends StatelessWidget {
+class StudentDetailScreen extends StatefulWidget {
   final Map<String, dynamic> student;
 
   const StudentDetailScreen({super.key, required this.student});
 
   @override
+  State<StudentDetailScreen> createState() => _StudentDetailScreenState();
+}
+
+class _StudentDetailScreenState extends State<StudentDetailScreen> {
+  String _generalAverage = 'Loading...';
+  String _attendance = '95%'; // Mock attendance
+  String _riskStatus = 'Loading...';
+  Color _riskColor = const Color(0xFF10B981); // Green
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPerformanceSnapshot();
+  }
+
+  Future<void> _loadPerformanceSnapshot() async {
+    final studentId = widget.student['student_id']?.toString() ?? '';
+    if (studentId.isEmpty) {
+      setState(() {
+        _generalAverage = 'N/A';
+        _riskStatus = 'Unknown';
+        _riskColor = Colors.grey;
+      });
+      return;
+    }
+
+    final genAveStr = await DatabaseHelper().getStudentGeneralAverage(studentId);
+    
+    String risk = 'Low Risk';
+    Color rColor = const Color(0xFF10B981); // Green
+    
+    if (genAveStr != 'N/A') {
+      double ave = double.tryParse(genAveStr) ?? 0;
+      if (ave < 75) {
+        risk = 'High Risk';
+        rColor = Colors.red;
+      } else if (ave < 80) {
+        risk = 'At Risk';
+        rColor = Colors.orange;
+      }
+    } else {
+      risk = 'No Data';
+      rColor = Colors.grey;
+    }
+
+    if (mounted) {
+      setState(() {
+        _generalAverage = genAveStr;
+        _riskStatus = risk;
+        _riskColor = rColor;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final student = widget.student;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F9),
       appBar: AppBar(
@@ -66,7 +124,7 @@ class StudentDetailScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      'ID: ${student['student_id'] ?? 'N/A'}',
+                      'LRN: ${student['student_id'] ?? 'N/A'}',
                       style: const TextStyle(
                         fontSize: 14,
                         color: Colors.white,
@@ -151,8 +209,8 @@ class StudentDetailScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _buildSnapshotCard(
-                          title: 'Current GPA',
-                          value: '88.5',
+                          title: 'General Average',
+                          value: _generalAverage,
                           icon: Icons.grade,
                           color: const Color(0xFF10B981),
                         ),
@@ -161,7 +219,7 @@ class StudentDetailScreen extends StatelessWidget {
                       Expanded(
                         child: _buildSnapshotCard(
                           title: 'Attendance',
-                          value: '95%',
+                          value: _attendance,
                           icon: Icons.calendar_today,
                           color: const Color(0xFF3B82F6),
                         ),
@@ -171,9 +229,9 @@ class StudentDetailScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   _buildFullWidthSnapshotCard(
                     title: 'Risk Status',
-                    value: 'Low Risk',
+                    value: _riskStatus,
                     icon: Icons.health_and_safety_outlined,
-                    color: const Color(0xFF10B981), // Green for low risk
+                    color: _riskColor,
                   ),
                 ],
               ),

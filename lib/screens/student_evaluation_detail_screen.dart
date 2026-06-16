@@ -155,7 +155,7 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'ID: ${student['student_id'] ?? 'N/A'}  •  ${student['grade_level']} - ${student['section']}',
+                      'LRN: ${student['student_id'] ?? 'N/A'}  •  ${student['grade_level']} - ${student['section']}',
                       style: TextStyle(fontSize: 14, color: Colors.blue.shade100),
                     ),
                     const SizedBox(height: 8),

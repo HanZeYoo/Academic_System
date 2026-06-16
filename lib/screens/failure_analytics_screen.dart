@@ -1061,7 +1061,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
                   spacing: 8,
                   children: [
                     Text(
-                      'ID: $id',
+                      'LRN: $id',
                       style: const TextStyle(
                         color: Colors.grey,
                         fontSize: 10,

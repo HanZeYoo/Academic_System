@@ -395,7 +395,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                       children: [
                         _buildInfoRow('Name: ', name),
                         const SizedBox(height: 12),
-                        _buildInfoRow('Student ID: ', studentId),
+                        _buildInfoRow('LRN: ', studentId),
                         const SizedBox(height: 12),
                         _buildInfoRow('Email: ', email),
                       ],

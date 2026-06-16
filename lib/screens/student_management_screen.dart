@@ -187,7 +187,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
 
   Widget _buildStudentCard(BuildContext context, Map<String, dynamic> student) {
     final name = student['name'] ?? 'Unknown';
-    final id = 'ID: ${student['student_id']}';
+    final id = 'LRN: ${student['student_id']}';
     final section = '${student['grade_level']} - ${student['section']}';
 
     return Container(

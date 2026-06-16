@@ -310,7 +310,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
       children: [
         Expanded(
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11), // Match Date padding
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
@@ -322,35 +322,40 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
                 ),
               ],
             ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedClass,
-                isExpanded: true,
-                icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
-                items: _classes.isEmpty 
-                    ? [const DropdownMenuItem(value: null, child: Text('No Classes'))]
-                    : _classes.map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text('Class', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                              Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                onChanged: (newValue) {
-                  if (newValue != null && newValue != _selectedClass) {
-                    setState(() {
-                      _selectedClass = newValue;
-                    });
-                    _loadStudentsAndAttendance();
-                  }
-                },
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Class', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                const SizedBox(height: 2),
+                SizedBox(
+                  height: 20, // constrain height
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedClass,
+                      isExpanded: true,
+                      isDense: true,
+                      icon: const Icon(Icons.keyboard_arrow_down, size: 18, color: Colors.grey),
+                      items: _classes.isEmpty 
+                          ? [const DropdownMenuItem(value: null, child: Text('No Classes', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)))]
+                          : _classes.map((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                              );
+                            }).toList(),
+                      onChanged: (newValue) {
+                        if (newValue != null && newValue != _selectedClass) {
+                          setState(() {
+                            _selectedClass = newValue;
+                          });
+                          _loadStudentsAndAttendance();
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -513,7 +518,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'ID: ${student['id']} • ${student['class']}',
+                      'LRN: ${student['id']} • ${student['class']}',
                       style: TextStyle(color: Colors.grey[600], fontSize: 13),
                     ),
                   ],

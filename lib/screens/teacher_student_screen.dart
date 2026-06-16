@@ -5,7 +5,9 @@ import 'student_grades_screen.dart';
 
 class TeacherStudentScreen extends StatefulWidget {
   final String username;
-  const TeacherStudentScreen({super.key, required this.username});
+  final String? initialClass;
+  final bool showAppBar;
+  const TeacherStudentScreen({super.key, required this.username, this.initialClass, this.showAppBar = false});
 
   @override
   State<TeacherStudentScreen> createState() => _TeacherStudentScreenState();
@@ -102,6 +104,9 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     setState(() {
       _assignedClasses = classes;
       _classFilterOptions = classLabels;
+      if (widget.initialClass != null && classLabels.contains(widget.initialClass)) {
+        _selectedClass = widget.initialClass;
+      }
     });
 
     // We need to fetch scores to determine status
@@ -268,6 +273,12 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFD6F0FA),
+      appBar: widget.showAppBar ? AppBar(
+        title: Text(_selectedClass ?? 'Class Students'),
+        backgroundColor: const Color(0xFF3383B3),
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ) : null,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -634,7 +645,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'ID: ${student['student_id'] ?? 'N/A'}',
+                      'LRN: ${student['student_id'] ?? 'N/A'}',
                       style: const TextStyle(
                         fontSize: 10,
                         color: Colors.black38,

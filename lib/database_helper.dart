@@ -610,6 +610,66 @@ class DatabaseHelper {
     );
   }
 
+  // Get all scores for a student by ID
+  Future<List<Map<String, dynamic>>> getScoresByStudentId(String studentId) async {
+    final db = await database;
+    return await db.query(
+      'scores',
+      where: 'student_id = ?',
+      whereArgs: [studentId],
+    );
+  }
+
+  // Calculate General Average for a student
+  Future<String> getStudentGeneralAverage(String studentId) async {
+    final rawScores = await getScoresByStudentId(studentId);
+    if (rawScores.isEmpty) return 'N/A';
+
+    Map<String, Map<String, Map<String, double>>> aggregator = {};
+    for (var row in rawScores) {
+      final subj = row['subject_name']?.toString() ?? '';
+      final period = row['grading_period']?.toString() ?? '';
+      final score = (row['score'] as num?)?.toDouble() ?? 0.0;
+      final total = (row['total_score'] as num?)?.toDouble() ?? 0.0;
+
+      String quarterKey = '';
+      if (period.contains('1st')) quarterKey = 'Q1';
+      else if (period.contains('2nd')) quarterKey = 'Q2';
+      else if (period.contains('3rd')) quarterKey = 'Q3';
+      else if (period.contains('4th')) quarterKey = 'Q4';
+
+      if (quarterKey.isEmpty || total == 0) continue;
+
+      aggregator.putIfAbsent(subj, () => {});
+      aggregator[subj]!.putIfAbsent(quarterKey, () => {'score': 0.0, 'total': 0.0});
+      aggregator[subj]![quarterKey]!['score'] = aggregator[subj]![quarterKey]!['score']! + score;
+      aggregator[subj]![quarterKey]!['total'] = aggregator[subj]![quarterKey]!['total']! + total;
+    }
+
+    double sumFinals = 0;
+    int countFinals = 0;
+
+    for (var subj in aggregator.keys) {
+      double sumQ = 0;
+      int countQ = 0;
+      for (var q in ['Q1', 'Q2', 'Q3', 'Q4']) {
+        if (aggregator[subj]!.containsKey(q)) {
+          double s = aggregator[subj]![q]!['score']!;
+          double t = aggregator[subj]![q]!['total']!;
+          sumQ += (s / t) * 100;
+          countQ++;
+        }
+      }
+      if (countQ > 0) {
+        sumFinals += sumQ / countQ;
+        countFinals++;
+      }
+    }
+
+    if (countFinals == 0) return 'N/A';
+    return (sumFinals / countFinals).toStringAsFixed(1);
+  }
+
   // Get all scores for a subject/section/period (for class-wide evaluation)
   Future<List<Map<String, dynamic>>> getScoresForClass({
     required String subjectCode,

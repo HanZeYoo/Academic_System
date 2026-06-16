@@ -12,6 +12,7 @@ import 'teacher_parent_notification_screen.dart';
 import 'teacher_attendance_screen.dart';
 import 'reports_generation_screen.dart';
 import 'announcement_management_screen.dart';
+import '../database_helper.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   final String username;
@@ -23,6 +24,45 @@ class TeacherDashboardScreen extends StatefulWidget {
 
 class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   String _selectedMenu = 'Dashboard';
+  bool _isLoading = true;
+  String _teacherName = '';
+  int _totalClasses = 0;
+  int _totalStudents = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    final db = DatabaseHelper();
+    final teacher = await db.getTeacherByEmail(widget.username);
+    final tName = teacher?['name']?.toString() ?? 'Teacher';
+    
+    final classes = await db.getSubjectClassesByTeacher(tName);
+    
+    // Calculate total students across all classes
+    int studentCount = 0;
+    Set<String> processedSections = {};
+    for (var c in classes) {
+      final sec = '${c['grade_level']}-${c['section_name']}';
+      if (!processedSections.contains(sec)) {
+        processedSections.add(sec);
+        final students = await db.getStudentsBySection(c['grade_level']?.toString() ?? '', c['section_name']?.toString() ?? '');
+        studentCount += students.length;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _teacherName = tName;
+        _totalClasses = classes.length;
+        _totalStudents = studentCount;
+        _isLoading = false;
+      });
+    }
+  }
 
   Future<bool> _showLogoutDialog() async {
     final result = await showDialog<bool>(
@@ -300,13 +340,178 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       return AnnouncementManagementScreen(username: widget.username);
     }
 
-    return Center(
-      child: Text(
-        _selectedMenu,
-        style: const TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF224A60),
+    return _buildDashboardOverview();
+  }
+
+  String get _currentDate {
+    final now = DateTime.now();
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}, ${now.year}';
+  }
+
+  Widget _buildDashboardOverview() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Welcome Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF3383B3), Color(0xFF1E5676)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _currentDate,
+                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Welcome back, $_teacherName!',
+                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Here is what is happening with your classes today.',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Overview Stats
+          const Text('Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              double width = (constraints.maxWidth - 16) / 2;
+              return Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  _buildStatCard(title: 'Total Classes', value: '$_totalClasses', icon: Icons.class_, color: const Color(0xFF4C51BF), width: width),
+                  _buildStatCard(title: 'Total Students', value: '$_totalStudents', icon: Icons.people, color: const Color(0xFF00A364), width: width),
+                  _buildStatCard(title: 'Pending Grades', value: '0', icon: Icons.pending_actions, color: const Color(0xFFDD6B20), width: width),
+                  _buildStatCard(title: 'Avg. Attendance', value: '95%', icon: Icons.how_to_reg, color: const Color(0xFFD53F8C), width: width),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+
+          // Quick Actions
+          const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildActionChip('Encode Scores', Icons.edit_document, () => setState(() => _selectedMenu = 'Encode score')),
+                const SizedBox(width: 12),
+                _buildActionChip('Take Attendance', Icons.check_circle_outline, () => setState(() => _selectedMenu = 'Attendance')),
+                const SizedBox(width: 12),
+                _buildActionChip('View Students', Icons.groups, () => setState(() => _selectedMenu = 'Student')),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Announcements
+          const Text('Recent Announcements', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.campaign, color: Color(0xFFDD6B20), size: 20),
+                    const SizedBox(width: 8),
+                    const Text('Principal\'s Memo', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2D3748))),
+                    const Spacer(),
+                    Text('Today', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text('Reminder to all advisers to submit the Q1 encoded grades on or before Friday. Thank you!', style: TextStyle(fontSize: 13, color: Colors.black87)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard({required String title, required String value, required IconData icon, required Color color, required double width}) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 12),
+          Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+          const SizedBox(height: 4),
+          Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade500), maxLines: 1, overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionChip(String label, IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF3383B3).withOpacity(0.3)),
+          boxShadow: [BoxShadow(color: const Color(0xFF3383B3).withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: const Color(0xFF3383B3)),
+            const SizedBox(width: 8),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF224A60))),
+          ],
         ),
       ),
     );

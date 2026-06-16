@@ -19,7 +19,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
 
   final TextEditingController _subjectCodeController = TextEditingController();
   final TextEditingController _subjectNameController = TextEditingController();
-  final TextEditingController _unitsController = TextEditingController();
+
   final TextEditingController _descriptionController = TextEditingController();
   
   String? _selectedSectionName;
@@ -40,7 +40,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
       final data = widget.subjectClassToEdit!;
       _subjectCodeController.text = data['subject_code']?.toString() ?? '';
       _subjectNameController.text = data['subject_name']?.toString() ?? '';
-      _unitsController.text = data['units']?.toString() ?? '';
+
       _descriptionController.text = data['description']?.toString() ?? '';
       _selectedSectionName = data['section_name']?.toString().isNotEmpty == true ? data['section_name'].toString() : null;
       _scheduleController.text = data['schedule']?.toString() ?? '';
@@ -83,7 +83,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
       'department': _selectedDepartment ?? '',
       'grade_level': _selectedGradeLevel ?? '',
       'semester': _selectedSemester ?? '',
-      'units': _unitsController.text,
+      'units': '',
       'description': _descriptionController.text,
       'section_name': _selectedSectionName ?? '',
       'assigned_teacher': _selectedTeacher ?? '',
@@ -213,7 +213,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             isRequired: true,
                             prefixIcon: Icons.school_outlined,
                             value: _selectedGradeLevel,
-                            items: const ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'College'],
+                            items: const ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'],
                             onChanged: (val) => setState(() => _selectedGradeLevel = val),
                           ),
                         ),
@@ -224,25 +224,16 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                       children: [
                         Expanded(
                           child: _buildDropdown(
-                            label: 'Semester',
-                            hint: 'Select semester',
+                            label: 'Term / Duration',
+                            hint: 'Select term',
                             isRequired: true,
                             prefixIcon: Icons.calendar_today_outlined,
                             value: _selectedSemester,
-                            items: const ['1st Semester', '2nd Semester'],
+                            items: const ['Full Year', '1st Semester', '2nd Semester'],
                             onChanged: (val) => setState(() => _selectedSemester = val),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildTextField(
-                            label: 'Units / Credit',
-                            hint: 'e.g., 3',
-                            isRequired: true,
-                            prefixIcon: Icons.layers_outlined,
-                            controller: _unitsController,
-                          ),
-                        ),
+
                       ],
                     ),
                     const SizedBox(height: 16),

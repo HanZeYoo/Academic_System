@@ -228,7 +228,7 @@ class ClassEvaluationReportScreen extends StatelessWidget {
                             ),
                           ),
                           title: Text(student['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          subtitle: Text('ID: ${student['id']}', style: const TextStyle(fontSize: 12)),
+                          subtitle: Text('LRN: ${student['id']}', style: const TextStyle(fontSize: 12)),
                           trailing: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(

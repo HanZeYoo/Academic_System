@@ -277,8 +277,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                     ),
                     const SizedBox(height: 20),
                     _buildTextField(
-                      label: 'Student ID',
-                      hint: 'e.g., STU-000123',
+                      label: 'Student LRN',
+                      hint: 'Enter student LRN',
                       isRequired: true,
                       controller: _studentIdController,
                     ),
