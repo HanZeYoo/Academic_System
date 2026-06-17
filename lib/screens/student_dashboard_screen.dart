@@ -478,7 +478,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         children: [
           // 1. Header Section
           Text(
-            'Magandang araw, ${_studentName.isNotEmpty ? _studentName : widget.username}!',
+            'Good Day, ${_studentName.isNotEmpty ? _studentName : widget.username}!',
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,

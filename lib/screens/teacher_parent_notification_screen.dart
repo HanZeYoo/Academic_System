@@ -579,50 +579,67 @@ class _TeacherParentNotificationScreenState
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a student and reason.')));
                   return;
                 }
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
                 
-                final student = _students.firstWhere((s) => s['student_id'].toString() == _selectedStudentId);
-                final parentEmail = student['parent_email']?.toString() ?? '';
-                
-                String dateNow = "${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}";
-                
-                await db.insertNotification({
-                  'sender_username': widget.username,
-                  'receiver_username': parentEmail.isNotEmpty ? parentEmail : 'mock_parent@test.com',
-                  'student_id': _selectedStudentId,
-                  'title': _selectedReason,
-                  'message': _messageController.text,
-                  'date': dateNow,
-                  'status': 'Sent'
-                });
+                try {
+                  final student = _students.firstWhere((s) => s['student_id'].toString() == _selectedStudentId);
+                  final parentEmail = student['parent_email']?.toString() ?? '';
+                  
+                  String dateNow = "${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}";
+                  
+                  await db.insertNotification({
+                    'sender_username': widget.username,
+                    'receiver_username': parentEmail.isNotEmpty ? parentEmail : 'mock_parent@test.com',
+                    'student_id': _selectedStudentId,
+                    'title': _selectedReason,
+                    'message': _messageController.text,
+                    'date': dateNow,
+                    'status': 'Sent'
+                  });
 
-                if (_sendViaEmail && parentEmail.isNotEmpty) {
-                  // Actually send the email via SMTP in the background
-                  await EmailService.sendEmail(
-                    toEmail: parentEmail,
-                    subject: 'Academic System: ${_selectedReason}',
-                    messageText: _messageController.text,
-                  );
-                }
+                  if (_sendViaEmail && parentEmail.isNotEmpty) {
+                    await EmailService.sendEmail(
+                      toEmail: parentEmail,
+                      subject: 'Academic System: ${_selectedReason}',
+                      messageText: _messageController.text,
+                    );
+                  }
 
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(_sendViaEmail 
-                          ? (parentEmail.isEmpty ? 'Notification saved! (Parent has no email)' : 'Notification sent! (In-app + Email sent to $parentEmail)') 
-                          : 'Notification sent! (In-app only)'),
-                      backgroundColor: const Color(0xFF198754),
-                    ),
-                  );
+                  if (mounted) {
+                    Navigator.pop(context); // Close loading screen
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(_sendViaEmail 
+                            ? (parentEmail.isEmpty ? 'Notification saved! (Parent has no email)' : 'Notification sent! (In-app + Email sent to $parentEmail)') 
+                            : 'Notification sent! (In-app only)'),
+                        backgroundColor: const Color(0xFF198754),
+                      ),
+                    );
+                  }
+                  
+                  setState(() {
+                    _selectedStudentId = null;
+                    _selectedReason = null;
+                    _messageController.clear();
+                    _selectedTab = 'History';
+                  });
+                  
+                  await _loadHistory();
+                } catch (e) {
+                  if (mounted) {
+                    Navigator.pop(context); // Close loading screen on error
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                    );
+                  }
                 }
-                
-                setState(() {
-                  _selectedStudentId = null;
-                  _selectedReason = null;
-                  _messageController.clear();
-                  _selectedTab = 'History';
-                });
-                
-                await _loadHistory();
               },
               icon: const Icon(Icons.send, size: 18),
               label: const Text('Send Notification'),
