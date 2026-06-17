@@ -27,7 +27,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'academic_system.db');
     return await openDatabase(
       path, 
-      version: 18, 
+      version: 19, 
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -254,6 +254,15 @@ class DatabaseHelper {
         }
       }
     }
+    if (oldVersion < 19) {
+      try {
+        await db.execute('ALTER TABLE students ADD COLUMN is_active INTEGER DEFAULT 1');
+        await db.execute('ALTER TABLE teachers ADD COLUMN is_active INTEGER DEFAULT 1');
+        await db.execute('ALTER TABLE subjects_classes ADD COLUMN is_active INTEGER DEFAULT 1');
+      } catch (e) {
+        // Ignore
+      }
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -282,7 +291,8 @@ class DatabaseHelper {
         specialization TEXT,
         employment_status TEXT,
         hiring_date TEXT,
-        assigned_section TEXT
+        assigned_section TEXT,
+        is_active INTEGER DEFAULT 1
       )
     ''');
 
@@ -302,7 +312,8 @@ class DatabaseHelper {
         parent_name TEXT,
         parent_contact TEXT,
         address TEXT,
-        profile_picture TEXT
+        profile_picture TEXT,
+        is_active INTEGER DEFAULT 1
       )
     ''');
 
@@ -324,7 +335,8 @@ class DatabaseHelper {
         room TEXT,
         capacity TEXT,
         class_type TEXT,
-        status TEXT
+        status TEXT,
+        is_active INTEGER DEFAULT 1
       )
     ''');
 
@@ -548,10 +560,28 @@ class DatabaseHelper {
     );
   }
 
-  // Get all students
+  // Get all active students
   Future<List<Map<String, dynamic>>> getStudents() async {
     final db = await database;
-    return await db.query('students', orderBy: 'id DESC');
+    return await db.query('students', where: 'is_active = 1', orderBy: 'id DESC');
+  }
+
+  // Get archived students
+  Future<List<Map<String, dynamic>>> getArchivedStudents() async {
+    final db = await database;
+    return await db.query('students', where: 'is_active = 0', orderBy: 'id DESC');
+  }
+
+  // Soft delete a student
+  Future<void> softDeleteStudent(int id) async {
+    final db = await database;
+    await db.update('students', {'is_active': 0}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Restore a student
+  Future<void> restoreStudent(int id) async {
+    final db = await database;
+    await db.update('students', {'is_active': 1}, where: 'id = ?', whereArgs: [id]);
   }
 
   // Get a single student by email
@@ -807,10 +837,28 @@ class DatabaseHelper {
     );
   }
 
-  // Get all Subjects / Classes
+  // Get all active Subjects / Classes
   Future<List<Map<String, dynamic>>> getSubjectClasses() async {
     final db = await database;
-    return await db.query('subjects_classes', orderBy: 'id DESC');
+    return await db.query('subjects_classes', where: 'is_active = 1', orderBy: 'id DESC');
+  }
+
+  // Get archived Subjects / Classes
+  Future<List<Map<String, dynamic>>> getArchivedSubjectClasses() async {
+    final db = await database;
+    return await db.query('subjects_classes', where: 'is_active = 0', orderBy: 'id DESC');
+  }
+
+  // Soft delete Subject / Class
+  Future<void> softDeleteSubjectClass(int id) async {
+    final db = await database;
+    await db.update('subjects_classes', {'is_active': 0}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Restore Subject / Class
+  Future<void> restoreSubjectClass(int id) async {
+    final db = await database;
+    await db.update('subjects_classes', {'is_active': 1}, where: 'id = ?', whereArgs: [id]);
   }
 
   // Get classes assigned to a specific teacher (by name)
@@ -969,10 +1017,28 @@ class DatabaseHelper {
     );
   }
 
-  // Get all teachers
+  // Get all active teachers
   Future<List<Map<String, dynamic>>> getTeachers() async {
     final db = await database;
-    return await db.query('teachers', orderBy: 'id DESC');
+    return await db.query('teachers', where: 'is_active = 1', orderBy: 'id DESC');
+  }
+
+  // Get archived teachers
+  Future<List<Map<String, dynamic>>> getArchivedTeachers() async {
+    final db = await database;
+    return await db.query('teachers', where: 'is_active = 0', orderBy: 'id DESC');
+  }
+
+  // Soft delete a teacher
+  Future<void> softDeleteTeacher(int id) async {
+    final db = await database;
+    await db.update('teachers', {'is_active': 0}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Restore a teacher
+  Future<void> restoreTeacher(int id) async {
+    final db = await database;
+    await db.update('teachers', {'is_active': 1}, where: 'id = ?', whereArgs: [id]);
   }
 
   // Old SQLite authentication method (fallback or initial load)
@@ -1211,5 +1277,17 @@ class DatabaseHelper {
       return results.first['remark']?.toString();
     }
     return null;
+  }
+
+  Future<List<Map<String, dynamic>>> getStudentAllRemarksByEmail(String email) async {
+    final student = await getStudentByEmail(email);
+    if (student == null) return [];
+    
+    final db = await database;
+    return await db.query(
+      'student_remarks',
+      where: 'student_id = ?',
+      whereArgs: [student['student_id'].toString()],
+    );
   }
 }

@@ -209,7 +209,7 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
                   name,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: 15,
+                    fontSize: 16,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -217,23 +217,25 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
                   id,
                   style: const TextStyle(
                     color: Colors.grey,
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   department,
                   style: const TextStyle(
                     color: Colors.grey,
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   email,
                   style: const TextStyle(
                     color: Colors.grey,
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
                   maxLines: 1,
@@ -256,23 +258,23 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
               );
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      AddTeacherScreen(teacherToEdit: teacher),
-                ),
-              );
-              if (result == true) {
-                _loadTeachers();
-              }
-            },
-          ),
-        ],
-      ),
-    );
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        AddTeacherScreen(teacherToEdit: teacher),
+                  ),
+                );
+                if (result == true) {
+                  _loadTeachers();
+                }
+              },
+            ),
+          ],
+        ),
+      );
+    }
   }
-}

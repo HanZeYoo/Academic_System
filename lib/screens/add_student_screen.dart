@@ -168,6 +168,32 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     }
   }
 
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Student'),
+        content: Text('Are you sure you want to delete ${widget.existingStudent!['name']}? This record will be hidden from the active lists.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await DatabaseHelper().softDeleteStudent(widget.existingStudent!['id']);
+              if (mounted) {
+                Navigator.pop(context, true);
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -180,6 +206,11 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          if (widget.existingStudent != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.white),
+              onPressed: _confirmDelete,
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: CircleAvatar(

@@ -12,6 +12,7 @@ class StudentGradesViewScreen extends StatefulWidget {
 class _StudentGradesViewScreenState extends State<StudentGradesViewScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _scores = [];
+  List<Map<String, dynamic>> _remarks = [];
 
   @override
   void initState() {
@@ -22,10 +23,12 @@ class _StudentGradesViewScreenState extends State<StudentGradesViewScreen> {
   Future<void> _loadScores() async {
     final db = DatabaseHelper();
     final scores = await db.getStudentAllScores(widget.username);
+    final remarks = await db.getStudentAllRemarksByEmail(widget.username);
     
     if (mounted) {
       setState(() {
         _scores = scores;
+        _remarks = remarks;
         _isLoading = false;
       });
     }
@@ -87,6 +90,9 @@ class _StudentGradesViewScreenState extends State<StudentGradesViewScreen> {
   Widget _buildSubjectScores(String subjectCode, List<Map<String, dynamic>> subjectScores) {
     final subjectName = subjectScores.isNotEmpty ? subjectScores.first['subject_name'] ?? '' : '';
     
+    // Find remarks for this subject
+    final subjectRemarks = _remarks.where((r) => r['subject_code'] == subjectCode).toList();
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -155,7 +161,41 @@ class _StudentGradesViewScreenState extends State<StudentGradesViewScreen> {
                 ],
               ),
             );
-          }).toList(),
+          }).toList()
+            ..addAll(
+              subjectRemarks.map((r) {
+                return Container(
+                  padding: const EdgeInsets.all(16.0),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9), // Light green background
+                    border: Border(top: BorderSide(color: Colors.green.shade200)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.format_quote, color: Colors.green, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Teacher\'s Feedback (${r['grading_period']})',
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              r['remark'] ?? '',
+                              style: const TextStyle(color: Colors.black87, fontStyle: FontStyle.italic),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ),
         ),
       ),
     );

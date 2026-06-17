@@ -79,6 +79,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     }
 
     final scores = await dbHelper.getStudentAllScores(studentEmail);
+    final remarks = await dbHelper.getStudentAllRemarksByEmail(studentEmail);
     _subjectGrades.clear();
     double sumOfAverages = 0.0;
     int validSubjects = 0;
@@ -159,6 +160,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         status = 'At-Risk'; color = const Color(0xFFD32F2F);
       }
 
+      final remarkEntry = remarks.where((r) => r['subject_code'] == subjectCode && r['grading_period'] == gradingPeriod).toList();
+      String remark = '';
+      if (remarkEntry.isNotEmpty) {
+        remark = remarkEntry.first['remark']?.toString() ?? '';
+      }
+
       _subjectGrades.add({
         'subjectName': subjectName,
         'subjectCode': subjectCode,
@@ -167,6 +174,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         'color': color,
         'schedule': subjectData['schedule'] ?? 'TBA',
         'time': subjectData['time'] ?? 'TBA',
+        'remark': remark,
       });
     }
 
@@ -658,7 +666,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          'LRN: ${child['lrn'] ?? 'N/A'}',
+                          'LRN: ${child['student_id'] ?? 'N/A'}',
                           style: const TextStyle(
                               color: Colors.white, fontSize: 12),
                         ),
@@ -730,7 +738,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     final name = child['name'] ?? 'Unknown';
     final gradeLevel = child['grade_level'] ?? '';
     final section = child['section'] ?? '';
-    final lrn = child['lrn'] ?? 'N/A';
+    final lrn = child['student_id'] ?? 'N/A';
     final parentEmail = child['parent_email'] ?? 'N/A';
     final address = child['address'] ?? 'N/A';
     final contact = child['contact_number'] ?? 'N/A';
@@ -1431,6 +1439,34 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         ],
                       ),
                     ],
+                    if (s['remark'] != null && s['remark'].toString().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.format_quote, color: color.withOpacity(0.6), size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Teacher\'s Feedback', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+                                  const SizedBox(height: 4),
+                                  Text(s['remark'], style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black87)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -1506,6 +1542,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   Widget _subjectCard(Map<String, dynamic> subject) {
     final Color color = subject['color'] as Color;
     final double grade = subject['grade'] as double;
+    final String remark = subject['remark']?.toString() ?? '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1520,59 +1557,92 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               offset: const Offset(0, 3)),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.book_rounded, color: color, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(subject['subjectName'],
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: Color(0xFF224A60))),
-                const SizedBox(height: 2),
-                Text('${subject['schedule']} • ${subject['time']}',
-                    style:
-                        TextStyle(color: Colors.grey[600], fontSize: 11)),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          Row(
             children: [
-              Text(
-                grade > 0 ? grade.toStringAsFixed(1) : 'N/A',
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 17,
-                    color: Color(0xFF224A60)),
-              ),
-              const SizedBox(height: 3),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(subject['status'],
-                    style: TextStyle(
-                        color: color,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold)),
+                child: Icon(Icons.book_rounded, color: color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(subject['subjectName'],
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Color(0xFF224A60))),
+                    const SizedBox(height: 2),
+                    Text('${subject['schedule']} • ${subject['time']}',
+                        style:
+                            TextStyle(color: Colors.grey[600], fontSize: 11)),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    grade > 0 ? grade.toStringAsFixed(1) : 'N/A',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 17,
+                        color: Color(0xFF224A60)),
+                  ),
+                  const SizedBox(height: 3),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(subject['status'],
+                        style: TextStyle(
+                            color: color,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                ],
               ),
             ],
           ),
+          if (remark.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.format_quote, color: color.withOpacity(0.6), size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Teacher\'s Feedback', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+                        const SizedBox(height: 4),
+                        Text(remark, style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black87)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

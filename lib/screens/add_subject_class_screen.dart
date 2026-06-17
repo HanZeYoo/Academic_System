@@ -114,6 +114,32 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
     }
   }
 
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Subject & Class'),
+        content: Text('Are you sure you want to delete ${widget.subjectClassToEdit!['subject_name']}? This record will be hidden from the active lists.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await DatabaseHelper().softDeleteSubjectClass(widget.subjectClassToEdit!['id']);
+              if (mounted) {
+                Navigator.pop(context, true);
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     List<String> teacherNames = _teachersList.map((t) => t['name'].toString()).toList();
@@ -144,6 +170,11 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          if (widget.subjectClassToEdit != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.white),
+              onPressed: _confirmDelete,
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: CircleAvatar(
@@ -216,7 +247,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             hint: 'Select department',
                             isRequired: true,
                             prefixIcon: Icons.account_balance_outlined,
-                            value: _selectedDepartment,
+                            value: const ['Math', 'Science', 'English', 'IT'].contains(_selectedDepartment) ? _selectedDepartment : null,
                             items: const ['Math', 'Science', 'English', 'IT'],
                             onChanged: (val) => setState(() => _selectedDepartment = val),
                           ),
@@ -228,7 +259,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             hint: 'Select grade level',
                             isRequired: true,
                             prefixIcon: Icons.school_outlined,
-                            value: _selectedGradeLevel,
+                            value: const ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'].contains(_selectedGradeLevel) ? _selectedGradeLevel : null,
                             items: const ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'],
                             onChanged: (val) {
                               setState(() {
@@ -257,7 +288,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             hint: 'Select term',
                             isRequired: true,
                             prefixIcon: Icons.calendar_today_outlined,
-                            value: _selectedSemester,
+                            value: termOptions.contains(_selectedSemester) ? _selectedSemester : null,
                             items: termOptions,
                             onChanged: (val) => setState(() => _selectedSemester = val),
                           ),
@@ -292,7 +323,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             hint: 'Select Section',
                             isRequired: true,
                             prefixIcon: Icons.people_outline,
-                            value: _selectedSectionName,
+                            value: const ['Section A', 'Section B', 'Section C', 'Section D', 'Section E'].contains(_selectedSectionName) ? _selectedSectionName : null,
                             items: const ['Section A', 'Section B', 'Section C', 'Section D', 'Section E'],
                             onChanged: (val) => setState(() => _selectedSectionName = val),
                           ),
@@ -306,7 +337,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                                   hint: teacherNames.isEmpty ? 'No teachers found' : 'Select teacher',
                                   isRequired: true,
                                   prefixIcon: Icons.person_outline,
-                                  value: _selectedTeacher,
+                                  value: teacherNames.contains(_selectedTeacher) ? _selectedTeacher : null,
                                   items: teacherNames,
                                   onChanged: (val) => setState(() => _selectedTeacher = val),
                                 ),
@@ -370,7 +401,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             hint: 'Select class type',
                             isRequired: true,
                             prefixIcon: Icons.school_outlined,
-                            value: _selectedClassType,
+                            value: const ['Regular', 'Elective'].contains(_selectedClassType) ? _selectedClassType : null,
                             items: const ['Regular', 'Elective'],
                             onChanged: (val) => setState(() => _selectedClassType = val),
                           ),
@@ -382,7 +413,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             hint: 'Select status',
                             isRequired: true,
                             prefixIcon: Icons.check_circle_outline,
-                            value: _selectedStatus,
+                            value: const ['Active', 'Inactive'].contains(_selectedStatus) ? _selectedStatus : null,
                             items: const ['Active', 'Inactive'],
                             onChanged: (val) => setState(() => _selectedStatus = val),
                           ),

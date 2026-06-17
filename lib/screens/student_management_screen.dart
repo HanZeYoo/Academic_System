@@ -208,11 +208,12 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
                 ),
                 const SizedBox(height: 4),
-                Text(id, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                Text(section, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                Text(id, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                const SizedBox(height: 2),
+                Text(section, style: const TextStyle(color: Colors.grey, fontSize: 13)),
               ],
             ),
           ),
@@ -227,22 +228,22 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
               );
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AddStudentScreen(existingStudent: student),
-                ),
-              );
-              if (result == true) {
-                _loadStudents();
-              }
-            },
-          ),
-        ],
-      ),
-    );
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddStudentScreen(existingStudent: student),
+                  ),
+                );
+                if (result == true) {
+                  _loadStudents();
+                }
+              },
+            ),
+          ],
+        ),
+      );
+    }
   }
-}

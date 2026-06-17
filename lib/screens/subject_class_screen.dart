@@ -228,7 +228,7 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
                   name,
                   style: const TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: 15,
+                    fontSize: 16,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -236,15 +236,16 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
                   details,
                   style: const TextStyle(
                     color: Colors.grey,
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   teacher,
                   style: const TextStyle(
                     color: Colors.grey,
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -258,22 +259,22 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
             ),
             onPressed: () => _showViewDialog(item),
           ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => AddSubjectClassScreen(subjectClassToEdit: item)),
-              );
-              if (result == true) {
-                _loadSubjectClasses();
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => AddSubjectClassScreen(subjectClassToEdit: item)),
+                );
+                if (result == true) {
+                  _loadSubjectClasses();
+                }
+              },
+            ),
+          ],
+        ),
+      );
+    }
 
   void _showViewDialog(Map<String, dynamic> item) {
     showDialog(

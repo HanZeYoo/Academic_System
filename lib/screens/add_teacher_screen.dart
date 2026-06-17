@@ -45,11 +45,11 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         _lastNameController.text = names.sublist(1).join(' ');
       }
       
-      _selectedDepartment = data['department']?.toString().isNotEmpty == true ? data['department'].toString() : null;
-      _selectedGender = data['gender']?.toString().isNotEmpty == true ? data['gender'].toString() : null;
-      _selectedSubjectSpecialization = data['specialization']?.toString().isNotEmpty == true ? data['specialization'].toString() : null;
-      _selectedEmploymentStatus = data['employment_status']?.toString().isNotEmpty == true ? data['employment_status'].toString() : null;
-      _selectedAssignedSection = data['assigned_section']?.toString().isNotEmpty == true ? data['assigned_section'].toString() : null;
+      if (['Math', 'Science', 'English', 'IT'].contains(data['department'])) _selectedDepartment = data['department'];
+      if (['Male', 'Female', 'Other'].contains(data['gender'])) _selectedGender = data['gender'];
+      if (['Mathematics', 'Science', 'English', 'History'].contains(data['specialization'])) _selectedSubjectSpecialization = data['specialization'];
+      if (['Full-time', 'Part-time', 'Contract'].contains(data['employment_status'])) _selectedEmploymentStatus = data['employment_status'];
+      if (['Section A', 'Section B', 'Section C', 'Section D'].contains(data['assigned_section'])) _selectedAssignedSection = data['assigned_section'];
       
       _contactNumberController.text = data['contact_number']?.toString() ?? '';
       _homeAddressController.text = data['address']?.toString() ?? '';
@@ -183,6 +183,32 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
     }
   }
 
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Teacher'),
+        content: Text('Are you sure you want to delete ${widget.teacherToEdit!['name']}? This record will be hidden from the active lists.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await DatabaseHelper().softDeleteTeacher(widget.teacherToEdit!['id']);
+              if (mounted) {
+                Navigator.pop(context, true);
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -195,6 +221,11 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          if (widget.teacherToEdit != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.white),
+              onPressed: _confirmDelete,
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: CircleAvatar(
