@@ -103,7 +103,7 @@ class LandingScreen extends StatelessWidget {
             ),
             const Spacer(),
             const Text(
-              '@2026 NotifyEd. A Capstone Project',
+              '@2026 AcadInsight. A Capstone Project',
               style: TextStyle(fontSize: 13, color: Colors.black87),
             ),
             const SizedBox(height: 8),

@@ -236,6 +236,26 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
   void _showStudentBreakdownDialog(Map<String, dynamic> student) {
     final breakdown = student['breakdown'] as Map<String, dynamic>;
 
+    String lowestCategory = '';
+    double lowestScore = 100.0;
+    
+    breakdown.forEach((key, value) {
+      final score = double.tryParse(value.toString()) ?? 0.0;
+      if (score < lowestScore) {
+        lowestScore = score;
+        lowestCategory = key;
+      }
+    });
+
+    String pluralCategory = lowestCategory;
+    if (lowestCategory == 'Quiz') pluralCategory = 'Quizzes';
+    else if (lowestCategory == 'Assignment') pluralCategory = 'Assignments';
+    else if (lowestCategory == 'Activity') pluralCategory = 'Activities';
+    else if (lowestCategory == 'Project') pluralCategory = 'Projects';
+    else if (lowestCategory == 'Exam') pluralCategory = 'Exams';
+
+    String reasonText = lowestCategory.isNotEmpty ? ' primarily due to low scores in $pluralCategory' : '';
+
     Widget buildBreakdownRow(String title, String percent) {
       final val = double.tryParse(percent) ?? 0.0;
       Color statusColor;
@@ -348,10 +368,10 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
                     size: 18,
                   ),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Suggestion: Student is falling behind. Check for missing requirements and notify the parent for a conference.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFFE74C3C)),
+                      'Suggestion: Student is falling behind$reasonText. Notify the parent for a conference to discuss an intervention plan.',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFFE74C3C)),
                     ),
                   ),
                 ],
@@ -370,7 +390,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
               _showOneTapNotifyDialog(student);
             },
             icon: const Icon(Icons.campaign, size: 16),
-            label: const Text('One-Tap Notify'),
+            label: const Text('Notify Parent'),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF1664C5),
               foregroundColor: Colors.white,
@@ -382,6 +402,27 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
   }
 
   void _showOneTapNotifyDialog(Map<String, dynamic> student) {
+    final breakdown = student['breakdown'] as Map<String, dynamic>;
+    String lowestCategory = '';
+    double lowestScore = 100.0;
+    
+    breakdown.forEach((key, value) {
+      final score = double.tryParse(value.toString()) ?? 0.0;
+      if (score < lowestScore) {
+        lowestScore = score;
+        lowestCategory = key;
+      }
+    });
+
+    String pluralCategory = lowestCategory;
+    if (lowestCategory == 'Quiz') pluralCategory = 'Quizzes';
+    else if (lowestCategory == 'Assignment') pluralCategory = 'Assignments';
+    else if (lowestCategory == 'Activity') pluralCategory = 'Activities';
+    else if (lowestCategory == 'Project') pluralCategory = 'Projects';
+    else if (lowestCategory == 'Exam') pluralCategory = 'Exams';
+
+    String reasonText = lowestCategory.isNotEmpty ? ' primarily due to low scores in $pluralCategory' : '';
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -414,7 +455,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
                 border: Border.all(color: Colors.black12),
               ),
               child: Text(
-                'Dear Parent, this is to inform you that ${student['name']} is currently at risk in ${student['subject']} (${student['average']}). We suggest a meeting to discuss improvement plans.',
+                'Dear Parent, this is to inform you that ${student['name']} is currently at risk in ${student['subject']} (${student['average']})$reasonText. We suggest a meeting to discuss improvement plans.',
                 style: const TextStyle(
                   fontSize: 12,
                   fontStyle: FontStyle.italic,
@@ -444,7 +485,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
               backgroundColor: const Color(0xFF1664C5),
               foregroundColor: Colors.white,
             ),
-            child: const Text('Send One-Tap'),
+            child: const Text('Send Notification'),
           ),
         ],
       ),

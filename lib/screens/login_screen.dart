@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../database_helper.dart';
 import 'admin_dashboard.dart';
 import 'teacher_dashboard_screen.dart';
@@ -147,6 +148,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _usernameController,
+                      inputFormatters: [
+                        TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toLowerCase())),
+                      ],
                       decoration: InputDecoration(
                         hintText: 'e.g., student.id@school.edu',
                         hintStyle: TextStyle(
@@ -275,7 +279,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 children: [
                   const Text(
-                    '@2026 NotifyEd. A Capstone Project',
+                    '@2026 AcadInsight. A Capstone Project',
                     style: TextStyle(fontSize: 12, color: Colors.black87),
                   ),
                   const SizedBox(height: 8),

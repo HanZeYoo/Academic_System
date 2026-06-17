@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../database_helper.dart';
 
 class AddTeacherScreen extends StatefulWidget {
@@ -411,6 +412,10 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                       hint: 'Enter email address',
                       isRequired: true,
                       controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      inputFormatters: [
+                        TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toLowerCase())),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     _buildTextField(
@@ -752,6 +757,8 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
     IconData? suffixIcon,
     int maxLines = 1,
     TextEditingController? controller,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -761,6 +768,8 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
           controller: controller,
           enabled: enabled,
           maxLines: maxLines,
+          keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(

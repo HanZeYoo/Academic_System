@@ -82,146 +82,93 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
 
     return RefreshIndicator(
       onRefresh: _loadData,
-      child: SingleChildScrollView(
+      child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                const Icon(Icons.layers, color: Color(0xFF0D6EFD), size: 28),
-                const SizedBox(width: 8),
-                const Text(
-                  'My Classes',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const Spacer(),
-                // Class count badge
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0D6EFD).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${_classes.length} ${_classes.length == 1 ? 'Class' : 'Classes'}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF0D6EFD),
-                      fontWeight: FontWeight.w600,
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.all(16.0),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                // Header
+                Row(
+                  children: [
+                    const Icon(Icons.layers, color: Color(0xFF0D6EFD), size: 28),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'My Classes',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Empty state
-            if (_classes.isEmpty)
-              _buildEmptyState()
-            else ...[
-              // Class Cards
-              ..._classes.asMap().entries.map((entry) {
-                final index = entry.key;
-                final cls = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _buildClassCard(
-                    index: index,
-                    data: cls,
-                  ),
-                );
-              }),
-              const SizedBox(height: 24),
-            ],
-
-            // Today's Schedule Header
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "Today's Schedule",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () {},
-                  child: const Row(
-                    children: [
-                      Text(
-                        'View Full Schedule',
-                        style: TextStyle(
-                          fontSize: 14,
+                    const Spacer(),
+                    // Class count badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0D6EFD).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${_classes.length} ${_classes.length == 1 ? 'Class' : 'Classes'}',
+                        style: const TextStyle(
+                          fontSize: 12,
                           color: Color(0xFF0D6EFD),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      Icon(Icons.chevron_right, color: Color(0xFF0D6EFD), size: 20),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Horizontal Action Cards
-            Row(
-              children: [
-                Expanded(
-                  child: _buildActionCard(
-                    title: 'Encode Grades',
-                    subtitle: 'Enter and manage grades',
-                    icon: Icons.description,
-                    iconColor: const Color(0xFF0D6EFD),
-                    iconBgColor: const Color(0xFFE7F1FF),
-                    onTap: () {},
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildActionCard(
-                    title: 'Class Announcements',
-                    subtitle: 'Post updates for classes',
-                    icon: Icons.campaign,
-                    iconColor: const Color(0xFF198754),
-                    iconBgColor: const Color(0xFFE8F5E9),
-                    onTap: () {},
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-
-            // Secure & Private footer
-            const Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.security, size: 16, color: Colors.black87),
-                  SizedBox(width: 6),
-                  Text(
-                    'Secure & Private',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.black87,
-                      fontWeight: FontWeight.w500,
                     ),
-                  ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Empty state
+                if (_classes.isEmpty)
+                  _buildEmptyState()
+                else ...[
+                  // Class Cards
+                  ..._classes.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final cls = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildClassCard(
+                        index: index,
+                        data: cls,
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 24),
                 ],
+              ]),
+            ),
+          ),
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.security, size: 16, color: Colors.black87),
+                    SizedBox(width: 6),
+                    Text(
+                      'Secure & Private',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -497,71 +444,5 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
     );
   }
 
-  Widget _buildActionCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required Color iconColor,
-    required Color iconBgColor,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconBgColor,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: iconColor, size: 24),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.black54,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: Colors.black38, size: 20),
-          ],
-        ),
-      ),
-    );
-  }
+
 }

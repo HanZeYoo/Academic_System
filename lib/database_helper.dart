@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -9,6 +11,11 @@ class DatabaseHelper {
 
   DatabaseHelper._internal();
 
+  String _hashPassword(String password) {
+    final bytes = utf8.encode(password);
+    return sha256.convert(bytes).toString();
+  }
+
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDatabase();
@@ -19,7 +26,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'academic_system.db');
     return await openDatabase(
       path, 
-      version: 16, 
+      version: 18, 
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -217,6 +224,35 @@ class DatabaseHelper {
         )
       ''');
     }
+    if (oldVersion < 17) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS student_remarks (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          student_id TEXT,
+          subject_code TEXT,
+          grading_period TEXT,
+          remark TEXT,
+          created_at TEXT
+        )
+      ''');
+    }
+    if (oldVersion < 18) {
+      final users = await db.query('users');
+      for (var user in users) {
+        final pwd = user['password']?.toString() ?? '';
+        // SHA-256 hash length is exactly 64 characters
+        if (pwd.isNotEmpty && pwd.length != 64) {
+          final bytes = utf8.encode(pwd);
+          final hashed = sha256.convert(bytes).toString();
+          await db.update(
+            'users',
+            {'password': hashed},
+            where: 'id = ?',
+            whereArgs: [user['id']],
+          );
+        }
+      }
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -377,10 +413,22 @@ class DatabaseHelper {
       )
     ''');
 
+    // Create student_remarks table
+    await db.execute('''
+      CREATE TABLE student_remarks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id TEXT,
+        subject_code TEXT,
+        grading_period TEXT,
+        remark TEXT,
+        created_at TEXT
+      )
+    ''');
+
     // Insert a default admin account
     await db.insert('users', {
       'username': 'admin',
-      'password': 'password123',
+      'password': _hashPassword('password123'),
       'role': 'admin',
     });
   }
@@ -420,7 +468,7 @@ class DatabaseHelper {
       if (email.isNotEmpty) {
         await txn.insert('users', {
           'username': email,
-          'password': 'student123',
+          'password': _hashPassword('student123'),
           'role': 'student',
         }, conflictAlgorithm: ConflictAlgorithm.ignore);
       }
@@ -428,7 +476,7 @@ class DatabaseHelper {
       if (parentEmail.isNotEmpty) {
         await txn.insert('users', {
           'username': parentEmail,
-          'password': 'parent123',
+          'password': _hashPassword('parent123'),
           'role': 'parent',
         }, conflictAlgorithm: ConflictAlgorithm.ignore);
       }
@@ -831,7 +879,7 @@ class DatabaseHelper {
       // Automatically create a user account for the teacher
       await txn.insert('users', {
         'username': email,
-        'password': 'teacher123',
+        'password': _hashPassword('teacher123'),
         'role': 'teacher',
       }, conflictAlgorithm: ConflictAlgorithm.ignore);
     });
@@ -905,10 +953,11 @@ class DatabaseHelper {
   // Authentication method
   Future<Map<String, dynamic>?> login(String username, String password) async {
     final db = await database;
+    final hashedPassword = _hashPassword(password);
     List<Map<String, dynamic>> results = await db.query(
       'users',
       where: 'username = ? AND password = ?',
-      whereArgs: [username, password],
+      whereArgs: [username, hashedPassword],
     );
 
     if (results.isNotEmpty) {
@@ -920,9 +969,10 @@ class DatabaseHelper {
   // Method to update password
   Future<int> updatePassword(String username, String newPassword) async {
     final db = await database;
+    final hashedPassword = _hashPassword(newPassword);
     return await db.update(
       'users',
-      {'password': newPassword},
+      {'password': hashedPassword},
       where: 'username = ?',
       whereArgs: [username],
     );
@@ -1076,5 +1126,50 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  // --- Remarks Methods ---
+  Future<void> saveStudentRemark(String studentId, String subjectCode, String gradingPeriod, String remark) async {
+    final db = await database;
+    final existing = await db.query(
+      'student_remarks',
+      where: 'student_id = ? AND subject_code = ? AND grading_period = ?',
+      whereArgs: [studentId, subjectCode, gradingPeriod],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty) {
+      await db.update(
+        'student_remarks',
+        {
+          'remark': remark,
+          'created_at': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [existing.first['id']],
+      );
+    } else {
+      await db.insert('student_remarks', {
+        'student_id': studentId,
+        'subject_code': subjectCode,
+        'grading_period': gradingPeriod,
+        'remark': remark,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    }
+  }
+
+  Future<String?> getStudentRemark(String studentId, String subjectCode, String gradingPeriod) async {
+    final db = await database;
+    final results = await db.query(
+      'student_remarks',
+      where: 'student_id = ? AND subject_code = ? AND grading_period = ?',
+      whereArgs: [studentId, subjectCode, gradingPeriod],
+      limit: 1,
+    );
+    if (results.isNotEmpty) {
+      return results.first['remark']?.toString();
+    }
+    return null;
   }
 }

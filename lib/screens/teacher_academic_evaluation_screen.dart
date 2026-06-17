@@ -463,6 +463,9 @@ class _TeacherAcademicEvaluationScreenState
                   examColor: examPct > 0 && examPct < 75
                       ? const Color(0xFFEF4444)
                       : const Color(0xFF3B82F6),
+                  onRemarks: () {
+                    _showRemarksDialog(sid, student['name'].toString());
+                  },
                   onViewDetails: () {
                     final studentScores = _allScores
                         .where((r) => r['student_id'].toString() == sid)
@@ -794,6 +797,57 @@ class _TeacherAcademicEvaluationScreenState
     );
   }
 
+  Future<void> _showRemarksDialog(String studentId, String studentName) async {
+    if (_selectedClassData == null) return;
+    final subjectCode = _selectedClassData!['subject_code'].toString();
+    
+    final db = DatabaseHelper();
+    final existingRemark = await db.getStudentRemark(studentId, subjectCode, _selectedPeriod);
+    
+    if (!mounted) return;
+    final remarkController = TextEditingController(text: existingRemark ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Remarks for $studentName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          content: TextField(
+            controller: remarkController,
+            maxLines: 4,
+            decoration: InputDecoration(
+              hintText: 'Enter your remarks here...',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await db.saveStudentRemark(studentId, subjectCode, _selectedPeriod, remarkController.text);
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Remarks saved successfully!')),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF3B82F6),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildComponentAvg(
       String title, String score, IconData icon, Color color) {
     return Column(
@@ -832,6 +886,7 @@ class _TeacherAcademicEvaluationScreenState
     Color quizColor = const Color(0xFF3B82F6),
     Color examColor = const Color(0xFF3B82F6),
     VoidCallback? onViewDetails,
+    VoidCallback? onRemarks,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1024,7 +1079,7 @@ class _TeacherAcademicEvaluationScreenState
               _buildOutlinedButton(Icons.visibility_outlined, 'View Details',
                   const Color(0xFF3B82F6), onTap: onViewDetails),
               _buildOutlinedButton(
-                  Icons.chat_bubble_outline, 'Remarks', const Color(0xFF3B82F6)),
+                  Icons.chat_bubble_outline, 'Remarks', const Color(0xFF3B82F6), onTap: onRemarks),
             ],
           ),
         ],

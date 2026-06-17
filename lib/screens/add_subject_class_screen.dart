@@ -118,6 +118,22 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
   Widget build(BuildContext context) {
     List<String> teacherNames = _teachersList.map((t) => t['name'].toString()).toList();
 
+    List<String> termOptions;
+    if (_selectedGradeLevel == 'Grade 11' || _selectedGradeLevel == 'Grade 12') {
+      termOptions = ['1st Semester', '2nd Semester'];
+    } else if (_selectedGradeLevel != null) {
+      termOptions = ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'];
+    } else {
+      termOptions = [
+        '1st Quarter',
+        '2nd Quarter',
+        '3rd Quarter',
+        '4th Quarter',
+        '1st Semester',
+        '2nd Semester'
+      ];
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F9),
       appBar: AppBar(
@@ -214,7 +230,20 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             prefixIcon: Icons.school_outlined,
                             value: _selectedGradeLevel,
                             items: const ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'],
-                            onChanged: (val) => setState(() => _selectedGradeLevel = val),
+                            onChanged: (val) {
+                              setState(() {
+                                _selectedGradeLevel = val;
+                                if (val == 'Grade 11' || val == 'Grade 12') {
+                                  if (!['1st Semester', '2nd Semester'].contains(_selectedSemester)) {
+                                    _selectedSemester = null;
+                                  }
+                                } else if (val != null) {
+                                  if (!['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'].contains(_selectedSemester)) {
+                                    _selectedSemester = null;
+                                  }
+                                }
+                              });
+                            },
                           ),
                         ),
                       ],
@@ -229,7 +258,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             isRequired: true,
                             prefixIcon: Icons.calendar_today_outlined,
                             value: _selectedSemester,
-                            items: const ['Full Year', '1st Semester', '2nd Semester'],
+                            items: termOptions,
                             onChanged: (val) => setState(() => _selectedSemester = val),
                           ),
                         ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../database_helper.dart';
 
 class AddStudentScreen extends StatefulWidget {
@@ -103,6 +104,16 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         _lastNameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all required fields.')),
+      );
+      return;
+    }
+
+    if (_studentIdController.text.length != 12) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Student LRN must be exactly 12 digits.', style: TextStyle(color: Colors.white)),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }
@@ -278,9 +289,14 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                     const SizedBox(height: 20),
                     _buildTextField(
                       label: 'Student LRN',
-                      hint: 'Enter student LRN',
+                      hint: 'Enter 12-digit student LRN',
                       isRequired: true,
                       controller: _studentIdController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(12),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -368,6 +384,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                       label: 'Email Address',
                       hint: 'Enter email address',
                       controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      inputFormatters: [
+                        TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toLowerCase())),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     _buildTextField(
@@ -403,6 +423,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                       label: 'Parent Email Address',
                       hint: 'Enter parent email address',
                       controller: _parentEmailController,
+                      keyboardType: TextInputType.emailAddress,
+                      inputFormatters: [
+                        TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toLowerCase())),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     _buildTextField(
@@ -660,6 +684,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     IconData? suffixIcon,
     int maxLines = 1,
     TextEditingController? controller,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -669,6 +695,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           controller: controller,
           enabled: enabled,
           maxLines: maxLines,
+          keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
