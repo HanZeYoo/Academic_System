@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "198627159024",
+    "project_id": "acadinsight-4b38b",
+    "storage_bucket": "acadinsight-4b38b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:198627159024:android:48585951f7d80d8b88cb35",
+        "android_client_info": {
+          "package_name": "com.example.academic_system"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCD_KwF96hrWcI3gk5KbJQtkU4uk18ABb4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

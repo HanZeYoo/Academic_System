@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -466,6 +467,14 @@ class DatabaseHelper {
       });
       // Auto-create user account for student
       if (email.isNotEmpty) {
+        try {
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: email,
+            password: 'student123',
+          );
+        } catch (e) {
+          // Ignore if already exists or fails
+        }
         await txn.insert('users', {
           'username': email,
           'password': _hashPassword('student123'),
@@ -474,6 +483,14 @@ class DatabaseHelper {
       }
       // Auto-create user account for parent
       if (parentEmail.isNotEmpty) {
+        try {
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: parentEmail,
+            password: 'parent123',
+          );
+        } catch (e) {
+          // Ignore if already exists or fails
+        }
         await txn.insert('users', {
           'username': parentEmail,
           'password': _hashPassword('parent123'),
@@ -877,6 +894,14 @@ class DatabaseHelper {
         'assigned_section': assignedSection,
       });
       // Automatically create a user account for the teacher
+      try {
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: email,
+          password: 'teacher123',
+        );
+      } catch (e) {
+        // Ignore if already exists
+      }
       await txn.insert('users', {
         'username': email,
         'password': _hashPassword('teacher123'),
@@ -950,7 +975,7 @@ class DatabaseHelper {
     return await db.query('teachers', orderBy: 'id DESC');
   }
 
-  // Authentication method
+  // Old SQLite authentication method (fallback or initial load)
   Future<Map<String, dynamic>?> login(String username, String password) async {
     final db = await database;
     final hashedPassword = _hashPassword(password);
@@ -958,6 +983,21 @@ class DatabaseHelper {
       'users',
       where: 'username = ? AND password = ?',
       whereArgs: [username, hashedPassword],
+    );
+
+    if (results.isNotEmpty) {
+      return results.first;
+    }
+    return null;
+  }
+
+  // Fetch user role based on username/email (Used after Firebase Auth success)
+  Future<Map<String, dynamic>?> getUserByUsername(String username) async {
+    final db = await database;
+    List<Map<String, dynamic>> results = await db.query(
+      'users',
+      where: 'username = ?',
+      whereArgs: [username],
     );
 
     if (results.isNotEmpty) {

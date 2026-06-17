@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../database_helper.dart';
 import 'admin_dashboard.dart';
 import 'teacher_dashboard_screen.dart';
@@ -19,50 +20,82 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  void _routeUser(Map<String, dynamic> user) {
+    if (!mounted) return;
+    if (user['role'] == 'teacher') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => TeacherDashboardScreen(username: user['username'])),
+      );
+    } else if (user['role'] == 'student') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => StudentDashboardScreen(username: user['username'])),
+      );
+    } else if (user['role'] == 'parent') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => ParentDashboardScreen(username: user['username'])),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => AdminDashboard(username: user['username'])),
+      );
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
   Future<void> _handleLogin() async {
     setState(() => _isLoading = true);
 
     final dbHelper = DatabaseHelper();
-    final user = await dbHelper.login(
-      _usernameController.text,
-      _passwordController.text,
-    );
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text;
 
-    setState(() => _isLoading = false);
-
-    if (user != null) {
-      if (mounted) {
-        if (user['role'] == 'teacher') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => TeacherDashboardScreen(username: user['username'])),
-          );
-        } else if (user['role'] == 'student') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => StudentDashboardScreen(username: user['username'])),
-          );
-        } else if (user['role'] == 'parent') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => ParentDashboardScreen(username: user['username'])),
-          );
+    try {
+      // 1. Try Firebase Auth first
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: username,
+        password: password,
+      );
+      
+      // 2. If Firebase succeeds, fetch user role from local SQLite
+      final user = await dbHelper.getUserByUsername(username);
+      setState(() => _isLoading = false);
+      
+      if (user != null) {
+        _routeUser(user);
+      } else {
+        _showError('User profile not found in local database.');
+      }
+    } on FirebaseAuthException catch (e) {
+      // 3. Fallback to SQLite (for legacy accounts like 'admin' without valid email format)
+      if (e.code == 'invalid-email' || e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        final localUser = await dbHelper.login(username, password);
+        setState(() => _isLoading = false);
+        
+        if (localUser != null) {
+          _routeUser(localUser);
         } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => AdminDashboard(username: user['username'])),
-          );
+          _showError('Invalid username or password!');
         }
+      } else {
+        setState(() => _isLoading = false);
+        _showError(e.message ?? 'Authentication error');
       }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid username or password!'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showError('An error occurred. Please try again.');
     }
   }
 
