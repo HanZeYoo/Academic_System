@@ -23,7 +23,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   
   String? _selectedSectionName;
-  final TextEditingController _scheduleController = TextEditingController();
+  List<String> _selectedDays = [];
   final TextEditingController _timeController = TextEditingController();
   final TextEditingController _roomController = TextEditingController();
   final TextEditingController _capacityController = TextEditingController();
@@ -43,7 +43,12 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
 
       _descriptionController.text = data['description']?.toString() ?? '';
       _selectedSectionName = data['section_name']?.toString().isNotEmpty == true ? data['section_name'].toString() : null;
-      _scheduleController.text = data['schedule']?.toString() ?? '';
+      final sched = data['schedule']?.toString() ?? '';
+      if (sched == 'Mon-Fri') {
+        _selectedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+      } else {
+        _selectedDays = sched.split(', ').where((d) => d.isNotEmpty).toSet().toList();
+      }
       _timeController.text = data['time']?.toString() ?? '';
       _roomController.text = data['room']?.toString() ?? '';
       _capacityController.text = data['capacity']?.toString() ?? '';
@@ -54,6 +59,30 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
       _selectedTeacher = data['assigned_teacher']?.toString().isNotEmpty == true ? data['assigned_teacher'].toString() : null;
       _selectedClassType = data['class_type']?.toString().isNotEmpty == true ? data['class_type'].toString() : null;
       _selectedStatus = data['status']?.toString().isNotEmpty == true ? data['status'].toString() : null;
+    }
+  }
+
+  Future<void> _selectTimeRange(BuildContext context) async {
+    final TimeOfDay? startTime = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 8, minute: 0),
+      helpText: 'Select Start Time',
+    );
+    
+    if (startTime != null && mounted) {
+      final TimeOfDay? endTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay(hour: startTime.hour + 1, minute: startTime.minute),
+        helpText: 'Select End Time',
+      );
+      
+      if (endTime != null && mounted) {
+        final startStr = startTime.format(context);
+        final endStr = endTime.format(context);
+        setState(() {
+          _timeController.text = '$startStr - $endStr';
+        });
+      }
     }
   }
 
@@ -87,7 +116,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
       'description': _descriptionController.text,
       'section_name': _selectedSectionName ?? '',
       'assigned_teacher': _selectedTeacher ?? '',
-      'schedule': _scheduleController.text,
+      'schedule': _selectedDays.join(', '),
       'time': _timeController.text,
       'room': _roomController.text,
       'capacity': _capacityController.text,
@@ -247,8 +276,30 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             hint: 'Select department',
                             isRequired: true,
                             prefixIcon: Icons.account_balance_outlined,
-                            value: const ['Math', 'Science', 'English', 'IT'].contains(_selectedDepartment) ? _selectedDepartment : null,
-                            items: const ['Math', 'Science', 'English', 'IT'],
+                            value: const [
+                              'Mathematics Department',
+                              'Science Department',
+                              'English Department',
+                              'Filipino Department',
+                              'Araling Panlipunan (Social Studies)',
+                              'MAPEH Department',
+                              'TLE Department',
+                              'EsP Department',
+                              'SHS Core Subjects',
+                              'SHS Applied/Specialized'
+                            ].contains(_selectedDepartment) ? _selectedDepartment : null,
+                            items: const [
+                              'Mathematics Department',
+                              'Science Department',
+                              'English Department',
+                              'Filipino Department',
+                              'Araling Panlipunan (Social Studies)',
+                              'MAPEH Department',
+                              'TLE Department',
+                              'EsP Department',
+                              'SHS Core Subjects',
+                              'SHS Applied/Specialized'
+                            ],
                             onChanged: (val) => setState(() => _selectedDepartment = val),
                           ),
                         ),
@@ -345,32 +396,45 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            label: 'Schedule (Days)',
-                            hint: 'e.g., Mon, Wed, Fri',
-                            isRequired: true,
-                            prefixIcon: Icons.calendar_today_outlined,
-                            controller: _scheduleController,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildTextField(
-                            label: 'Time',
-                            hint: 'e.g., 9:00 AM - 10:30 AM',
-                            isRequired: true,
-                            prefixIcon: Icons.access_time,
-                            controller: _timeController,
-                          ),
-                        ),
-                      ],
+                    _buildLabel('Schedule (Days)', isRequired: true),
+                    Wrap(
+                      spacing: 8.0,
+                      runSpacing: 4.0,
+                      children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) {
+                        return FilterChip(
+                          label: Text(day, style: const TextStyle(fontSize: 12)),
+                          selected: _selectedDays.contains(day),
+                          onSelected: (bool selected) {
+                            setState(() {
+                              if (selected) {
+                                if (!_selectedDays.contains(day)) _selectedDays.add(day);
+                              } else {
+                                _selectedDays.remove(day);
+                              }
+                            });
+                          },
+                          selectedColor: const Color(0xFFBFDBFE),
+                          checkmarkColor: const Color(0xFF0F52BA),
+                          backgroundColor: Colors.white,
+                          shape: StadiumBorder(side: BorderSide(color: Colors.grey.shade300)),
+                        );
+                      }).toList(),
                     ),
                     const SizedBox(height: 16),
                     Row(
                       children: [
+                        Expanded(
+                          child: _buildTextField(
+                            label: 'Time',
+                            hint: 'Select time range',
+                            isRequired: true,
+                            prefixIcon: Icons.access_time,
+                            controller: _timeController,
+                            readOnly: true,
+                            onTap: () => _selectTimeRange(context),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: _buildTextField(
                             label: 'Room',
@@ -380,7 +444,11 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             controller: _roomController,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
                         Expanded(
                           child: _buildTextField(
                             label: 'Capacity',
@@ -390,11 +458,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             controller: _capacityController,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
+                        const SizedBox(width: 12),
                         Expanded(
                           child: _buildDropdown(
                             label: 'Class Type',
@@ -406,19 +470,17 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                             onChanged: (val) => setState(() => _selectedClassType = val),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildDropdown(
-                            label: 'Status',
-                            hint: 'Select status',
-                            isRequired: true,
-                            prefixIcon: Icons.check_circle_outline,
-                            value: const ['Active', 'Inactive'].contains(_selectedStatus) ? _selectedStatus : null,
-                            items: const ['Active', 'Inactive'],
-                            onChanged: (val) => setState(() => _selectedStatus = val),
-                          ),
-                        ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildDropdown(
+                      label: 'Status',
+                      hint: 'Select status',
+                      isRequired: true,
+                      prefixIcon: Icons.check_circle_outline,
+                      value: const ['Active', 'Inactive'].contains(_selectedStatus) ? _selectedStatus : null,
+                      items: const ['Active', 'Inactive'],
+                      onChanged: (val) => setState(() => _selectedStatus = val),
                     ),
                     const SizedBox(height: 20),
                     Container(
@@ -594,6 +656,8 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
     IconData? prefixIcon,
     int maxLines = 1,
     TextEditingController? controller,
+    bool readOnly = false,
+    VoidCallback? onTap,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -602,6 +666,8 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
         TextField(
           controller: controller,
           maxLines: maxLines,
+          readOnly: readOnly,
+          onTap: onTap,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(

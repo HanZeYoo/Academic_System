@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
 import 'admin_dashboard.dart';
 import 'teacher_dashboard_screen.dart';
@@ -63,8 +63,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text;
 
     try {
-      // 1. Try Firebase Auth first
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      // 1. Try Supabase Auth first
+      await Supabase.instance.client.auth.signInWithPassword(
         email: username,
         password: password,
       );
@@ -78,9 +78,9 @@ class _LoginScreenState extends State<LoginScreen> {
       } else {
         _showError('User profile not found in local database.');
       }
-    } on FirebaseAuthException catch (e) {
+    } on AuthException catch (e) {
       // 3. Fallback to SQLite (for legacy accounts like 'admin' without valid email format)
-      if (e.code == 'invalid-email' || e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
+      if (e.message.contains('Invalid login credentials') || e.message.contains('Email not confirmed')) {
         final localUser = await dbHelper.login(username, password);
         setState(() => _isLoading = false);
         

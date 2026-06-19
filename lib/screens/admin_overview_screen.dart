@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../database_helper.dart';
-
+import 'package:supabase_flutter/supabase_flutter.dart';
 class AdminOverviewScreen extends StatefulWidget {
   const AdminOverviewScreen({super.key});
 
@@ -61,18 +61,16 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
     });
 
     try {
-      final dbInstance = await db.database;
-      
       // Get Total Students
-      final studentsData = await dbInstance.query('students');
+      final studentsData = await db.getStudents();
       _totalStudents = studentsData.length;
 
       // Get Total Teachers
-      final teachersData = await dbInstance.query('teachers');
+      final teachersData = await db.getTeachers();
       _totalTeachers = teachersData.length;
 
       // Get Attendance data
-      final attendance = await dbInstance.query('attendance');
+      final attendance = await Supabase.instance.client.from('attendance').select();
       if (attendance.isNotEmpty) {
         int presentCount = 0;
         int lateCount = 0;
@@ -198,7 +196,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
       // Calculate Trend Data (Q1, Q2, Q3, Q4)
       List<String> quarters = ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'];
       _trendData.clear();
-      final allScores = await dbInstance.query('scores');
+      final allScores = await Supabase.instance.client.from('scores').select();
       
       for (String q in quarters) {
         final scoresQ = allScores.where((r) => r['grading_period'] == q).toList();

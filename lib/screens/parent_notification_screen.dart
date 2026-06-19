@@ -52,13 +52,7 @@ class _ParentNotificationScreenState extends State<ParentNotificationScreen> {
   }
 
   Future<void> _loadHistory() async {
-    final dbInstance = await db.database;
-    final notifications = await dbInstance.query(
-      'notifications', 
-      where: 'sender_username = ?', 
-      whereArgs: ['admin'],
-      orderBy: 'id DESC'
-    );
+    final notifications = await db.getNotificationsSentBy('admin');
     
     List<Map<String, dynamic>> loadedHistory = [];
     for (var n in notifications) {
@@ -666,8 +660,7 @@ class _ParentNotificationScreenState extends State<ParentNotificationScreen> {
 
                 String dateNow = "${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}";
                 
-                final dbInstance = await db.database;
-                await dbInstance.insert('notifications', {
+                await db.insertNotification({
                   'sender_username': 'admin',
                   'receiver_username': parentEmail.isNotEmpty ? parentEmail : 'jaymar.riveral@neu.edu.ph.com',
                   'student_id': _selectedStudentId,

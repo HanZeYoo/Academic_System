@@ -45,7 +45,18 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         _lastNameController.text = names.sublist(1).join(' ');
       }
       
-      if (['Math', 'Science', 'English', 'IT'].contains(data['department'])) _selectedDepartment = data['department'];
+      if (const [
+        'Mathematics Department',
+        'Science Department',
+        'English Department',
+        'Filipino Department',
+        'Araling Panlipunan (Social Studies)',
+        'MAPEH Department',
+        'TLE Department',
+        'EsP Department',
+        'SHS Core Subjects',
+        'SHS Applied/Specialized'
+      ].contains(data['department'])) _selectedDepartment = data['department'];
       if (['Male', 'Female', 'Other'].contains(data['gender'])) _selectedGender = data['gender'];
       if (['Mathematics', 'Science', 'English', 'History'].contains(data['specialization'])) _selectedSubjectSpecialization = data['specialization'];
       if (['Full-time', 'Part-time', 'Contract'].contains(data['employment_status'])) _selectedEmploymentStatus = data['employment_status'];
@@ -420,7 +431,18 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                             hint: 'Select department',
                             isRequired: true,
                             value: _selectedDepartment,
-                            items: const ['Mathematics Department', 'Science Department', 'English Department', 'History Department', 'Filipino Department'],
+                            items: const [
+                              'Mathematics Department',
+                              'Science Department',
+                              'English Department',
+                              'Filipino Department',
+                              'Araling Panlipunan (Social Studies)',
+                              'MAPEH Department',
+                              'TLE Department',
+                              'EsP Department',
+                              'SHS Core Subjects',
+                              'SHS Applied/Specialized'
+                            ],
                             onChanged: (val) => setState(() => _selectedDepartment = val),
                           ),
                         ),
