@@ -5,7 +5,7 @@ import 'announcement_management_screen.dart';
 import 'student_grades_view_screen.dart';
 import 'student_schedule_screen.dart';
 import 'student_attendance_view_screen.dart';
-import 'student_profile_screen.dart';
+import 'shared_profile_screen.dart';
 
 import '../database_helper.dart';
 
@@ -223,7 +223,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         if (shouldLogout && mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            MaterialPageRoute(builder: (context) => const LoginScreen(isLoggingOut: true)),
           );
         }
       },
@@ -374,7 +374,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const LoginScreen(),
+                                    builder: (context) => const LoginScreen(isLoggingOut: true),
                                   ),
                                 );
                               },
@@ -403,7 +403,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       return SettingsScreen(username: widget.username);
     }
     if (_selectedMenu == 'Profile') {
-      return StudentProfileScreen(username: widget.username);
+      return SharedProfileScreen(username: widget.username, role: UserRole.student);
     }
     if (_selectedMenu == 'Announcements') {
       return AnnouncementManagementScreen(username: widget.username, role: 'student');

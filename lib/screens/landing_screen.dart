@@ -1,8 +1,85 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../database_helper.dart';
+import '../main.dart';
 import 'login_screen.dart';
+import 'admin_dashboard.dart';
+import 'teacher_dashboard_screen.dart';
+import 'student_dashboard_screen.dart';
+import 'parent_dashboard_screen.dart';
 
-class LandingScreen extends StatelessWidget {
+class LandingScreen extends StatefulWidget {
   const LandingScreen({super.key});
+
+  @override
+  State<LandingScreen> createState() => _LandingScreenState();
+}
+
+class _LandingScreenState extends State<LandingScreen> {
+  bool _isCheckingSession = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+  }
+
+  Future<void> _checkSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final bool rememberMe = prefs.getBool('remember_me') ?? false;
+
+      if (!rememberMe) {
+        // If remember me is false, sign out to clear the session and show Start button
+        await Supabase.instance.client.auth.signOut();
+        return;
+      }
+
+      final session = Supabase.instance.client.auth.currentSession;
+      
+      if (session != null && session.user.email != null) {
+        final String email = session.user.email!;
+        final dbHelper = DatabaseHelper();
+        
+        // Look up user role by email
+        final user = await dbHelper.getUserByUsername(email);
+        
+        if (user != null && mounted) {
+          LoginScreen.loggedInUser = user['username'];
+          LoginScreen.loggedInRole = user['role'];
+
+          String? deepLinkRoute = pendingDeepLinkRoute;
+          pendingDeepLinkRoute = null;
+
+          if (user['role'] == 'teacher') {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => TeacherDashboardScreen(username: user['username'])));
+            return;
+          } else if (user['role'] == 'student') {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => StudentDashboardScreen(username: user['username'])));
+            return;
+          } else if (user['role'] == 'parent') {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => ParentDashboardScreen(
+              username: user['username'],
+              initialMenu: deepLinkRoute == 'notifications' ? 'Notifications' : null,
+            )));
+            return;
+          } else {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AdminDashboard(username: user['username'])));
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error during session check: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingSession = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,33 +151,35 @@ class LandingScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 56),
-            SizedBox(
-              width: 150,
-              height: 46,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  elevation: 0,
-                  backgroundColor: headerBlue,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
+            _isCheckingSession
+                ? const CircularProgressIndicator(color: headerBlue)
+                : SizedBox(
+                    width: 150,
+                    height: 46,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const LoginScreen()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        elevation: 0,
+                        backgroundColor: headerBlue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      child: const Text(
+                        'Start',
+                        style: TextStyle(
+                          fontSize: 20,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-                child: const Text(
-                  'Start',
-                  style: TextStyle(
-                    fontSize: 20,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
             const Spacer(),
             const Text(
               '@2026 AcadInsight. A Capstone Project',

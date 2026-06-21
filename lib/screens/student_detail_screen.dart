@@ -174,6 +174,8 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                     const Divider(height: 1),
                     _buildInfoRow(Icons.phone_android, 'Contact Number', student['contact_number'] ?? 'Not specified'),
                     const Divider(height: 1),
+                    _buildInfoRow(Icons.email_outlined, 'Student Email', student['email'] ?? 'Not specified'),
+                    const Divider(height: 1),
                     _buildInfoRow(Icons.home, 'Home Address', student['address'] ?? 'Not specified'),
                   ]),
 

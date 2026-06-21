@@ -1,6 +1,10 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import '../main.dart';
+import '../screens/login_screen.dart';
+import '../screens/parent_dashboard_screen.dart';
 
 class PushNotificationService {
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
@@ -79,7 +83,7 @@ class PushNotificationService {
             id: notification.hashCode,
             title: notification.title,
             body: notification.body,
-            notificationDetails: const NotificationDetails(
+            notificationDetails: NotificationDetails(
               android: AndroidNotificationDetails(
                 'high_importance_channel',
                 'High Importance Notifications',
@@ -87,11 +91,60 @@ class PushNotificationService {
                 importance: Importance.max,
                 priority: Priority.high,
                 icon: '@mipmap/ic_launcher',
+                styleInformation: BigTextStyleInformation(
+                  notification.body ?? '',
+                  htmlFormatBigText: true,
+                  contentTitle: notification.title,
+                  htmlFormatContentTitle: true,
+                ),
               ),
             ),
           );
         }
       });
+    }
+
+    // 4. Handle Deep Linking
+    // App is in Background, user taps notification
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      if (kDebugMode) {
+        print('Notification caused app to open from background: ${message.data}');
+      }
+      _handleDeepLink(message);
+    });
+
+    // App is Terminated, user taps notification
+    RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      if (kDebugMode) {
+        print('Notification caused app to open from terminated state: ${initialMessage.data}');
+      }
+      _handleDeepLink(initialMessage);
+    }
+  }
+
+  void _handleDeepLink(RemoteMessage message) {
+    if (message.data.containsKey('route')) {
+      String route = message.data['route'];
+      
+      // If user is currently logged in as parent, navigate directly
+      if (LoginScreen.loggedInUser != null && LoginScreen.loggedInRole == 'parent') {
+        if (navigatorKey.currentContext != null) {
+          Navigator.pushReplacement(
+            navigatorKey.currentContext!,
+            MaterialPageRoute(
+              builder: (context) => ParentDashboardScreen(
+                username: LoginScreen.loggedInUser!,
+                initialMenu: route == 'notifications' ? 'Notifications' : null,
+              ),
+            ),
+          );
+        }
+      } else {
+        // App is opening from terminated state or user is not logged in.
+        // Save it for LoginScreen to handle after successful login.
+        pendingDeepLinkRoute = route;
+      }
     }
   }
 }

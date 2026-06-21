@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../database_helper.dart';
 
 class FailureAnalyticsScreen extends StatefulWidget {
   final String username;
-  const FailureAnalyticsScreen({super.key, required this.username});
+  final void Function(String studentId, String message)? onComposeNotification;
+
+  const FailureAnalyticsScreen({super.key, required this.username, this.onComposeNotification});
 
   @override
   State<FailureAnalyticsScreen> createState() => _FailureAnalyticsScreenState();
@@ -280,9 +283,12 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             Row(
               children: [
@@ -326,7 +332,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
           children: [
             const Icon(Icons.analytics_outlined, color: Color(0xFF1664C5)),
             const SizedBox(width: 8),
-            const Text('Performance Breakdown', style: TextStyle(fontSize: 16)),
+            const Expanded(child: Text('Performance Breakdown', style: TextStyle(fontSize: 16))),
           ],
         ),
         content: Column(
@@ -430,7 +436,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
           children: [
             const Icon(Icons.auto_awesome, color: Color(0xFF1664C5)),
             const SizedBox(width: 8),
-            const Text('Smart Suggestion'),
+            const Expanded(child: Text('Smart Suggestion')),
           ],
         ),
         content: Column(
@@ -472,14 +478,19 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Notification sent to ${student['name']}\'s parent!',
+              if (widget.onComposeNotification != null) {
+                final message = 'Dear Parent, this is to inform you that ${student['name']} is currently at risk in ${student['subject']} (${student['average']})$reasonText. We suggest a meeting to discuss improvement plans.';
+                widget.onComposeNotification!(student['id'].toString(), message);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Notification sent to ${student['name']}\'s parent!',
+                    ),
+                    backgroundColor: const Color(0xFF198754),
                   ),
-                  backgroundColor: const Color(0xFF198754),
-                ),
-              );
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF1664C5),
@@ -801,7 +812,6 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
   }
 
   Widget _buildBarChartSection() {
-    // Generate bars from _failureRatesBySubject
     final colors = [
       const Color(0xFF0F62D1),
       const Color(0xFF3282EA),
@@ -810,17 +820,30 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
       const Color(0xFFB5DAFE),
     ];
 
-    int colorIndex = 0;
-    final bars = _failureRatesBySubject.entries.take(5).map((entry) {
-      final bar = _buildBarItem(
-        '${entry.value.toStringAsFixed(0)}%',
-        entry.value,
-        entry.key,
-        colors[colorIndex % colors.length],
+    final subjects = _failureRatesBySubject.keys.take(5).toList();
+    final List<BarChartGroupData> barGroups = [];
+    
+    for (int i = 0; i < subjects.length; i++) {
+      final subject = subjects[i];
+      final value = _failureRatesBySubject[subject]!;
+      
+      barGroups.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: value,
+              color: colors[i % colors.length],
+              width: 24,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(4),
+                topRight: Radius.circular(4),
+              ),
+            ),
+          ],
+        ),
       );
-      colorIndex++;
-      return bar;
-    }).toList();
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -838,120 +861,109 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
           ),
           const SizedBox(height: 16),
           SizedBox(
-            height: 172,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(
-                  height: 150,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '100%',
-                        style: TextStyle(fontSize: 10, color: Colors.grey),
-                      ),
-                      Text(
-                        '75%',
-                        style: TextStyle(fontSize: 10, color: Colors.grey),
-                      ),
-                      Text(
-                        '50%',
-                        style: TextStyle(fontSize: 10, color: Colors.grey),
-                      ),
-                      Text(
-                        '25%',
-                        style: TextStyle(fontSize: 10, color: Colors.grey),
-                      ),
-                      Text(
-                        '0%',
-                        style: TextStyle(fontSize: 10, color: Colors.grey),
-                      ),
-                    ],
+            height: 180,
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: 100,
+                minY: 0,
+                barTouchData: BarTouchData(
+                  enabled: true,
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (group) => Colors.black87,
+                    tooltipPadding: const EdgeInsets.all(8),
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      final subject = subjects[group.x.toInt()];
+                      return BarTooltipItem(
+                        '$subject\n',
+                        const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                        ),
+                        children: [
+                          TextSpan(
+                            text: '${rod.toY.toStringAsFixed(1)}%',
+                            style: const TextStyle(
+                              color: Colors.yellow,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SizedBox(
-                    height: 150,
-                    child: Stack(
-                      children: [
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: List.generate(5, (index) {
-                            return Container(
-                              height: 1,
-                              color: Colors.grey.withOpacity(0.2),
-                            );
-                          }),
-                        ),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: bars,
-                        ),
-                      ],
+                titlesData: FlTitlesData(
+                  show: true,
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 28,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index < 0 || index >= subjects.length) {
+                          return const SizedBox.shrink();
+                        }
+                        String shortSubject = subjects[index].length > 8
+                            ? '${subjects[index].substring(0, 6)}..'
+                            : subjects[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            shortSubject,
+                            style: const TextStyle(
+                              color: Colors.black87,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 9,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 32,
+                      interval: 25,
+                      getTitlesWidget: (value, meta) {
+                        if (value == 0 || value == 25 || value == 50 || value == 75 || value == 100) {
+                          return Text(
+                            '${value.toInt()}%',
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 10,
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
-              ],
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: 25,
+                  getDrawingHorizontalLine: (value) {
+                    return FlLine(
+                      color: Colors.grey.withOpacity(0.2),
+                      strokeWidth: 1,
+                    );
+                  },
+                ),
+                borderData: FlBorderData(
+                  show: false,
+                ),
+                barGroups: barGroups,
+              ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBarItem(
-    String percentageLabel,
-    double percentageValue,
-    String subject,
-    Color color,
-  ) {
-    const double maxHeight = 92;
-    double barHeight = (percentageValue / 100) * maxHeight;
-
-    // Constrain subject name length
-    String shortSubject = subject.length > 8
-        ? '${subject.substring(0, 6)}..'
-        : subject;
-
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 3),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Text(
-              percentageLabel,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Container(
-              width: 32,
-              height: barHeight,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(4),
-                  topRight: Radius.circular(4),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 20,
-              child: Text(
-                shortSubject,
-                style: const TextStyle(fontSize: 9, color: Colors.black87),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../database_helper.dart';
 
 class TeacherAttendanceScreen extends StatefulWidget {
   final String username;
-  const TeacherAttendanceScreen({super.key, required this.username});
+  final String? initialClass;
+  final bool showAppBar;
+  const TeacherAttendanceScreen({super.key, required this.username, this.initialClass, this.showAppBar = false});
 
   @override
   State<TeacherAttendanceScreen> createState() => _TeacherAttendanceScreenState();
@@ -16,6 +19,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
   DateTime _selectedDate = DateTime.now();
   List<Map<String, dynamic>> _students = [];
   String _searchQuery = '';
+  Set<DateTime> _markedDates = {};
 
   @override
   void initState() {
@@ -37,15 +41,29 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
       setState(() {
         _classes = uniqueClasses;
         if (_classes.isNotEmpty) {
-          _selectedClass = _classes.first;
+          if (widget.initialClass != null && _classes.contains(widget.initialClass)) {
+            _selectedClass = widget.initialClass;
+          } else {
+            _selectedClass = _classes.first;
+          }
         }
       });
       if (_selectedClass != null) {
+        await _loadMarkedDates();
         await _loadStudentsAndAttendance();
       }
     }
     setState(() {
       _isLoading = false;
+    });
+  }
+
+  Future<void> _loadMarkedDates() async {
+    if (_selectedClass == null) return;
+    final dbHelper = DatabaseHelper();
+    final datesStr = await dbHelper.getAttendanceDatesForClass(_selectedClass!);
+    setState(() {
+      _markedDates = datesStr.map((d) => DateTime.parse(d)).toSet();
     });
   }
 
@@ -137,18 +155,84 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
     // Hide loading
     Navigator.pop(context);
 
+    setState(() {
+      // Add to marked dates so the calendar updates immediately
+      _markedDates.add(DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day));
+    });
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Attendance Saved Successfully'), backgroundColor: Colors.green),
     );
   }
 
   Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
+    DateTime focusedDate = _selectedDate;
+    final DateTime? picked = await showDialog<DateTime>(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2101),
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Select Date', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                TableCalendar(
+                  firstDay: DateTime.utc(2020, 1, 1),
+                  lastDay: DateTime.utc(2101, 12, 31),
+                  focusedDay: focusedDate,
+                  currentDay: _selectedDate,
+                  selectedDayPredicate: (day) {
+                    return isSameDay(_selectedDate, day);
+                  },
+                  onDaySelected: (selectedDay, focusedDay) {
+                    Navigator.pop(context, selectedDay);
+                  },
+                  eventLoader: (day) {
+                    // Check if the day is in _markedDates
+                    final hasAttendance = _markedDates.any((marked) => isSameDay(marked, day));
+                    if (hasAttendance) {
+                      return ['Attendance Taken'];
+                    }
+                    return [];
+                  },
+                  calendarBuilders: CalendarBuilders(
+                    markerBuilder: (context, date, events) {
+                      if (events.isNotEmpty) {
+                        return Positioned(
+                          bottom: 4,
+                          child: Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: Colors.green, // Indicator color
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        );
+                      }
+                      return null;
+                    },
+                  ),
+                  calendarStyle: const CalendarStyle(
+                    todayDecoration: BoxDecoration(color: Color(0xFF1E66B4), shape: BoxShape.circle),
+                    selectedDecoration: BoxDecoration(color: Color(0xFF1E66B4), shape: BoxShape.circle),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, null),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
+
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
@@ -166,7 +250,12 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent, // Inherits from dashboard body
+      appBar: widget.showAppBar ? AppBar(
+        title: const Text('Attendance'),
+        backgroundColor: const Color(0xFF3383B3),
+        foregroundColor: Colors.white,
+      ) : null,
+      backgroundColor: widget.showAppBar ? const Color(0xFFF4F7F6) : Colors.transparent, // Inherits from dashboard body
       body: _isLoading && _classes.isEmpty 
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -344,12 +433,13 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
                                 child: Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
                               );
                             }).toList(),
-                      onChanged: (newValue) {
+                      onChanged: (newValue) async {
                         if (newValue != null && newValue != _selectedClass) {
                           setState(() {
                             _selectedClass = newValue;
                           });
-                          _loadStudentsAndAttendance();
+                          await _loadMarkedDates();
+                          await _loadStudentsAndAttendance();
                         }
                       },
                     ),
@@ -473,9 +563,12 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
             'Student Attendance',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
-          Text(
-            'Select status for each student',
-            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+          Expanded(
+            child: Text(
+              'Select status for each student',
+              textAlign: TextAlign.right,
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            ),
           ),
         ],
       ),

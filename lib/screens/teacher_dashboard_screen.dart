@@ -5,10 +5,10 @@ import 'my_classes_screen.dart';
 import 'assessment_setup_screen.dart';
 import 'encode_scores_screen.dart';
 import 'teacher_student_screen.dart';
-import 'teacher_profile_screen.dart';
-import 'teacher_academic_evaluation_screen.dart';
+import 'shared_profile_screen.dart';
+import 'academic_evaluation_screen.dart';
 import 'failure_analytics_screen.dart';
-import 'teacher_parent_notification_screen.dart';
+import 'parent_notification_screen.dart';
 import 'teacher_attendance_screen.dart';
 import 'reports_generation_screen.dart';
 import 'announcement_management_screen.dart';
@@ -28,6 +28,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   String _teacherName = '';
   int _totalClasses = 0;
   int _totalStudents = 0;
+  String _avgAttendance = '0%';
+  List<Map<String, dynamic>> _recentAnnouncements = [];
+  
+  String? _pendingStudentId;
+  String? _pendingMessage;
 
   @override
   void initState() {
@@ -54,11 +59,19 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       }
     }
 
+    // Get Announcements
+    final announcements = await db.getAnnouncements(widget.username, role: 'teacher');
+    
+    // Get Avg Attendance
+    final avgAtt = await db.getAverageAttendanceForTeacher(tName);
+
     if (mounted) {
       setState(() {
         _teacherName = tName;
         _totalClasses = classes.length;
         _totalStudents = studentCount;
+        _avgAttendance = avgAtt;
+        _recentAnnouncements = announcements.take(3).toList();
         _isLoading = false;
       });
     }
@@ -104,7 +117,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         if (shouldLogout && mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            MaterialPageRoute(builder: (context) => const LoginScreen(isLoggingOut: true)),
           );
         }
       },
@@ -278,7 +291,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const LoginScreen(),
+                                    builder: (context) => const LoginScreen(isLoggingOut: true),
                                   ),
                                 );
                               },
@@ -319,16 +332,33 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       return EncodeScoresScreen(username: widget.username);
     }
     if (_selectedMenu == 'Profile') {
-      return TeacherProfileScreen(username: widget.username);
+      return SharedProfileScreen(username: widget.username, role: UserRole.teacher);
     }
     if (_selectedMenu == 'Academic Evaluation') {
-      return TeacherAcademicEvaluationScreen(username: widget.username);
+      return AcademicEvaluationScreen(username: widget.username, role: 'teacher');
     }
     if (_selectedMenu == 'Failure Analytics') {
-      return FailureAnalyticsScreen(username: widget.username);
+      return FailureAnalyticsScreen(
+        username: widget.username,
+        onComposeNotification: (studentId, message) {
+          setState(() {
+            _pendingStudentId = studentId;
+            _pendingMessage = message;
+            _selectedMenu = 'Parent Notification';
+          });
+        },
+      );
     }
     if (_selectedMenu == 'Parent Notification') {
-      return TeacherParentNotificationScreen(username: widget.username);
+      final screen = ParentNotificationScreen(
+        username: widget.username,
+        initialStudentId: _pendingStudentId,
+        initialMessage: _pendingMessage,
+      );
+      // Clear after assigning so it doesn't stick
+      _pendingStudentId = null;
+      _pendingMessage = null;
+      return screen;
     }
     if (_selectedMenu == 'Attendance') {
       return TeacherAttendanceScreen(username: widget.username);
@@ -410,7 +440,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   _buildStatCard(title: 'Total Classes', value: '$_totalClasses', icon: Icons.class_, color: const Color(0xFF4C51BF), width: width),
                   _buildStatCard(title: 'Total Students', value: '$_totalStudents', icon: Icons.people, color: const Color(0xFF00A364), width: width),
                   _buildStatCard(title: 'Pending Grades', value: '0', icon: Icons.pending_actions, color: const Color(0xFFDD6B20), width: width),
-                  _buildStatCard(title: 'Avg. Attendance', value: '95%', icon: Icons.how_to_reg, color: const Color(0xFFD53F8C), width: width),
+                  _buildStatCard(title: 'Avg. Attendance', value: _avgAttendance, icon: Icons.how_to_reg, color: const Color(0xFFD53F8C), width: width),
                 ],
               );
             },
@@ -437,31 +467,38 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           // Announcements
           const Text('Recent Announcements', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
           const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.campaign, color: Color(0xFFDD6B20), size: 20),
-                    const SizedBox(width: 8),
-                    const Text('Principal\'s Memo', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2D3748))),
-                    const Spacer(),
-                    Text('Today', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                const Text('Reminder to all advisers to submit the Q1 encoded grades on or before Friday. Thank you!', style: TextStyle(fontSize: 13, color: Colors.black87)),
-              ],
-            ),
+          if (_recentAnnouncements.isEmpty)
+            const Text('No recent announcements', style: TextStyle(color: Colors.grey))
+          else
+            ..._recentAnnouncements.map((a) => _buildAnnouncementCard(a)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnnouncementCard(Map<String, dynamic> a) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.campaign, color: Color(0xFFDD6B20), size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text(a['title']?.toString() ?? 'Announcement', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2D3748)), overflow: TextOverflow.ellipsis)),
+              Text(a['date_posted']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            ],
           ),
+          const SizedBox(height: 8),
+          Text(a['content']?.toString() ?? '', style: const TextStyle(fontSize: 13, color: Colors.black87)),
         ],
       ),
     );

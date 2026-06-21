@@ -70,9 +70,11 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
               child: const Icon(Icons.warning, color: Colors.red, size: 24),
             ),
             const SizedBox(width: 10),
-            const Text(
-              'Delete Announcement',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            const Expanded(
+              child: Text(
+                'Delete Announcement',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
@@ -332,13 +334,17 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeader(),
-          if (widget.role != 'student' && widget.role != 'parent') ...[
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      color: const Color(0xFF1E66B4),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(),
+            if (widget.role != 'student' && widget.role != 'parent') ...[
             const SizedBox(height: 20),
             _buildPostButton(),
           ],
@@ -363,7 +369,7 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
               )),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildHeader() {
@@ -378,12 +384,14 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
           child: const Icon(Icons.campaign, color: Colors.white),
         ),
         const SizedBox(width: 12),
-        const Text(
-          'Manage Announcements',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1E66B4),
+        const Expanded(
+          child: Text(
+            'Manage Announcements',
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E66B4),
+            ),
           ),
         ),
       ],

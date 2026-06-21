@@ -582,12 +582,40 @@ class DatabaseHelper {
     return List<Map<String, dynamic>>.from(results);
   }
 
+  // Get all unique dates where attendance was taken for a class
+  Future<List<String>> getAttendanceDatesForClass(String className) async {
+    final results = await Supabase.instance.client.from('attendance')
+        .select('date')
+        .eq('class_name', className);
+    return results.map((row) => row['date'].toString()).toSet().toList();
+  }
+
   // Get all attendance for a specific class (used for grade computation)
   Future<List<Map<String, dynamic>>> getAttendanceForClass(String className) async {
     final results = await Supabase.instance.client.from('attendance')
         .select()
         .eq('class_name', className);
     return List<Map<String, dynamic>>.from(results);
+  }
+
+  // Get average attendance for a teacher's classes
+  Future<String> getAverageAttendanceForTeacher(String teacherName) async {
+    final classes = await getSubjectClassesByTeacher(teacherName);
+    if (classes.isEmpty) return '0%';
+
+    int totalRecords = 0;
+    int presentRecords = 0;
+
+    for (var c in classes) {
+      final className = '${c['grade_level']} - ${c['section_name']}';
+      final records = await getAttendanceForClass(className);
+      totalRecords += records.length;
+      presentRecords += records.where((r) => r['status'] == 'Present' || r['status'] == 'Late').length;
+    }
+
+    if (totalRecords == 0) return '0%';
+    final pct = (presentRecords / totalRecords) * 100;
+    return '${pct.toStringAsFixed(1)}%';
   }
 
   // Add Announcement

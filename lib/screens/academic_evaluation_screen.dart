@@ -4,7 +4,9 @@ import 'class_evaluation_report_screen.dart';
 import 'student_evaluation_detail_screen.dart';
 
 class AcademicEvaluationScreen extends StatefulWidget {
-  const AcademicEvaluationScreen({super.key});
+  final String username;
+  final String role;
+  const AcademicEvaluationScreen({super.key, required this.username, required this.role});
 
   @override
   State<AcademicEvaluationScreen> createState() =>
@@ -47,14 +49,31 @@ class _AcademicEvaluationScreenState
 
   Future<void> _loadClasses() async {
     final db = DatabaseHelper();
-    // Admin sees all classes
-    final classes = await db.getSubjectClasses();
-    if (!mounted) return;
-    setState(() {
-      _classes = classes;
-      _selectedClassData = classes.isNotEmpty ? classes.first : null;
-    });
-    await _loadStudentData();
+    
+    if (widget.role == 'admin') {
+      // Admin sees all classes
+      final classes = await db.getSubjectClasses();
+      if (!mounted) return;
+      setState(() {
+        _classes = classes;
+        _selectedClassData = classes.isNotEmpty ? classes.first : null;
+      });
+      await _loadStudentData();
+    } else if (widget.role == 'teacher') {
+      // Teacher sees only assigned classes
+      final teacher = await db.getTeacherByEmail(widget.username);
+      if (teacher == null) { 
+        if (mounted) setState(() => _isLoading = false); 
+        return; 
+      }
+      final classes = await db.getSubjectClassesByTeacher(teacher['name'].toString());
+      if (!mounted) return;
+      setState(() {
+        _classes = classes;
+        _selectedClassData = classes.isNotEmpty ? classes.first : null;
+      });
+      await _loadStudentData();
+    }
   }
 
   Future<void> _loadStudentData() async {
@@ -447,9 +466,9 @@ class _AcademicEvaluationScreenState
                   examColor: examPct > 0 && examPct < 75
                       ? const Color(0xFFEF4444)
                       : const Color(0xFF3B82F6),
-                  onRemarks: () {
+                  onRemarks: widget.role == 'teacher' ? () {
                     _showRemarksDialog(sid, student['name'].toString());
-                  },
+                  } : null,
                   onViewDetails: () {
                     final studentScores = _allScores
                         .where((r) => r['student_id'].toString() == sid)
@@ -1051,7 +1070,7 @@ class _AcademicEvaluationScreenState
               _buildPill('Quiz Avg.', quizAvg, quizColor),
               _buildPill('Exam Avg.', examAvg, examColor),
               _buildOutlinedButton(Icons.visibility_outlined, 'View Details', const Color(0xFF3B82F6), onTap: onViewDetails),
-              _buildOutlinedButton(Icons.chat_bubble_outline, 'Remarks', const Color(0xFF3B82F6), onTap: onRemarks),
+              if (onRemarks != null) _buildOutlinedButton(Icons.chat_bubble_outline, 'Remarks', const Color(0xFF3B82F6), onTap: onRemarks),
             ],
           ),
         ],

@@ -13,7 +13,7 @@ serve(async (req) => {
   }
 
   try {
-    const { title, body, token } = await req.json()
+    const { title, body, token, data } = await req.json()
 
     if (!token) {
       throw new Error('No FCM token provided')
@@ -49,6 +49,7 @@ serve(async (req) => {
           title: title,
           body: body,
         },
+        data: data || {},
       },
     }
 

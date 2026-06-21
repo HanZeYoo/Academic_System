@@ -8,7 +8,7 @@ import 'failure_analytics_screen.dart';
 import 'parent_notification_screen.dart';
 import 'reports_generation_screen.dart';
 import 'announcement_management_screen.dart';
-import 'admin_profile_screen.dart';
+import 'shared_profile_screen.dart';
 import 'settings_screen.dart';
 import 'login_screen.dart';
 import 'admin_archive_screen.dart';
@@ -71,7 +71,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         if (shouldLogout && mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            MaterialPageRoute(builder: (context) => const LoginScreen(isLoggingOut: true)),
           );
         }
       },
@@ -240,7 +240,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const LoginScreen(),
+                                    builder: (context) => const LoginScreen(isLoggingOut: true),
                                   ),
                                 );
                               },
@@ -275,17 +275,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
       case 3:
         return const SubjectClassScreen();
       case 4:
-        return const AcademicEvaluationScreen();
+        return AcademicEvaluationScreen(username: widget.username, role: 'admin');
       case 5:
         return FailureAnalyticsScreen(username: widget.username);
       case 6:
-        return const ParentNotificationScreen();
+        return ParentNotificationScreen(username: widget.username);
       case 7:
         return const ReportsGenerationScreen();
       case 8:
         return const AnnouncementManagementScreen();
       case 9:
-        return const AdminProfileScreen();
+        return SharedProfileScreen(username: widget.username, role: UserRole.admin);
       case 10:
         return SettingsScreen(username: widget.username);
       case 11:

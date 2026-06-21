@@ -247,12 +247,16 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Summary Cards
+    return RefreshIndicator(
+      onRefresh: _loadDashboardData,
+      color: const Color(0xFF1664C5),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Summary Cards
           _buildSummaryCard(
             title: 'Total Students',
             value: '$_totalStudents',
@@ -284,7 +288,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
           _buildAttendanceOverviewCard(),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildSummaryCard({
@@ -329,7 +333,8 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                Row(
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     const Icon(Icons.arrow_upward, color: Color(0xFF00A364), size: 14),
                     const SizedBox(width: 4),
@@ -373,12 +378,14 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Student Performance Trend',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
+              const Expanded(
+                child: Text(
+                  'Student Performance Trend',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
                 ),
               ),
               Container(

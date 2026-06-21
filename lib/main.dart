@@ -6,6 +6,9 @@ import 'firebase_options.dart';
 import 'services/push_notification_service.dart';
 import 'screens/landing_screen.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+String? pendingDeepLinkRoute;
+
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Make sure you call `initializeApp` before using other Firebase services.
@@ -39,6 +42,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Academic System Admin',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(fontFamily: 'Segoe UI', useMaterial3: true),

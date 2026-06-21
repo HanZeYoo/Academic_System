@@ -8,7 +8,8 @@ import '../database_helper.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   final String username;
-  const ParentDashboardScreen({super.key, required this.username});
+  final String? initialMenu;
+  const ParentDashboardScreen({super.key, required this.username, this.initialMenu});
 
   @override
   State<ParentDashboardScreen> createState() => _ParentDashboardScreenState();
@@ -31,6 +32,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialMenu != null) {
+      _selectedMenu = widget.initialMenu!;
+    }
     _fetchParentAndChildrenData();
     _fetchDatabaseNotifications();
   }
@@ -210,7 +214,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               Navigator.pop(context);
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                MaterialPageRoute(builder: (_) => const LoginScreen(isLoggingOut: true)),
               );
             },
             child: const Text('Logout', style: TextStyle(color: Colors.red)),
@@ -265,7 +269,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         if (result == true && mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
+            MaterialPageRoute(builder: (_) => const LoginScreen(isLoggingOut: true)),
           );
         }
       },

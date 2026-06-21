@@ -2,14 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../database_helper.dart';
 import 'admin_dashboard.dart';
 import 'teacher_dashboard_screen.dart';
 import 'student_dashboard_screen.dart';
 import 'parent_dashboard_screen.dart';
+import '../main.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool isLoggingOut;
+  const LoginScreen({super.key, this.isLoggingOut = false});
+  
+  static String? loggedInUser;
+  static String? loggedInRole;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -20,9 +26,40 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _rememberMe = false;
 
-  void _routeUser(Map<String, dynamic> user) {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isLoggingOut) {
+      _performLogout();
+    }
+  }
+
+  Future<void> _performLogout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('remember_me', false);
+      await Supabase.instance.client.auth.signOut();
+    } catch (e) {
+      debugPrint('Error during logout cleanup: $e');
+    }
+  }
+
+  void _routeUser(Map<String, dynamic> user) async {
     if (!mounted) return;
+    
+    LoginScreen.loggedInUser = user['username'];
+    LoginScreen.loggedInRole = user['role'];
+
+    // Save remember_me state
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('remember_me', _rememberMe);
+    
+    // Fallback variable for route to pass
+    String? deepLinkRoute = pendingDeepLinkRoute;
+    pendingDeepLinkRoute = null; // Clear it once used
+
     if (user['role'] == 'teacher') {
       Navigator.pushReplacement(
         context,
@@ -36,7 +73,10 @@ class _LoginScreenState extends State<LoginScreen> {
     } else if (user['role'] == 'parent') {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => ParentDashboardScreen(username: user['username'])),
+        MaterialPageRoute(builder: (context) => ParentDashboardScreen(
+          username: user['username'],
+          initialMenu: deepLinkRoute == 'notifications' ? 'Notifications' : null,
+        )),
       );
     } else {
       Navigator.pushReplacement(
@@ -245,15 +285,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _passwordController,
                       obscureText: _obscurePassword,
                       decoration: InputDecoration(
-                        hintText: '***********',
-                        hintStyle: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 14,
+                        filled: true,
+                        fillColor: Colors.grey.shade100,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
                         ),
-                        prefixIcon: const Icon(
-                          Icons.lock_outline,
-                          color: Colors.black87,
-                        ),
+                        prefixIcon: const Icon(Icons.lock_outline, color: Colors.black87),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword
@@ -265,26 +303,32 @@ class _LoginScreenState extends State<LoginScreen> {
                             () => _obscurePassword = !_obscurePassword,
                           ),
                         ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 16,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(color: Colors.grey.shade400),
-                        ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
                           borderSide: BorderSide(color: Colors.grey.shade400),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: buttonColor),
+                          borderSide: const BorderSide(color: Color(0xFF2B81B7)),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _rememberMe,
+                          onChanged: (value) {
+                            setState(() {
+                              _rememberMe = value ?? false;
+                            });
+                          },
+                          activeColor: const Color(0xFF2B81B7),
+                        ),
+                        const Text('Remember Me', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
 
                     // Login Button
                     SizedBox(

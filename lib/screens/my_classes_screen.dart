@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import 'teacher_student_screen.dart';
+import 'teacher_attendance_screen.dart';
 
 class MyClassesScreen extends StatefulWidget {
   final String username; // teacher's login email
@@ -435,6 +436,32 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   child: const Text('View Class', style: TextStyle(fontSize: 12)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TeacherAttendanceScreen(
+                          username: widget.username,
+                          initialClass: gradeLine.isNotEmpty ? gradeLine : null,
+                          showAppBar: true,
+                        ),
+                      ),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF198754),
+                    side: BorderSide(color: Colors.green.shade100),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Attendance', style: TextStyle(fontSize: 12)),
                 ),
               ),
             ],
