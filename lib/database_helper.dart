@@ -725,4 +725,16 @@ class DatabaseHelper {
         .eq('student_id', student['student_id'].toString());
     return List<Map<String, dynamic>>.from(results);
   }
+
+  // Update FCM Token for user
+  Future<void> updateUserFCMToken(String username, String token) async {
+    try {
+      await Supabase.instance.client
+          .from('users')
+          .update({'fcm_token': token})
+          .eq('username', username);
+    } catch (e) {
+      print('Error updating FCM token: $e');
+    }
+  }
 }

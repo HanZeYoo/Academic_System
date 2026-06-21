@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../database_helper.dart';
 import 'admin_dashboard.dart';
 import 'teacher_dashboard_screen.dart';
@@ -74,6 +75,14 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = false);
       
       if (user != null) {
+        try {
+          String? token = await FirebaseMessaging.instance.getToken();
+          if (token != null) {
+            await dbHelper.updateUserFCMToken(username, token);
+          }
+        } catch (e) {
+          debugPrint('Error getting or saving FCM token: $e');
+        }
         _routeUser(user);
       } else {
         _showError('User profile not found in local database.');
@@ -85,6 +94,14 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _isLoading = false);
         
         if (localUser != null) {
+          try {
+            String? token = await FirebaseMessaging.instance.getToken();
+            if (token != null) {
+              await dbHelper.updateUserFCMToken(username, token);
+            }
+          } catch (e) {
+            debugPrint('Error getting or saving FCM token: $e');
+          }
           _routeUser(localUser);
         } else {
           _showError('Invalid username or password!');

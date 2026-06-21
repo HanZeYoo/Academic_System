@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
 
 class AnnouncementManagementScreen extends StatefulWidget {
@@ -251,6 +252,13 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
               onPressed: () async {
                 if (titleCtrl.text.isEmpty || contentCtrl.text.isEmpty) return;
                 
+                // Show loading dialog
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(child: CircularProgressIndicator()),
+                );
+
                 final announcementData = {
                   'title': titleCtrl.text,
                   'content': contentCtrl.text,
@@ -265,10 +273,43 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
                   await DatabaseHelper().updateAnnouncement(existingAnnouncement['id'], announcementData);
                 } else {
                   await DatabaseHelper().addAnnouncement(announcementData);
+                  // Send Push Notification for New Announcement
+                  try {
+                    // Fetch all users with tokens
+                    final usersWithTokens = await Supabase.instance.client
+                        .from('users')
+                        .select('fcm_token')
+                        .not('fcm_token', 'is', null);
+                        
+                    // Extract unique tokens to avoid duplicate notifications
+                    final Set<String> uniqueTokens = {};
+                    for (var user in usersWithTokens) {
+                      final token = user['fcm_token'];
+                      if (token != null && token.toString().isNotEmpty) {
+                        uniqueTokens.add(token.toString());
+                      }
+                    }
+
+                    for (var token in uniqueTokens) {
+                      // Fire and forget notification for each unique token
+                      try {
+                        await Supabase.instance.client.functions.invoke('send-fcm', body: {
+                          'title': 'New Announcement',
+                          'body': titleCtrl.text,
+                          'token': token,
+                        });
+                      } catch(e) {
+                        print('Push error: $e');
+                      }
+                    }
+                  } catch (e) {
+                    print('Error sending announcement push: $e');
+                  }
                 }
                 
                 if (mounted) {
-                  Navigator.pop(context);
+                  Navigator.pop(context); // Close loading dialog
+                  Navigator.pop(context); // Close post dialog
                   _loadData();
                 }
               },

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
 
@@ -609,6 +610,28 @@ class _TeacherParentNotificationScreenState
                       subject: 'Academic System: ${_selectedReason}',
                       messageText: _messageController.text,
                     );
+                  }
+
+                  // Send Push Notification via Supabase Edge Function
+                  if (parentEmail.isNotEmpty) {
+                    try {
+                      final parentUser = await Supabase.instance.client
+                          .from('users')
+                          .select('fcm_token')
+                          .eq('email', parentEmail)
+                          .maybeSingle();
+                      
+                      final fcmToken = parentUser?['fcm_token'];
+                      if (fcmToken != null && fcmToken.toString().isNotEmpty) {
+                        await Supabase.instance.client.functions.invoke('send-fcm', body: {
+                          'title': 'Attention: $_selectedReason',
+                          'body': _messageController.text,
+                          'token': fcmToken.toString(),
+                        });
+                      }
+                    } catch (e) {
+                      print('Error sending push notification: $e');
+                    }
                   }
 
                   if (mounted) {
