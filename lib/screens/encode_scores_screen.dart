@@ -1,3 +1,7 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 
@@ -28,8 +32,18 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
 
   // student_id -> score value (from text controllers)
   final Map<String, TextEditingController> _scoreControllers = {};
+  
+  // category_item -> drafted total score
+  final Map<String, int> _draftTotalScores = {};
+  
+  // category_item -> { student_id -> drafted score }
+  final Map<String, Map<String, int>> _draftStudentScores = {};
 
   List<Map<String, dynamic>> _students = [];
+
+  // --- Cached CSV Data ---
+  List<List<dynamic>>? _cachedCsvData;
+  String? _cachedCsvFilename;
 
   // --- Item options per category ---
   Map<String, List<String>> _itemsPerCategory = {
@@ -54,6 +68,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     final v = int.tryParse(_totalScoreController.text);
     if (v != null && v > 0) {
       setState(() => _totalScore = v);
+      _draftTotalScores['${_selectedCategory}_$_selectedItem'] = v;
     }
   }
 
@@ -147,11 +162,36 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       gradingPeriod: _selectedPeriod,
     );
 
+    // Restore Total Score if existing records found
+    final draftKey = '${_selectedCategory}_$_selectedItem';
+    if (_draftTotalScores.containsKey(draftKey)) {
+      _totalScore = _draftTotalScores[draftKey]!;
+      _totalScoreController.text = _totalScore.toString();
+    } else if (existingScores.isNotEmpty) {
+      final dbTotal = (existingScores.first['total_score'] as num?)?.toInt();
+      if (dbTotal != null && dbTotal > 0) {
+        _totalScore = dbTotal;
+        _totalScoreController.text = dbTotal.toString();
+        // Also save to draft so it's consistent
+        _draftTotalScores[draftKey] = dbTotal;
+      }
+    } else {
+      _totalScore = 50;
+      _totalScoreController.text = '50';
+    }
+
     // Map student_id -> score
     final scoreMap = <String, double>{};
     for (final s in existingScores) {
       scoreMap[s['student_id']?.toString() ?? ''] =
           (s['score'] as num?)?.toDouble() ?? 0;
+    }
+
+    // Override with any drafted student scores for this item
+    if (_draftStudentScores.containsKey(draftKey)) {
+      _draftStudentScores[draftKey]!.forEach((sid, draftScore) {
+        scoreMap[sid] = draftScore.toDouble();
+      });
     }
 
     // Build / update score controllers
@@ -165,10 +205,110 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       final existing = scoreMap[sid] ?? 0;
       final ctrl = TextEditingController(
           text: existing > 0 ? existing.toInt().toString() : '');
+      
+      // Save changes to draft on typing
+      ctrl.addListener(() {
+        final val = int.tryParse(ctrl.text);
+        if (val != null) {
+          _draftStudentScores.putIfAbsent(draftKey, () => {});
+          _draftStudentScores[draftKey]![sid] = val;
+        }
+      });
+      
       _scoreControllers[sid] = ctrl;
     }
 
     setState(() => _students = students);
+
+    // After loading DB data, if we have a cached CSV, apply it over the DB data.
+    if (_cachedCsvData != null) {
+       _applyCsvToCurrentItem();
+    }
+  }
+
+  // ── CSV Import Logic ──────────────────────────────────────────────────────
+
+  Future<void> _uploadMasterCSV() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+
+      if (result != null) {
+        setState(() => _isLoading = true);
+        File file = File(result.files.single.path!);
+        final input = file.openRead();
+        final fields = await input.transform(utf8.decoder).transform(csv.decoder).toList();
+
+        if (fields.isEmpty || fields.length < 2) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CSV file is empty or missing PERFECT_SCORE row.')));
+          }
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        setState(() {
+          _cachedCsvData = fields;
+          _cachedCsvFilename = result.files.single.name;
+        });
+
+        _applyCsvToCurrentItem();
+        
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Master CSV "$_cachedCsvFilename" uploaded successfully. Auto-filling scores...'), backgroundColor: Colors.green));
+        }
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error uploading CSV: $e'), backgroundColor: Colors.red));
+      }
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _applyCsvToCurrentItem() {
+    if (_cachedCsvData == null || _cachedCsvData!.isEmpty) return;
+
+    final headers = _cachedCsvData![0].map((e) => e.toString().trim()).toList();
+
+    int targetColIdx = -1;
+    for (int i = 0; i < headers.length; i++) {
+      if (headers[i].toLowerCase() == _selectedItem.toLowerCase()) {
+        targetColIdx = i;
+        break;
+      }
+    }
+
+    if (targetColIdx == -1) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Column "$_selectedItem" not found in uploaded CSV. Text fields will show existing database scores.'), backgroundColor: Colors.orange));
+      }
+      return;
+    }
+
+    int matchedCount = 0;
+    for (int i = 1; i < _cachedCsvData!.length; i++) { // Skip header only
+      final row = _cachedCsvData![i];
+      if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
+      
+      final csvStudentId = row[0].toString().trim();
+      
+      if (targetColIdx < row.length) {
+         final scoreStr = row[targetColIdx].toString().trim();
+         final scoreVal = int.tryParse(scoreStr);
+         
+         if (scoreVal != null && _scoreControllers.containsKey(csvStudentId)) {
+            _scoreControllers[csvStudentId]!.text = scoreVal.toString();
+            matchedCount++;
+         }
+      }
+    }
+    
+    // Trigger UI rebuild so StatefulBuilders update the text and percentages
+    setState(() {});
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -306,11 +446,28 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Filters',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Filters',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87)),
+                    if (_cachedCsvData != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Using CSV: $_cachedCsvFilename',
+                          style: TextStyle(fontSize: 10, color: Colors.green.shade800, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                  ],
+                ),
                 const SizedBox(height: 12),
 
                 // Class selector
@@ -424,6 +581,20 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _uploadMasterCSV,
+                    icon: const Icon(Icons.upload_file, size: 18),
+                    label: const Text('Upload CSV (Auto-fill Scores)'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.green.shade700,
+                      side: BorderSide(color: Colors.green.shade700),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
                 ),
               ],
             ),

@@ -27,6 +27,14 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
   // Trend Data (Q1, Q2, Q3, Q4)
   List<double> _trendData = [0.0, 0.0, 0.0, 0.0];
 
+  String _selectedPeriod = '1st Quarter';
+  static const _periods = [
+    '1st Quarter',
+    '2nd Quarter',
+    '3rd Quarter',
+    '4th Quarter',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -94,12 +102,12 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
           _absentPercent = (absentCount / totalAtt) * 100;
         }
       } else {
-        _presentPercent = 92.3;
-        _latePercent = 5.1;
-        _absentPercent = 2.6;
+        _presentPercent = 0.0;
+        _latePercent = 0.0;
+        _absentPercent = 0.0;
       }
 
-      // Calculate Failure Rates (1st Quarter as sample)
+      // Calculate Failure Rates
       final classes = await db.getSubjectClasses();
       Map<String, Map<String, int>> subjectStats = {};
       
@@ -116,14 +124,14 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
           subjectCode: subjectCode,
           sectionName: section,
           gradeLevel: gradeLevel,
-          gradingPeriod: '1st Quarter',
+          gradingPeriod: _selectedPeriod,
         );
 
         final scores = await db.getScoresForClass(
           subjectCode: subjectCode,
           sectionName: section,
           gradeLevel: gradeLevel,
-          gradingPeriod: '1st Quarter',
+          gradingPeriod: _selectedPeriod,
         );
 
         if (!subjectStats.containsKey(subjectName)) {
@@ -217,20 +225,8 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
         }
       }
 
-      // If no data in DB, use fallback to prevent empty charts during demo
-      if (_trendData.every((element) => element == 0)) {
-        _trendData = [82.5, 84.0, 85.2, 86.8];
-      }
-
-      if (_failureRates.isEmpty) {
-        _failureRates = [
-          {'subject': 'Mathematics', 'rate': 18.0},
-          {'subject': 'Science', 'rate': 12.0},
-          {'subject': 'English', 'rate': 8.0},
-          {'subject': 'Social Studies', 'rate': 6.0},
-          {'subject': 'Computer Science', 'rate': 4.0},
-        ];
-      }
+      // If no data in DB, leave arrays empty or zeroes
+      // Removed mock fallback values for _trendData and _failureRates
 
     } catch (e) {
       debugPrint("Error loading dashboard data: $e");
@@ -260,7 +256,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
           _buildSummaryCard(
             title: 'Total Students',
             value: '$_totalStudents',
-            percentage: '3.2%', // Mock percentage
+            percentage: '', 
             icon: Icons.people,
             iconColor: const Color(0xFF1664C5),
             iconBgColor: const Color(0xFFD6EAFF),
@@ -269,7 +265,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
           _buildSummaryCard(
             title: 'Total Teachers',
             value: '$_totalTeachers',
-            percentage: '3.2%', // Mock percentage
+            percentage: '', 
             icon: Icons.person,
             iconColor: const Color(0xFF00A364),
             iconBgColor: const Color(0xFFD9F4E5),
@@ -294,7 +290,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
   Widget _buildSummaryCard({
     required String title,
     required String value,
-    required String percentage,
+    String? percentage,
     required IconData icon,
     required Color iconColor,
     required Color iconBgColor,
@@ -333,29 +329,30 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Icon(Icons.arrow_upward, color: Color(0xFF00A364), size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      percentage,
-                      style: const TextStyle(
-                        color: Color(0xFF00A364),
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                if (percentage != null && percentage.isNotEmpty)
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const Icon(Icons.arrow_upward, color: Color(0xFF00A364), size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        percentage,
+                        style: const TextStyle(
+                          color: Color(0xFF00A364),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'from last month',
-                      style: TextStyle(
-                        color: Colors.black45,
-                        fontSize: 12,
+                      const SizedBox(width: 4),
+                      const Text(
+                        'from last month',
+                        style: TextStyle(
+                          color: Colors.black45,
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -538,9 +535,27 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
             ],
           ),
           const SizedBox(height: 4),
-          const Text(
-            '1st Quarter',
-            style: TextStyle(color: Colors.black45, fontSize: 13),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Select Grading Period',
+                style: TextStyle(color: Colors.black45, fontSize: 13),
+              ),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedPeriod,
+                  isDense: true,
+                  items: _periods.map((p) => DropdownMenuItem(value: p, child: Text(p, style: const TextStyle(fontSize: 13)))).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _selectedPeriod = val);
+                      _loadDashboardData();
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           ..._failureRates.asMap().entries.map((entry) {

@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:csv/csv.dart';
 import '../database_helper.dart';
 import 'add_student_screen.dart';
 import 'student_detail_screen.dart';
@@ -29,6 +33,81 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
     });
   }
 
+  Future<void> _importCSV() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+
+      if (result != null) {
+        setState(() => _isLoading = true);
+        File file = File(result.files.single.path!);
+        final input = file.openRead();
+        final fields = await input.transform(utf8.decoder).transform(csv.decoder).toList();
+
+        if (fields.isEmpty || fields.length == 1) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CSV file is empty or only contains headers.')));
+          }
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        int importedCount = 0;
+        final db = DatabaseHelper();
+        
+        for (int i = 1; i < fields.length; i++) {
+          final row = fields[i];
+          if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
+
+          while (row.length < 12) {
+             row.add('');
+          }
+
+          final studentId = row[0].toString().trim();
+          final name = row[1].toString().trim();
+          final gradeLevel = row[2].toString().trim();
+          final section = row[3].toString().trim();
+          final email = row[4].toString().trim();
+          final parentEmail = row[5].toString().trim();
+          final gender = row[6].toString().trim();
+          final birthdate = row[7].toString().trim();
+          final contactNumber = row[8].toString().trim();
+          final parentName = row[9].toString().trim();
+          final parentContact = row[10].toString().trim();
+          final address = row[11].toString().trim();
+
+          await db.addStudent(
+            studentId: studentId,
+            name: name,
+            gradeLevel: gradeLevel,
+            section: section,
+            email: email,
+            parentEmail: parentEmail,
+            gender: gender.isEmpty ? null : gender,
+            birthdate: birthdate.isEmpty ? null : birthdate,
+            contactNumber: contactNumber.isEmpty ? null : contactNumber,
+            parentName: parentName.isEmpty ? null : parentName,
+            parentContact: parentContact.isEmpty ? null : parentContact,
+            address: address.isEmpty ? null : address,
+          );
+          importedCount++;
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Successfully imported $importedCount students!'), backgroundColor: Colors.green));
+        }
+        _loadStudents();
+      }
+    } catch (e) {
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error importing CSV: $e'), backgroundColor: Colors.red));
+      }
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -53,30 +132,47 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
           const SizedBox(height: 24),
 
           // Title and Add button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            runSpacing: 12,
             children: [
               const Text(
                 'Student List',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const AddStudentScreen()),
-                  );
-                  if (result == true) {
-                    _loadStudents();
-                  }
-                },
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add Student'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1664C5),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
+              Wrap(
+                spacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _importCSV,
+                    icon: const Icon(Icons.upload_file, size: 18),
+                    label: const Text('Import CSV'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF1664C5),
+                      side: const BorderSide(color: Color(0xFF1664C5)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const AddStudentScreen()),
+                      );
+                      if (result == true) {
+                        _loadStudents();
+                      }
+                    },
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add Student'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1664C5),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
