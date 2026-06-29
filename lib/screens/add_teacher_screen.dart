@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../database_helper.dart';
+import '../services/email_service.dart';
 
 class AddTeacherScreen extends StatefulWidget {
   final Map<String, dynamic>? teacherToEdit;
@@ -58,7 +59,21 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         'SHS Applied/Specialized'
       ].contains(data['department'])) _selectedDepartment = data['department'];
       if (['Male', 'Female', 'Other'].contains(data['gender'])) _selectedGender = data['gender'];
-      if (['Mathematics', 'Science', 'English', 'History'].contains(data['specialization'])) _selectedSubjectSpecialization = data['specialization'];
+      if (const [
+        'Mathematics',
+        'Science',
+        'English',
+        'Filipino',
+        'Araling Panlipunan (Social Studies)',
+        'MAPEH',
+        'TLE / TVL',
+        'EsP (Values Education)',
+        'ABM (Accountancy, Business, & Management)',
+        'STEM (Science, Tech, Eng, & Math)',
+        'HUMSS (Humanities & Social Sciences)',
+        'GAS (General Academic Strand)',
+        'Research / Capstone'
+      ].contains(data['specialization'])) _selectedSubjectSpecialization = data['specialization'];
       if (['Full-time', 'Part-time', 'Contract'].contains(data['employment_status'])) _selectedEmploymentStatus = data['employment_status'];
       if (['Section A', 'Section B', 'Section C', 'Section D'].contains(data['assigned_section'])) _selectedAssignedSection = data['assigned_section'];
       
@@ -198,6 +213,15 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         hiringDate: _hiringDate != null ? '${_hiringDate!.month}/${_hiringDate!.day}/${_hiringDate!.year}' : null,
         assignedSection: _selectedAssignedSection,
       );
+
+      // Send Welcome Email
+      if (_sendCredentials) {
+        await EmailService.sendEmail(
+          toEmail: _emailController.text,
+          subject: 'Welcome to the Academic System!',
+          messageText: 'Hello $fullName,<br><br>Your teacher account has been created successfully.<br><br><b>Username/Email:</b> ${_emailController.text}<br><b>Temporary Password:</b> teacher123<br><br>Please log in to your account and change your password immediately.',
+        );
+      }
     }
     
     setState(() => _isLoading = false);
@@ -467,7 +491,21 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                             hint: 'Select subject specialization',
                             isRequired: true,
                             value: _selectedSubjectSpecialization,
-                            items: const ['Algebra', 'Biology', 'Literature', 'World History', 'Filipino'],
+                            items: const [
+                              'Mathematics',
+                              'Science',
+                              'English',
+                              'Filipino',
+                              'Araling Panlipunan (Social Studies)',
+                              'MAPEH',
+                              'TLE / TVL',
+                              'EsP (Values Education)',
+                              'ABM (Accountancy, Business, & Management)',
+                              'STEM (Science, Tech, Eng, & Math)',
+                              'HUMSS (Humanities & Social Sciences)',
+                              'GAS (General Academic Strand)',
+                              'Research / Capstone'
+                            ],
                             onChanged: (val) => setState(() => _selectedSubjectSpecialization = val),
                           ),
                         ),

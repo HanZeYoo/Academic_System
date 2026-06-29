@@ -139,13 +139,13 @@ class DatabaseHelper {
 
   // Get all active students
   Future<List<Map<String, dynamic>>> getStudents() async {
-    final results = await Supabase.instance.client.from('students').select().eq('is_active', 1).order('id', ascending: false);
+    final results = await Supabase.instance.client.from('students').select().eq('is_active', 1).order('id', ascending: true);
     return List<Map<String, dynamic>>.from(results);
   }
 
   // Get archived students
   Future<List<Map<String, dynamic>>> getArchivedStudents() async {
-    final results = await Supabase.instance.client.from('students').select().eq('is_active', 0).order('id', ascending: false);
+    final results = await Supabase.instance.client.from('students').select().eq('is_active', 0).order('id', ascending: true);
     return List<Map<String, dynamic>>.from(results);
   }
 
@@ -532,13 +532,13 @@ class DatabaseHelper {
 
   // Get all active teachers
   Future<List<Map<String, dynamic>>> getTeachers() async {
-    final results = await Supabase.instance.client.from('teachers').select().eq('is_active', 1).order('id', ascending: false);
+    final results = await Supabase.instance.client.from('teachers').select().eq('is_active', 1).order('id', ascending: true);
     return List<Map<String, dynamic>>.from(results);
   }
 
   // Get archived teachers
   Future<List<Map<String, dynamic>>> getArchivedTeachers() async {
-    final results = await Supabase.instance.client.from('teachers').select().eq('is_active', 0).order('id', ascending: false);
+    final results = await Supabase.instance.client.from('teachers').select().eq('is_active', 0).order('id', ascending: true);
     return List<Map<String, dynamic>>.from(results);
   }
 
