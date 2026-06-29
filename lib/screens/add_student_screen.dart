@@ -118,6 +118,27 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       return;
     }
 
+    final emailToCheck = _emailController.text.trim();
+    if (emailToCheck.isNotEmpty) {
+      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(emailToCheck)) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address.')));
+        return;
+      }
+      final existingUser = await DatabaseHelper().getUserByUsername(emailToCheck);
+      if (existingUser != null && (widget.existingStudent == null || widget.existingStudent!['email'] != emailToCheck)) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email already exists! Please use a different email.')));
+        return;
+      }
+    }
+
+    final parentEmailToCheck = _parentEmailController.text.trim();
+    if (parentEmailToCheck.isNotEmpty) {
+      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(parentEmailToCheck)) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid parent email address.')));
+        return;
+      }
+    }
+
     setState(() => _isLoading = true);
 
     final fullName = '${_firstNameController.text} ${_lastNameController.text}';
@@ -125,6 +146,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     if (widget.existingStudent != null) {
       await DatabaseHelper().updateStudent(
         widget.existingStudent!['id'],
+        oldEmail: widget.existingStudent!['email']?.toString(),
         studentId: _studentIdController.text,
         name: fullName,
         gradeLevel: _selectedGradeLevel ?? 'N/A',

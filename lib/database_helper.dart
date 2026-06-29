@@ -96,6 +96,7 @@ class DatabaseHelper {
   // Update a student
   Future<void> updateStudent(
     int id, {
+    String? oldEmail,
     String? studentId,
     String? name,
     String? gradeLevel,
@@ -123,6 +124,17 @@ class DatabaseHelper {
       if (parentContact != null) 'parent_contact': parentContact,
       if (address != null) 'address': address,
     }).eq('id', id);
+
+    if (oldEmail != null && email != null && oldEmail != email) {
+      try {
+        await Supabase.instance.client.rpc('update_user_email', params: {
+          'old_email': oldEmail,
+          'new_email': email,
+        });
+      } catch (e) {
+        print('Error updating user email via RPC (Student): $e');
+      }
+    }
   }
 
   // Get all active students
@@ -472,6 +484,7 @@ class DatabaseHelper {
   // Update a teacher
   Future<void> updateTeacher(
     int id, {
+    String? oldEmail,
     String? teacherId,
     String? name,
     String? department,
@@ -499,6 +512,17 @@ class DatabaseHelper {
       if (hiringDate != null) 'hiring_date': hiringDate,
       if (assignedSection != null) 'assigned_section': assignedSection,
     }).eq('id', id);
+
+    if (oldEmail != null && email != null && oldEmail != email) {
+      try {
+        await Supabase.instance.client.rpc('update_user_email', params: {
+          'old_email': oldEmail,
+          'new_email': email,
+        });
+      } catch (e) {
+        print('Error updating user email via RPC (Teacher): $e');
+      }
+    }
   }
 
   // Delete a teacher
