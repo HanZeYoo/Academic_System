@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../database_helper.dart';
+import '../services/email_service.dart';
 
 class AddStudentScreen extends StatefulWidget {
   final Map<String, dynamic>? existingStudent;
@@ -12,6 +13,7 @@ class AddStudentScreen extends StatefulWidget {
 
 class _AddStudentScreenState extends State<AddStudentScreen> {
   bool _createParentAccount = true;
+  bool _sendCredentials = true;
   bool _isLoading = false;
 
   final TextEditingController _studentIdController = TextEditingController();
@@ -118,6 +120,27 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       return;
     }
 
+    final emailToCheck = _emailController.text.trim();
+    if (emailToCheck.isNotEmpty) {
+      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(emailToCheck)) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address.')));
+        return;
+      }
+      final existingUser = await DatabaseHelper().getUserByUsername(emailToCheck);
+      if (existingUser != null && (widget.existingStudent == null || widget.existingStudent!['email'] != emailToCheck)) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email already exists! Please use a different email.')));
+        return;
+      }
+    }
+
+    final parentEmailToCheck = _parentEmailController.text.trim();
+    if (parentEmailToCheck.isNotEmpty) {
+      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(parentEmailToCheck)) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid parent email address.')));
+        return;
+      }
+    }
+
     setState(() => _isLoading = true);
 
     final fullName = '${_firstNameController.text} ${_lastNameController.text}';
@@ -125,6 +148,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     if (widget.existingStudent != null) {
       await DatabaseHelper().updateStudent(
         widget.existingStudent!['id'],
+        oldEmail: widget.existingStudent!['email']?.toString(),
         studentId: _studentIdController.text,
         name: fullName,
         gradeLevel: _selectedGradeLevel ?? 'N/A',
@@ -153,6 +177,15 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         parentContact: _parentContactController.text,
         address: _homeAddressController.text,
       );
+
+      // Send Welcome Email
+      if (_sendCredentials) {
+        await EmailService.sendEmail(
+          toEmail: _emailController.text,
+          subject: 'Welcome to the Academic System!',
+          messageText: 'Hello $fullName,<br><br>Your student account has been created successfully.<br><br><b>Username/Email:</b> ${_emailController.text}<br><b>Temporary Password:</b> student123<br><br>Please log in to your account and change your password immediately.',
+        );
+      }
     }
 
     setState(() => _isLoading = false);
@@ -597,6 +630,29 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                       const Expanded(
                         child: Text(
                           'Create parent account automatically',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF1E293B),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.info_outline, color: Color(0xFF94A3B8), size: 18),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Switch(
+                        value: _sendCredentials,
+                        onChanged: (value) => setState(() => _sendCredentials = value),
+                        activeColor: const Color(0xFF0F52BA),
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Send credentials via email',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
