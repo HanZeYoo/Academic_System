@@ -3,7 +3,7 @@ import 'package:mailer/smtp_server.dart';
 
 class EmailService {
   // User's provided App Password
-  static const String _appPassword = 'vtue tmut scei jksf';
+  static const String _appPassword = 'rulf qnwu pwhp ojre';
   
   // TODO: Put your actual Gmail address here
   static const String _emailAddress = 'jaymar.riveral@neu.edu.ph'; 
