@@ -19,7 +19,10 @@ class _StudentScheduleScreenState extends State<StudentScheduleScreen> {
     _loadSchedule();
   }
 
-  Future<void> _loadSchedule() async {
+  Future<void> _loadSchedule({bool isRefresh = false}) async {
+    if (!isRefresh) {
+      setState(() => _isLoading = true);
+    }
     final db = DatabaseHelper();
     final schedule = await db.getStudentSchedule(widget.username);
     
@@ -37,42 +40,46 @@ class _StudentScheduleScreenState extends State<StudentScheduleScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E66B4),
-                  borderRadius: BorderRadius.circular(8),
+    return RefreshIndicator(
+      onRefresh: () => _loadSchedule(isRefresh: true),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E66B4),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.schedule, color: Colors.white),
                 ),
-                child: const Icon(Icons.schedule, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Class Schedule',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E66B4),
+                const SizedBox(width: 12),
+                const Text(
+                  'Class Schedule',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E66B4),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          if (_schedule.isEmpty)
-            const Center(
-              child: Text(
-                'No classes assigned yet.',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-              ),
+              ],
             ),
-          ..._schedule.map((s) => _buildClassCard(s)),
-        ],
+            const SizedBox(height: 24),
+            if (_schedule.isEmpty)
+              const Center(
+                child: Text(
+                  'No classes assigned yet.',
+                  style: TextStyle(color: Colors.grey, fontSize: 16),
+                ),
+              ),
+            ..._schedule.map((s) => _buildClassCard(s)),
+          ],
+        ),
       ),
     );
   }

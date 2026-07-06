@@ -19,7 +19,10 @@ class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScree
     _loadAttendance();
   }
 
-  Future<void> _loadAttendance() async {
+  Future<void> _loadAttendance({bool isRefresh = false}) async {
+    if (!isRefresh) {
+      setState(() => _isLoading = true);
+    }
     final db = DatabaseHelper();
     final records = await db.getStudentAttendance(widget.username);
     
@@ -37,42 +40,46 @@ class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScree
       return const Center(child: CircularProgressIndicator());
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E66B4),
-                  borderRadius: BorderRadius.circular(8),
+    return RefreshIndicator(
+      onRefresh: () => _loadAttendance(isRefresh: true),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E66B4),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.assignment_turned_in, color: Colors.white),
                 ),
-                child: const Icon(Icons.assignment_turned_in, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'My Attendance',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E66B4),
+                const SizedBox(width: 12),
+                const Text(
+                  'My Attendance',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E66B4),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          if (_attendanceRecords.isEmpty)
-            const Center(
-              child: Text(
-                'No attendance records found.',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-              ),
+              ],
             ),
-          ..._attendanceRecords.map((a) => _buildAttendanceCard(a)),
-        ],
+            const SizedBox(height: 24),
+            if (_attendanceRecords.isEmpty)
+              const Center(
+                child: Text(
+                  'No attendance records found.',
+                  style: TextStyle(color: Colors.grey, fontSize: 16),
+                ),
+              ),
+            ..._attendanceRecords.map((a) => _buildAttendanceCard(a)),
+          ],
+        ),
       ),
     );
   }

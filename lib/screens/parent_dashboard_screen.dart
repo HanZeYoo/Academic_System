@@ -50,18 +50,25 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     }
   }
 
-  Future<void> _fetchParentAndChildrenData() async {
+  Future<void> _fetchParentAndChildrenData({bool isRefresh = false}) async {
+    if (!isRefresh) {
+      setState(() => _isLoading = true);
+    }
     final dbHelper = DatabaseHelper();
     _children = await dbHelper.getStudentsByParentEmail(widget.username);
     if (_children.isNotEmpty) {
-      await _fetchDashboardDataForChild(_children[_selectedChildIndex]);
+      await _fetchDashboardDataForChild(_children[_selectedChildIndex], isRefresh: isRefresh);
     } else {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  Future<void> _fetchDashboardDataForChild(Map<String, dynamic> student) async {
-    setState(() => _isLoading = true);
+  Future<void> _fetchDashboardDataForChild(Map<String, dynamic> student, {bool isRefresh = false}) async {
+    if (!isRefresh) {
+      setState(() => _isLoading = true);
+    }
 
     final dbHelper = DatabaseHelper();
     final studentEmail = student['email'] ?? '';
@@ -595,141 +602,145 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     else if (_overallAverage >= 75) avgColor = const Color(0xFF388E3C);
     else if (_overallAverage > 0) avgColor = const Color(0xFFD32F2F);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Greeting
-          Text(
-            'Hello, Parent!',
-            style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF224A60)),
-          ),
-          const SizedBox(height: 4),
-          const Text('SY 2026-2027 | 1st Quarter',
-              style: TextStyle(fontSize: 13, color: Colors.grey)),
-          const SizedBox(height: 20),
-
-          // Child Selector (only when multiple children)
-          _buildChildSelector(),
-
-          // Selected Child Summary Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF3383B3), Color(0xFF224A60)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF3383B3).withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 32,
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  child: const Icon(Icons.person,
-                      color: Colors.white, size: 36),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        child['name'] ?? 'Unknown',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${child['grade_level']} - ${child['section']}',
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 14),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          'LRN: ${child['student_id'] ?? 'N/A'}',
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          // Academic Overview
-          const Text('Academic Overview',
-              style: TextStyle(
-                  fontSize: 16,
+    return RefreshIndicator(
+      onRefresh: () => _fetchParentAndChildrenData(isRefresh: true),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Greeting
+            Text(
+              'Hello, Parent!',
+              style: const TextStyle(
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF224A60))),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                  child: _statCard('Average', avgStr,
-                      Icons.emoji_events_rounded, Colors.orange)),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: _statCard('Attendance', attStr,
-                      Icons.check_circle_rounded, Colors.green)),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: _statCard('Subjects', '${_schedule.length}',
-                      Icons.menu_book_rounded, Colors.blue)),
-            ],
-          ),
-          const SizedBox(height: 24),
+                  color: Color(0xFF224A60)),
+            ),
+            const SizedBox(height: 4),
+            const Text('SY 2026-2027 | 1st Quarter',
+                style: TextStyle(fontSize: 13, color: Colors.grey)),
+            const SizedBox(height: 20),
 
-          // Current Standing
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Current Standing',
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF224A60))),
-              TextButton(
-                onPressed: () => setState(() => _selectedMenu = 'Grades'),
-                child: const Text('View All',
-                    style: TextStyle(color: Color(0xFF3383B3))),
+            // Child Selector (only when multiple children)
+            _buildChildSelector(),
+
+            // Selected Child Summary Card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF3383B3), Color(0xFF224A60)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF3383B3).withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (_subjectGrades.isEmpty)
-            _emptyCard('No grades available yet.')
-          else
-            ..._subjectGrades.map((s) => _subjectCard(s)),
-          const SizedBox(height: 32),
-        ],
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: Colors.white.withOpacity(0.2),
+                    child: const Icon(Icons.person,
+                        color: Colors.white, size: 36),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          child['name'] ?? 'Unknown',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${child['grade_level']} - ${child['section']}',
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 14),
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'LRN: ${child['student_id'] ?? 'N/A'}',
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Academic Overview
+            const Text('Academic Overview',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF224A60))),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                    child: _statCard('Average', avgStr,
+                        Icons.emoji_events_rounded, Colors.orange)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: _statCard('Attendance', attStr,
+                        Icons.check_circle_rounded, Colors.green)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: _statCard('Subjects', '${_schedule.length}',
+                        Icons.menu_book_rounded, Colors.blue)),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Current Standing
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Current Standing',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF224A60))),
+                TextButton(
+                  onPressed: () => setState(() => _selectedMenu = 'Grades'),
+                  child: const Text('View All',
+                      style: TextStyle(color: Color(0xFF3383B3))),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_subjectGrades.isEmpty)
+              _emptyCard('No grades available yet.')
+            else
+              ..._subjectGrades.map((s) => _subjectCard(s)),
+            const SizedBox(height: 32),
+          ],
+        ),
       ),
     );
   }
@@ -747,135 +758,139 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     final address = child['address'] ?? 'N/A';
     final contact = child['contact_number'] ?? 'N/A';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Switcher if multiple children
-          _buildChildSelector(),
+    return RefreshIndicator(
+      onRefresh: () => _fetchParentAndChildrenData(isRefresh: true),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Switcher if multiple children
+            _buildChildSelector(),
 
-          // Profile Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF3383B3), Color(0xFF224A60)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+            // Profile Card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF3383B3), Color(0xFF224A60)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF3383B3).withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
               ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF3383B3).withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 5),
-                ),
-              ],
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 44,
+                    backgroundColor: Colors.white.withOpacity(0.15),
+                    child:
+                        const Icon(Icons.person, color: Colors.white, size: 52),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(name,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  Text('$gradeLevel - $section',
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 14)),
+                ],
+              ),
             ),
-            child: Column(
+            const SizedBox(height: 24),
+
+            // Details
+            const Text('Student Information',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF224A60))),
+            const SizedBox(height: 12),
+            _infoCard([
+              _infoRow(Icons.badge_rounded, 'LRN', lrn),
+              _infoRow(Icons.email_rounded, 'School Email', email),
+              _infoRow(Icons.email_outlined, 'Parent Email', parentEmail),
+              _infoRow(Icons.location_on_rounded, 'Address', address),
+              _infoRow(Icons.phone_rounded, 'Contact', contact),
+            ]),
+            const SizedBox(height: 20),
+
+            // Academic Summary
+            const Text('Academic Summary',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF224A60))),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                CircleAvatar(
-                  radius: 44,
-                  backgroundColor: Colors.white.withOpacity(0.15),
-                  child:
-                      const Icon(Icons.person, color: Colors.white, size: 52),
-                ),
-                const SizedBox(height: 14),
-                Text(name,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold)),
-                const SizedBox(height: 6),
-                Text('$gradeLevel - $section',
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 14)),
+                Expanded(
+                    child: _statCard(
+                        'Average',
+                        _overallAverage > 0
+                            ? _overallAverage.toStringAsFixed(1)
+                            : 'N/A',
+                        Icons.emoji_events_rounded,
+                        Colors.orange)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: _statCard(
+                        'Attendance',
+                        _hasAttendance
+                            ? '${_attendancePercentage.toStringAsFixed(0)}%'
+                            : 'N/A',
+                        Icons.check_circle_rounded,
+                        Colors.green)),
               ],
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                    child: _statCard('Subjects', '${_schedule.length}',
+                        Icons.menu_book_rounded, Colors.blue)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: _statCard(
+                        'Status',
+                        _overallAverage >= 75
+                            ? 'Good'
+                            : _overallAverage > 0
+                                ? 'At-Risk'
+                                : 'N/A',
+                        Icons.star_rounded,
+                        _overallAverage >= 75 ? Colors.green : Colors.red)),
+              ],
+            ),
+            const SizedBox(height: 24),
 
-          // Details
-          const Text('Student Information',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF224A60))),
-          const SizedBox(height: 12),
-          _infoCard([
-            _infoRow(Icons.badge_rounded, 'LRN', lrn),
-            _infoRow(Icons.email_rounded, 'School Email', email),
-            _infoRow(Icons.email_outlined, 'Parent Email', parentEmail),
-            _infoRow(Icons.location_on_rounded, 'Address', address),
-            _infoRow(Icons.phone_rounded, 'Contact', contact),
-          ]),
-          const SizedBox(height: 20),
+            // Subject Standing
+            const Text('Subject Standing',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF224A60))),
+            const SizedBox(height: 12),
+            if (_subjectGrades.isEmpty)
+              _emptyCard('No grades available yet.')
+            else
+              ..._subjectGrades.map((s) => _subjectCard(s)),
 
-          // Academic Summary
-          const Text('Academic Summary',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF224A60))),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                  child: _statCard(
-                      'Average',
-                      _overallAverage > 0
-                          ? _overallAverage.toStringAsFixed(1)
-                          : 'N/A',
-                      Icons.emoji_events_rounded,
-                      Colors.orange)),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: _statCard(
-                      'Attendance',
-                      _hasAttendance
-                          ? '${_attendancePercentage.toStringAsFixed(0)}%'
-                          : 'N/A',
-                      Icons.check_circle_rounded,
-                      Colors.green)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                  child: _statCard('Subjects', '${_schedule.length}',
-                      Icons.menu_book_rounded, Colors.blue)),
-              const SizedBox(width: 10),
-              Expanded(
-                  child: _statCard(
-                      'Status',
-                      _overallAverage >= 75
-                          ? 'Good'
-                          : _overallAverage > 0
-                              ? 'At-Risk'
-                              : 'N/A',
-                      Icons.star_rounded,
-                      _overallAverage >= 75 ? Colors.green : Colors.red)),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Subject Standing
-          const Text('Subject Standing',
-              style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF224A60))),
-          const SizedBox(height: 12),
-          if (_subjectGrades.isEmpty)
-            _emptyCard('No grades available yet.')
-          else
-            ..._subjectGrades.map((s) => _subjectCard(s)),
-
-          const SizedBox(height: 32),
-        ],
+            const SizedBox(height: 32),
+          ],
+        ),
       ),
     );
   }
@@ -887,132 +902,136 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     final atRiskSubjects =
         _subjectGrades.where((s) => s['grade'] > 0 && s['grade'] < 75).toList();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildChildSelector(),
+    return RefreshIndicator(
+      onRefresh: () => _fetchParentAndChildrenData(isRefresh: true),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildChildSelector(),
 
-          // Header
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3383B3).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3383B3).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.handshake_rounded,
+                      color: Color(0xFF3383B3), size: 28),
                 ),
-                child: const Icon(Icons.handshake_rounded,
-                    color: Color(0xFF3383B3), size: 28),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Intervention Plan',
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF224A60))),
+                      Text('Support plan for at-risk subjects',
+                          style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            if (atRiskSubjects.isEmpty) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Intervention Plan',
+                    const Icon(Icons.check_circle_rounded,
+                        color: Colors.green, size: 60),
+                    const SizedBox(height: 16),
+                    const Text('All Clear!',
                         style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF224A60))),
-                    Text('Support plan for at-risk subjects',
-                        style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            color: Colors.green)),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${_selectedChild?['name'] ?? 'Your child'} is not at risk in any subject.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                    ),
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          if (atRiskSubjects.isEmpty) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
-              ),
-              child: Column(
-                children: [
-                  const Icon(Icons.check_circle_rounded,
-                      color: Colors.green, size: 60),
-                  const SizedBox(height: 16),
-                  const Text('All Clear!',
-                      style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green)),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${_selectedChild?['name'] ?? 'Your child'} is not at risk in any subject.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
-          ] else ...[
-            // Alert banner
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.red.withOpacity(0.2)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.warning_rounded, color: Colors.red, size: 28),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      '${_selectedChild?['name'] ?? 'Your child'} has ${atRiskSubjects.length} subject(s) below passing grade.',
-                      style: const TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14),
+            ] else ...[
+              // Alert banner
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.red.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_rounded, color: Colors.red, size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '${_selectedChild?['name'] ?? 'Your child'} has ${atRiskSubjects.length} subject(s) below passing grade.',
+                        style: const TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            // Per-subject intervention cards
-            const Text('Subjects Needing Attention',
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF224A60))),
-            const SizedBox(height: 10),
-            ...atRiskSubjects.map((s) => _interventionCard(s)),
-            const SizedBox(height: 20),
+              // Per-subject intervention cards
+              const Text('Subjects Needing Attention',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF224A60))),
+              const SizedBox(height: 10),
+              ...atRiskSubjects.map((s) => _interventionCard(s)),
+              const SizedBox(height: 20),
 
-            // General guidance
-            const Text('General Recommendations',
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF224A60))),
-            const SizedBox(height: 10),
-            _recommendationCard(Icons.home_rounded, Colors.purple,
-                'Home Support',
-                'Set a daily study schedule and a quiet study area at home. Be involved in reviewing your child\'s notes and assignments.'),
-            _recommendationCard(Icons.person_rounded, Colors.orange,
-                'Teacher Consultation',
-                'Request a one-on-one meeting with the subject teacher to understand your child\'s learning gaps.'),
-            _recommendationCard(Icons.group_rounded, Colors.teal,
-                'Peer Study Groups',
-                'Encourage your child to form or join study groups with classmates to strengthen understanding.'),
-            _recommendationCard(Icons.menu_book_rounded, Colors.blue,
-                'Additional Reading',
-                'Supplement school learning with supplementary materials, review books, or online resources for the subject.'),
+              // General guidance
+              const Text('General Recommendations',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF224A60))),
+              const SizedBox(height: 10),
+              _recommendationCard(Icons.home_rounded, Colors.purple,
+                  'Home Support',
+                  'Set a daily study schedule and a quiet study area at home. Be involved in reviewing your child\'s notes and assignments.'),
+              _recommendationCard(Icons.person_rounded, Colors.orange,
+                  'Teacher Consultation',
+                  'Request a one-on-one meeting with the subject teacher to understand your child\'s learning gaps.'),
+              _recommendationCard(Icons.group_rounded, Colors.teal,
+                  'Peer Study Groups',
+                  'Encourage your child to form or join study groups with classmates to strengthen understanding.'),
+              _recommendationCard(Icons.menu_book_rounded, Colors.blue,
+                  'Additional Reading',
+                  'Supplement school learning with supplementary materials, review books, or online resources for the subject.'),
+            ],
+            const SizedBox(height: 32),
           ],
-          const SizedBox(height: 32),
-        ],
+        ),
       ),
     );
   }
@@ -1239,79 +1258,86 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       }
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildChildSelector(),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3383B3).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+    return RefreshIndicator(
+      onRefresh: () async {
+        await _fetchParentAndChildrenData(isRefresh: true);
+        await _fetchDatabaseNotifications();
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildChildSelector(),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3383B3).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.notifications_rounded, color: Color(0xFF3383B3), size: 26),
                 ),
-                child: const Icon(Icons.notifications_rounded, color: Color(0xFF3383B3), size: 26),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Notifications', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
-                  Text('${notifications.length} alert(s) for ${_selectedChild?['name'] ?? 'your child'}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          if (notifications.isEmpty)
-            _emptyCard('No notifications at this time.')
-          else
-            ...notifications.map((n) {
-              final Color color = n['color'] as Color;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: color.withOpacity(0.25)),
-                  boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.07), blurRadius: 6, offset: const Offset(0, 3))],
-                ),
-                child: Row(
+                const SizedBox(width: 12),
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-                      child: Icon(n['icon'] as IconData, color: color, size: 22),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(child: Text(n['title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color))),
-                              Text(n['time'], style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(n['body'], style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.4)),
-                        ],
-                      ),
-                    ),
+                    const Text('Notifications', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
+                    Text('${notifications.length} alert(s) for ${_selectedChild?['name'] ?? 'your child'}',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   ],
                 ),
-              );
-            }),
-          const SizedBox(height: 32),
-        ],
+              ],
+            ),
+            const SizedBox(height: 20),
+            if (notifications.isEmpty)
+              _emptyCard('No notifications at this time.')
+            else
+              ...notifications.map((n) {
+                final Color color = n['color'] as Color;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: color.withOpacity(0.25)),
+                    boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.07), blurRadius: 6, offset: const Offset(0, 3))],
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+                        child: Icon(n['icon'] as IconData, color: color, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(child: Text(n['title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color))),
+                                Text(n['time'], style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text(n['body'], style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.4)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            const SizedBox(height: 32),
+          ],
+        ),
       ),
     );
   }
@@ -1319,164 +1345,168 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   // ─── Parent-specific Grades Screen ──────────────────────────────────────────
 
   Widget _buildGradesScreen() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildChildSelector(),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: const Color(0xFF3383B3).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.grade_rounded, color: Color(0xFF3383B3), size: 26),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Grades', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
-                  Text('${_selectedChild?['name'] ?? ''} · 1st Quarter', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          // Average Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(colors: [Color(0xFF3383B3), Color(0xFF224A60)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Row(
+    return RefreshIndicator(
+      onRefresh: () => _fetchParentAndChildrenData(isRefresh: true),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildChildSelector(),
+            Row(
               children: [
-                const Icon(Icons.emoji_events_rounded, color: Colors.orange, size: 40),
-                const SizedBox(width: 16),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: const Color(0xFF3383B3).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.grade_rounded, color: Color(0xFF3383B3), size: 26),
+                ),
+                const SizedBox(width: 12),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Overall Average', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                    Text(
-                      _overallAverage > 0 ? _overallAverage.toStringAsFixed(1) : 'N/A',
-                      style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      _overallAverage >= 90 ? '🏅 Excellent' : _overallAverage >= 75 ? '✅ Passing' : _overallAverage > 0 ? '⚠️ Needs Improvement' : 'No grades yet',
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
+                    const Text('Grades', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
+                    Text('${_selectedChild?['name'] ?? ''} · 1st Quarter', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   ],
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 20),
-          // Legend
-          Row(
-            children: [
-              _legendBadge('Excellent', const Color(0xFF1976D2)),
-              const SizedBox(width: 8),
-              _legendBadge('Passed', const Color(0xFF388E3C)),
-              const SizedBox(width: 8),
-              _legendBadge('At-Risk', const Color(0xFFD32F2F)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text('Subject Breakdown', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
-          const SizedBox(height: 12),
-          if (_subjectGrades.isEmpty)
-            _emptyCard('No grades recorded yet for this quarter.')
-          else
-            ..._subjectGrades.map((s) {
-              final Color color = s['color'] as Color;
-              final double grade = s['grade'] as double;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: color.withOpacity(0.2)),
-                  boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.07), blurRadius: 6, offset: const Offset(0, 3))],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(9),
-                          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                          child: Icon(Icons.book_rounded, color: color, size: 20),
+            const SizedBox(height: 20),
+            // Average Card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF3383B3), Color(0xFF224A60)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.emoji_events_rounded, color: Colors.orange, size: 40),
+                  const SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Overall Average', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                      Text(
+                        _overallAverage > 0 ? _overallAverage.toStringAsFixed(1) : 'N/A',
+                        style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        _overallAverage >= 90 ? '🏅 Excellent' : _overallAverage >= 75 ? '✅ Passing' : _overallAverage > 0 ? '⚠️ Needs Improvement' : 'No grades yet',
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Legend
+            Row(
+              children: [
+                _legendBadge('Excellent', const Color(0xFF1976D2)),
+                const SizedBox(width: 8),
+                _legendBadge('Passed', const Color(0xFF388E3C)),
+                const SizedBox(width: 8),
+                _legendBadge('At-Risk', const Color(0xFFD32F2F)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text('Subject Breakdown', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
+            const SizedBox(height: 12),
+            if (_subjectGrades.isEmpty)
+              _emptyCard('No grades recorded yet for this quarter.')
+            else
+              ..._subjectGrades.map((s) {
+                final Color color = s['color'] as Color;
+                final double grade = s['grade'] as double;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: color.withOpacity(0.2)),
+                    boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.07), blurRadius: 6, offset: const Offset(0, 3))],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(9),
+                            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+                            child: Icon(Icons.book_rounded, color: color, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(s['subjectName'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF224A60))),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(grade > 0 ? grade.toStringAsFixed(1) : 'N/A', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: color)),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                                child: Text(s['status'], style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      if (grade > 0) ...[
+                        const SizedBox(height: 12),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(value: grade / 100, backgroundColor: color.withOpacity(0.1), color: color, minHeight: 7),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(s['subjectName'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF224A60))),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(grade > 0 ? grade.toStringAsFixed(1) : 'N/A', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: color)),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                              child: Text(s['status'], style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
-                            ),
+                            Text('${grade.toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+                            const Text('Passing: 75.0%', style: TextStyle(fontSize: 11, color: Colors.grey)),
                           ],
                         ),
                       ],
-                    ),
-                    if (grade > 0) ...[
-                      const SizedBox(height: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(value: grade / 100, backgroundColor: color.withOpacity(0.1), color: color, minHeight: 7),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('${grade.toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
-                          const Text('Passing: 75.0%', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                        ],
-                      ),
-                    ],
-                    if (s['remark'] != null && s['remark'].toString().isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(Icons.format_quote, color: color.withOpacity(0.6), size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Teacher\'s Feedback', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
-                                  const SizedBox(height: 4),
-                                  Text(s['remark'], style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black87)),
-                                ],
+                      if (s['remark'] != null && s['remark'].toString().isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.format_quote, color: color.withOpacity(0.6), size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Teacher\'s Feedback', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+                                    const SizedBox(height: 4),
+                                    Text(s['remark'], style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black87)),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
-                ),
-              );
-            }),
-          const SizedBox(height: 32),
-        ],
+                  ),
+                );
+              }),
+            const SizedBox(height: 32),
+          ],
+        ),
       ),
     );
   }
@@ -1752,8 +1782,10 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
     }
   }
 
-  Future<void> _load() async {
-    setState(() => _isLoading = true);
+  Future<void> _load({bool isRefresh = false}) async {
+    if (!isRefresh) {
+      setState(() => _isLoading = true);
+    }
     final db = DatabaseHelper();
     final records = await db.getStudentAttendance(widget.studentEmail);
     int present = 0, absent = 0, late = 0;
@@ -1783,11 +1815,14 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
         ? ((_presentCount + _lateCount) / total * 100)
         : 0.0;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return RefreshIndicator(
+      onRefresh: () => _load(isRefresh: true),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           widget.childSelector,
 
           // Header
@@ -1968,6 +2003,7 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
           const SizedBox(height: 32),
         ],
       ),
+    ),
     );
   }
 

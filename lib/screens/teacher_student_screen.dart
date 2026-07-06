@@ -48,8 +48,10 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
   String? _selectedClass;
   List<String> _classFilterOptions = [];
 
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadData({bool isRefresh = false}) async {
+    if (!isRefresh) {
+      setState(() => _isLoading = true);
+    }
 
     // Get teacher name from email
     final teacherRecord = await DatabaseHelper().getTeacherByEmail(
@@ -281,11 +283,14 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
       ) : null,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          : RefreshIndicator(
+              onRefresh: () => _loadData(isRefresh: true),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   // Search Bar
                   Container(
                     decoration: BoxDecoration(
@@ -478,6 +483,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                   const SizedBox(height: 32),
                 ],
               ),
+            ),
             ),
     );
   }
