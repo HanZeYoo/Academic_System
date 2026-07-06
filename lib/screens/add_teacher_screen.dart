@@ -170,6 +170,10 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address.')));
         return;
       }
+      if (!emailToCheck.endsWith('.com') && !emailToCheck.endsWith('.ph')) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email must end with .com or .ph')));
+        return;
+      }
       final existingUser = await DatabaseHelper().getUserByUsername(emailToCheck);
       if (existingUser != null && (widget.teacherToEdit == null || widget.teacherToEdit!['email'] != emailToCheck)) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email already exists! Please use a different email.')));

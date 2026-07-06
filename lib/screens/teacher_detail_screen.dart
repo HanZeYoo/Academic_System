@@ -1,12 +1,48 @@
 import 'package:flutter/material.dart';
+import '../database_helper.dart';
 
-class TeacherDetailScreen extends StatelessWidget {
+class TeacherDetailScreen extends StatefulWidget {
   final Map<String, dynamic> teacher;
 
   const TeacherDetailScreen({super.key, required this.teacher});
 
   @override
+  State<TeacherDetailScreen> createState() => _TeacherDetailScreenState();
+}
+
+class _TeacherDetailScreenState extends State<TeacherDetailScreen> {
+  String _totalClasses = 'Loading...';
+  String _totalStudents = 'Loading...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTeacherStats();
+  }
+
+  Future<void> _loadTeacherStats() async {
+    final teacherName = widget.teacher['name']?.toString() ?? '';
+    if (teacherName.isNotEmpty) {
+      final stats = await DatabaseHelper().getTeacherStats(teacherName);
+      if (mounted) {
+        setState(() {
+          _totalClasses = stats['totalClasses'].toString();
+          _totalStudents = stats['totalStudents'].toString();
+        });
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _totalClasses = '0';
+          _totalStudents = '0';
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final teacher = widget.teacher;
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F9),
       appBar: AppBar(
@@ -62,7 +98,7 @@ class TeacherDetailScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -134,7 +170,7 @@ class TeacherDetailScreen extends StatelessWidget {
                       Expanded(
                         child: _buildSnapshotCard(
                           title: 'Total Classes',
-                          value: '5',
+                          value: _totalClasses,
                           icon: Icons.class_,
                           color: const Color(0xFF3B82F6),
                         ),
@@ -143,7 +179,7 @@ class TeacherDetailScreen extends StatelessWidget {
                       Expanded(
                         child: _buildSnapshotCard(
                           title: 'Total Students',
-                          value: '150',
+                          value: _totalStudents,
                           icon: Icons.people,
                           color: const Color(0xFF10B981),
                         ),
@@ -173,7 +209,7 @@ class TeacherDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -241,7 +277,7 @@ class TeacherDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -253,7 +289,7 @@ class TeacherDetailScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: color, size: 24),
@@ -298,7 +334,7 @@ class TeacherDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -309,7 +345,7 @@ class TeacherDetailScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 28),

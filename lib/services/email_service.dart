@@ -6,7 +6,7 @@ class EmailService {
   static const String _appPassword = 'rulf qnwu pwhp ojre';
   
   // TODO: Put your actual Gmail address here
-  static const String _emailAddress = 'adamriggs.mendoza@neu.edu.ph'; 
+  static const String _emailAddress = 'jaymar.riveral@neu.edu.ph'; 
 
   static Future<bool> sendEmail({
     required String toEmail,

@@ -126,6 +126,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address.')));
         return;
       }
+      if (!emailToCheck.endsWith('.com') && !emailToCheck.endsWith('.ph')) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email must end with .com or .ph')));
+        return;
+      }
       final existingUser = await DatabaseHelper().getUserByUsername(emailToCheck);
       if (existingUser != null && (widget.existingStudent == null || widget.existingStudent!['email'] != emailToCheck)) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email already exists! Please use a different email.')));
@@ -137,6 +141,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     if (parentEmailToCheck.isNotEmpty) {
       if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(parentEmailToCheck)) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid parent email address.')));
+        return;
+      }
+      if (!parentEmailToCheck.endsWith('.com') && !parentEmailToCheck.endsWith('.ph')) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Parent email must end with .com or .ph')));
         return;
       }
     }

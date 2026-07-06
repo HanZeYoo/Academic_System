@@ -119,12 +119,16 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : _teachers.isEmpty
                 ? const Center(child: Text('No teachers found.'))
-                : ListView.builder(
-                    itemCount: _teachers.length,
-                    itemBuilder: (context, index) {
-                      final t = _teachers[index];
-                      return _buildTeacherCard(context, t);
-                    },
+                : RefreshIndicator(
+                    onRefresh: _loadTeachers,
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: _teachers.length,
+                      itemBuilder: (context, index) {
+                        final t = _teachers[index];
+                        return _buildTeacherCard(context, t);
+                      },
+                    ),
                   ),
           ),
         ],

@@ -220,12 +220,16 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                           ],
                         ),
                       )
-                    : ListView.builder(
-                        itemCount: _students.length,
-                        itemBuilder: (context, index) {
-                          final s = _students[index];
-                          return _buildStudentCard(context, s);
-                        },
+                    : RefreshIndicator(
+                        onRefresh: _loadStudents,
+                        child: ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: _students.length,
+                          itemBuilder: (context, index) {
+                            final s = _students[index];
+                            return _buildStudentCard(context, s);
+                          },
+                        ),
                       ),
           ),
         ],

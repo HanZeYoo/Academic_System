@@ -12,7 +12,7 @@ class StudentDetailScreen extends StatefulWidget {
 
 class _StudentDetailScreenState extends State<StudentDetailScreen> {
   String _generalAverage = 'Loading...';
-  String _attendance = '95%'; // Mock attendance
+  String _attendance = 'Loading...';
   String _riskStatus = 'Loading...';
   Color _riskColor = const Color(0xFF10B981); // Green
 
@@ -27,6 +27,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     if (studentId.isEmpty) {
       setState(() {
         _generalAverage = 'N/A';
+        _attendance = 'N/A';
         _riskStatus = 'Unknown';
         _riskColor = Colors.grey;
       });
@@ -34,6 +35,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     }
 
     final genAveStr = await DatabaseHelper().getStudentGeneralAverage(studentId);
+    final attStr = await DatabaseHelper().getStudentAttendancePercentage(studentId);
     
     String risk = 'Low Risk';
     Color rColor = const Color(0xFF10B981); // Green
@@ -55,6 +57,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     if (mounted) {
       setState(() {
         _generalAverage = genAveStr;
+        _attendance = attStr;
         _riskStatus = risk;
         _riskColor = rColor;
       });
@@ -120,7 +123,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
@@ -251,7 +254,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -319,7 +322,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -331,7 +334,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(icon, color: color, size: 24),
@@ -376,7 +379,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -387,7 +390,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 28),

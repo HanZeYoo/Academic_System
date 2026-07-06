@@ -135,12 +135,16 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
                           ],
                         ),
                       )
-                    : ListView.builder(
-                        itemCount: _subjectClasses.length,
-                        itemBuilder: (context, index) {
-                          final item = _subjectClasses[index];
-                          return _buildSubjectClassCard(item);
-                        },
+                    : RefreshIndicator(
+                        onRefresh: _loadSubjectClasses,
+                        child: ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          itemCount: _subjectClasses.length,
+                          itemBuilder: (context, index) {
+                            final item = _subjectClasses[index];
+                            return _buildSubjectClassCard(item);
+                          },
+                        ),
                       ),
           ),
         ],

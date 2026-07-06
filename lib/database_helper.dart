@@ -642,6 +642,32 @@ class DatabaseHelper {
     return '${pct.toStringAsFixed(1)}%';
   }
 
+  // Get teacher stats (Total Classes, Total Students)
+  Future<Map<String, int>> getTeacherStats(String teacherName) async {
+    final classes = await getSubjectClassesByTeacher(teacherName);
+    int totalClasses = classes.length;
+    
+    Set<String> uniqueStudents = {};
+    for (var c in classes) {
+      final gradeLevel = c['grade_level']?.toString() ?? '';
+      final section = c['section_name']?.toString() ?? '';
+      if (gradeLevel.isNotEmpty && section.isNotEmpty) {
+        final students = await getStudentsBySection(gradeLevel, section);
+        for (var s in students) {
+          final sId = s['student_id']?.toString() ?? '';
+          if (sId.isNotEmpty) {
+            uniqueStudents.add(sId);
+          }
+        }
+      }
+    }
+    
+    return {
+      'totalClasses': totalClasses,
+      'totalStudents': uniqueStudents.length,
+    };
+  }
+
   // Add Announcement
   Future<void> addAnnouncement(Map<String, dynamic> announcementData) async {
     await Supabase.instance.client.from('announcements').insert(announcementData);
@@ -658,6 +684,24 @@ class DatabaseHelper {
       return List<Map<String, dynamic>>.from(results);
     }
     return [];
+  }
+
+  // Get student attendance percentage by student_id
+  Future<String> getStudentAttendancePercentage(String studentId) async {
+    final results = await Supabase.instance.client.from('attendance')
+        .select()
+        .eq('student_id', studentId);
+    
+    if (results.isEmpty) return 'No Data';
+
+    int presentOrLate = 0;
+    for (var r in results) {
+      if (r['status'] == 'Present' || r['status'] == 'Late') {
+        presentOrLate++;
+      }
+    }
+    double pct = (presentOrLate / results.length) * 100;
+    return '${pct.toStringAsFixed(1)}%';
   }
 
   // Get Announcements
