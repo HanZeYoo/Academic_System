@@ -40,7 +40,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     _loadDashboardData();
   }
 
-  Future<void> _loadDashboardData() async {
+  Future<void> _loadDashboardData({bool isRefresh = false}) async {
+    if (!isRefresh) {
+      setState(() => _isLoading = true);
+    }
     final db = DatabaseHelper();
     final teacher = await db.getTeacherByEmail(widget.username);
     final tName = teacher?['name']?.toString() ?? 'Teacher';
@@ -385,93 +388,97 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Welcome Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF3383B3), Color(0xFF1E5676)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _currentDate,
-                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w500),
+    return RefreshIndicator(
+      onRefresh: () => _loadDashboardData(isRefresh: true),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Welcome Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF3383B3), Color(0xFF1E5676)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Welcome back, $_teacherName!',
-                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Here is what is happening with your classes today.',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Overview Stats
-          const Text('Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              double width = (constraints.maxWidth - 16) / 2;
-              return Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  _buildStatCard(title: 'Total Classes', value: '$_totalClasses', icon: Icons.class_, color: const Color(0xFF4C51BF), width: width),
-                  _buildStatCard(title: 'Total Students', value: '$_totalStudents', icon: Icons.people, color: const Color(0xFF00A364), width: width),
-                  _buildStatCard(title: 'Pending Grades', value: '0', icon: Icons.pending_actions, color: const Color(0xFFDD6B20), width: width),
-                  _buildStatCard(title: 'Avg. Attendance', value: _avgAttendance, icon: Icons.how_to_reg, color: const Color(0xFFD53F8C), width: width),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
                 ],
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-
-          // Quick Actions
-          const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
-          const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _buildActionChip('Encode Scores', Icons.edit_document, () => setState(() => _selectedMenu = 'Encode score')),
-                const SizedBox(width: 12),
-                _buildActionChip('Take Attendance', Icons.check_circle_outline, () => setState(() => _selectedMenu = 'Attendance')),
-                const SizedBox(width: 12),
-                _buildActionChip('View Students', Icons.groups, () => setState(() => _selectedMenu = 'Student')),
-              ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _currentDate,
+                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Welcome back, $_teacherName!',
+                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Here is what is happening with your classes today.',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-
-          // Announcements
-          const Text('Recent Announcements', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
-          const SizedBox(height: 12),
-          if (_recentAnnouncements.isEmpty)
-            const Text('No recent announcements', style: TextStyle(color: Colors.grey))
-          else
-            ..._recentAnnouncements.map((a) => _buildAnnouncementCard(a)),
-        ],
+            const SizedBox(height: 24),
+  
+            // Overview Stats
+            const Text('Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                double width = (constraints.maxWidth - 16) / 2;
+                return Wrap(
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: [
+                    _buildStatCard(title: 'Total Classes', value: '$_totalClasses', icon: Icons.class_, color: const Color(0xFF4C51BF), width: width),
+                    _buildStatCard(title: 'Total Students', value: '$_totalStudents', icon: Icons.people, color: const Color(0xFF00A364), width: width),
+                    _buildStatCard(title: 'Pending Grades', value: '0', icon: Icons.pending_actions, color: const Color(0xFFDD6B20), width: width),
+                    _buildStatCard(title: 'Avg. Attendance', value: _avgAttendance, icon: Icons.how_to_reg, color: const Color(0xFFD53F8C), width: width),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+  
+            // Quick Actions
+            const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildActionChip('Encode Scores', Icons.edit_document, () => setState(() => _selectedMenu = 'Encode score')),
+                  const SizedBox(width: 12),
+                  _buildActionChip('Take Attendance', Icons.check_circle_outline, () => setState(() => _selectedMenu = 'Attendance')),
+                  const SizedBox(width: 12),
+                  _buildActionChip('View Students', Icons.groups, () => setState(() => _selectedMenu = 'Student')),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+  
+            // Announcements
+            const Text('Recent Announcements', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
+            const SizedBox(height: 12),
+            if (_recentAnnouncements.isEmpty)
+              const Text('No recent announcements', style: TextStyle(color: Colors.grey))
+            else
+              ..._recentAnnouncements.map((a) => _buildAnnouncementCard(a)),
+          ],
+        ),
       ),
     );
   }

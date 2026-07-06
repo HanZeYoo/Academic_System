@@ -20,7 +20,10 @@ class _StudentGradesViewScreenState extends State<StudentGradesViewScreen> {
     _loadScores();
   }
 
-  Future<void> _loadScores() async {
+  Future<void> _loadScores({bool isRefresh = false}) async {
+    if (!isRefresh) {
+      setState(() => _isLoading = true);
+    }
     final db = DatabaseHelper();
     final scores = await db.getStudentAllScores(widget.username);
     final remarks = await db.getStudentAllRemarksByEmail(widget.username);
@@ -47,42 +50,46 @@ class _StudentGradesViewScreenState extends State<StudentGradesViewScreen> {
       groupedScores.putIfAbsent(subjectCode, () => []).add(score);
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E66B4),
-                  borderRadius: BorderRadius.circular(8),
+    return RefreshIndicator(
+      onRefresh: () => _loadScores(isRefresh: true),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E66B4),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.grade, color: Colors.white),
                 ),
-                child: const Icon(Icons.grade, color: Colors.white),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'My Grades',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E66B4),
+                const SizedBox(width: 12),
+                const Text(
+                  'My Grades',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E66B4),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          if (groupedScores.isEmpty)
-            const Center(
-              child: Text(
-                'No grades recorded yet.',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-              ),
+              ],
             ),
-          ...groupedScores.keys.map((subjectCode) => _buildSubjectScores(subjectCode, groupedScores[subjectCode]!)),
-        ],
+            const SizedBox(height: 24),
+            if (groupedScores.isEmpty)
+              const Center(
+                child: Text(
+                  'No grades recorded yet.',
+                  style: TextStyle(color: Colors.grey, fontSize: 16),
+                ),
+              ),
+            ...groupedScores.keys.map((subjectCode) => _buildSubjectScores(subjectCode, groupedScores[subjectCode]!)),
+          ],
+        ),
       ),
     );
   }

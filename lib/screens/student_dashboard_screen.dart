@@ -33,7 +33,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     _fetchDashboardData();
   }
 
-  Future<void> _fetchDashboardData() async {
+  Future<void> _fetchDashboardData({bool isRefresh = false}) async {
+    if (!isRefresh) {
+      setState(() => _isLoading = true);
+    }
     final dbHelper = DatabaseHelper();
     
     // Fetch Name & Details
@@ -471,81 +474,85 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. Header Section
-          Text(
-            'Good Day, ${_studentName.isNotEmpty ? _studentName : widget.username}!',
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF224A60),
+    return RefreshIndicator(
+      onRefresh: () => _fetchDashboardData(isRefresh: true),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 1. Header Section
+            Text(
+              'Good Day, ${_studentName.isNotEmpty ? _studentName : widget.username}!',
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF224A60),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'SY 2026-2027 | 1st Quarter',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
+            const SizedBox(height: 4),
+            const Text(
+              'SY 2026-2027 | 1st Quarter',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // 2. Academic Overview
-          const Text(
-            'Academic Overview',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF224A60),
+            // 2. Academic Overview
+            const Text(
+              'Academic Overview',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF224A60),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _buildOverviewCard('Average', _overallAverage > 0 ? _overallAverage.toStringAsFixed(1) : 'N/A', Icons.emoji_events, Colors.orange)),
-              const SizedBox(width: 12),
-              Expanded(child: _buildOverviewCard('Attendance', _attendancePercentage > 0 || _hasAttendance ? '${_attendancePercentage.toStringAsFixed(0)}%' : 'N/A', Icons.check_circle, Colors.green)),
-              const SizedBox(width: 12),
-              Expanded(child: _buildOverviewCard('Subjects', '${_schedule.length}', Icons.menu_book, Colors.blue)),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // 3. My Subjects
-          _buildMySubjectsSection(),
-          const SizedBox(height: 24),
-
-          // 4. Today's Schedule
-          const Text(
-            'Today\'s Schedule',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF224A60),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _buildOverviewCard('Average', _overallAverage > 0 ? _overallAverage.toStringAsFixed(1) : 'N/A', Icons.emoji_events, Colors.orange)),
+                const SizedBox(width: 12),
+                Expanded(child: _buildOverviewCard('Attendance', _attendancePercentage > 0 || _hasAttendance ? '${_attendancePercentage.toStringAsFixed(0)}%' : 'N/A', Icons.check_circle, Colors.green)),
+                const SizedBox(width: 12),
+                Expanded(child: _buildOverviewCard('Subjects', '${_schedule.length}', Icons.menu_book, Colors.blue)),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          if (_schedule.isEmpty)
-            const Text('No classes scheduled.', style: TextStyle(color: Colors.grey))
-          else
-            ..._schedule.map((classData) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: _buildScheduleCard(
-                  classData['time'] ?? 'TBA',
-                  classData['subject_name'] ?? 'Unknown Subject',
-                  classData['room'] ?? 'TBA',
-                  isOngoing: false,
-                ),
-              );
-            }).toList(),
-        ],
+            const SizedBox(height: 24),
+
+            // 3. My Subjects
+            _buildMySubjectsSection(),
+            const SizedBox(height: 24),
+
+            // 4. Today's Schedule
+            const Text(
+              'Today\'s Schedule',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF224A60),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_schedule.isEmpty)
+              const Text('No classes scheduled.', style: TextStyle(color: Colors.grey))
+            else
+              ..._schedule.map((classData) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: _buildScheduleCard(
+                    classData['time'] ?? 'TBA',
+                    classData['subject_name'] ?? 'Unknown Subject',
+                    classData['room'] ?? 'TBA',
+                    isOngoing: false,
+                  ),
+                );
+              }).toList(),
+          ],
+        ),
       ),
     );
   }
