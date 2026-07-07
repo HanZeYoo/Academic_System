@@ -445,7 +445,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
           children: [
             const Icon(Icons.auto_awesome, color: Color(0xFF1664C5)),
             const SizedBox(width: 8),
-            const Expanded(child: Text('Smart Suggestion')),
+            const Expanded(child: Text('Suggestion')),
           ],
         ),
         content: Column(
