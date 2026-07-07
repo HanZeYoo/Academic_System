@@ -64,7 +64,7 @@ class _ReportsGenerationScreenState extends State<ReportsGenerationScreen> {
     final db = DatabaseHelper();
     List<Map<String, dynamic>> classes = [];
     
-    if (widget.username != null) {
+    if (widget.username != null && widget.username != 'admin') {
       final teacher = await db.getTeacherByEmail(widget.username!);
       if (teacher != null) {
         classes = await db.getSubjectClassesByTeacher(teacher['name'].toString());

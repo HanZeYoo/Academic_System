@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'parent_notification_screen.dart';
 
 class StudentEvaluationDetailScreen extends StatelessWidget {
   final Map<String, dynamic> student;
@@ -95,8 +96,26 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Notifying parents of ${student['name']}...')),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => Scaffold(
+                              backgroundColor: const Color(0xFFF1F5F9),
+                              appBar: AppBar(
+                                backgroundColor: const Color(0xFF0F52BA),
+                                elevation: 0,
+                                title: const Text('Notify Parent', style: TextStyle(color: Colors.white)),
+                                leading: IconButton(
+                                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                                  onPressed: () => Navigator.pop(context),
+                                ),
+                              ),
+                              body: ParentNotificationScreen(
+                                username: 'admin', 
+                                initialStudentId: student['student_id']?.toString(),
+                              ),
+                            ),
+                          ),
                         );
                       },
                       icon: const Icon(Icons.notifications_active_outlined),

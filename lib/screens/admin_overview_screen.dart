@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../database_helper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'reports_generation_screen.dart';
 class AdminOverviewScreen extends StatefulWidget {
   const AdminOverviewScreen({super.key});
 
@@ -736,7 +737,22 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
     return SizedBox(
       width: double.infinity,
       child: TextButton.icon(
-        onPressed: () {},
+        onPressed: () {
+          Navigator.push(
+            context, 
+            MaterialPageRoute(
+              builder: (context) => Scaffold(
+                backgroundColor: const Color(0xFFF1F5F9), // Match standard app background
+                appBar: AppBar(
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  iconTheme: const IconThemeData(color: Colors.black87),
+                ),
+                body: const ReportsGenerationScreen(username: 'admin'),
+              ),
+            ),
+          );
+        },
         icon: const Icon(Icons.bar_chart, size: 18),
         label: const Text('View Full Report'),
         style: TextButton.styleFrom(

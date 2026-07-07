@@ -216,6 +216,15 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
+              
+              // Actual logic to send notification to all at-risk students
+              if (widget.onComposeNotification != null) {
+                for (var student in students) {
+                  final message = 'Dear Parent, this is an update regarding your child\'s academic performance. They are currently tagged as "At-Risk" in our latest analytics. Please check their grades for more details.';
+                  widget.onComposeNotification!(student['id'].toString(), message);
+                }
+              }
+              
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
