@@ -151,6 +151,39 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
     setState(() => _isLoading = true);
 
+    // --- DUPLICATE CHECKS ---
+    final dbHelper = DatabaseHelper();
+    
+    // Check if Student ID exists (only if adding new or changing ID)
+    if (widget.existingStudent == null || widget.existingStudent!['student_id'] != _studentIdController.text) {
+      final existingStudentId = await dbHelper.getStudentByStudentId(_studentIdController.text);
+      if (existingStudentId != null) {
+        setState(() => _isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Error: Student ID already exists!'),
+            backgroundColor: Colors.red,
+          ));
+        }
+        return;
+      }
+    }
+
+    // Check if Email exists (only if adding new or changing Email)
+    if (widget.existingStudent == null || widget.existingStudent!['email'] != _emailController.text) {
+      final existingEmail = await dbHelper.getStudentByEmail(_emailController.text);
+      if (existingEmail != null) {
+        setState(() => _isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Error: Student Email already exists!'),
+            backgroundColor: Colors.red,
+          ));
+        }
+        return;
+      }
+    }
+
     final fullName = '${_firstNameController.text} ${_lastNameController.text}';
 
     if (widget.existingStudent != null) {

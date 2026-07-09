@@ -12,6 +12,8 @@ class StudentAttendanceViewScreen extends StatefulWidget {
 class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _attendanceRecords = [];
+  String? _selectedSchoolYear;
+  List<String> _schoolYears = [];
 
   @override
   void initState() {
@@ -24,10 +26,18 @@ class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScree
       setState(() => _isLoading = true);
     }
     final db = DatabaseHelper();
-    final records = await db.getStudentAttendance(widget.username);
+    
+    final years = await db.getAllSchoolYears();
+    final activeYear = await db.getActiveSchoolYear();
+    if (_selectedSchoolYear == null) {
+      _selectedSchoolYear = activeYear;
+    }
+
+    final records = await db.getStudentAttendance(widget.username, _selectedSchoolYear);
     
     if (mounted) {
       setState(() {
+        _schoolYears = years.isNotEmpty ? years : [activeYear];
         _attendanceRecords = records;
         _isLoading = false;
       });
@@ -69,6 +79,41 @@ class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScree
                 ),
               ],
             ),
+            if (_schoolYears.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedSchoolYear,
+                      icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF1E66B4)),
+                      style: const TextStyle(color: Color(0xFF1E66B4), fontWeight: FontWeight.bold),
+                      onChanged: (String? newValue) {
+                        if (newValue != null && newValue != _selectedSchoolYear) {
+                          setState(() {
+                            _selectedSchoolYear = newValue;
+                            _loadAttendance();
+                          });
+                        }
+                      },
+                      items: _schoolYears.map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             if (_attendanceRecords.isEmpty)
               const Center(

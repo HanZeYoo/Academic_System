@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import '../database_helper.dart';
+import '../services/email_service.dart';
 import 'add_student_screen.dart';
 import 'student_detail_screen.dart';
 
@@ -55,6 +56,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
         }
 
         int importedCount = 0;
+        int duplicateCount = 0;
         final db = DatabaseHelper();
         
         for (int i = 1; i < fields.length; i++) {
@@ -66,10 +68,20 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
           }
 
           final studentId = row[0].toString().trim();
+          final email = row[4].toString().trim();
+          
+          // Duplicate Checks
+          final existingId = await db.getStudentByStudentId(studentId);
+          final existingEmail = await db.getStudentByEmail(email);
+          
+          if (existingId != null || existingEmail != null) {
+            duplicateCount++;
+            continue; // Skip this row
+          }
+
           final name = row[1].toString().trim();
           final gradeLevel = row[2].toString().trim();
           final section = row[3].toString().trim();
-          final email = row[4].toString().trim();
           final parentEmail = row[5].toString().trim();
           final gender = row[6].toString().trim();
           final birthdate = row[7].toString().trim();
@@ -92,11 +104,42 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
             parentContact: parentContact.isEmpty ? null : parentContact,
             address: address.isEmpty ? null : address,
           );
+          
+          // Send Welcome Email to Student
+          if (email.isNotEmpty) {
+            try {
+              await EmailService.sendEmail(
+                toEmail: email,
+                subject: 'Welcome to the Academic System!',
+                messageText: 'Hello $name,<br><br>Your student account has been created successfully.<br><br><b>Username/Email:</b> $email<br><b>Temporary Password:</b> student123<br><br>Please log in to your account and change your password immediately.',
+              );
+            } catch (e) {
+              print('Failed to send student welcome email to $email: $e');
+            }
+          }
+          
+          // Send Welcome Email to Parent
+          if (parentEmail.isNotEmpty) {
+            try {
+              await EmailService.sendEmail(
+                toEmail: parentEmail,
+                subject: 'Parent Portal - Academic System',
+                messageText: 'Hello Parent of $name,<br><br>Your parent account has been created successfully. You can now monitor your child\'s academic progress.<br><br><b>Username/Email:</b> $parentEmail<br><b>Temporary Password:</b> parent123<br><br>Please log in to your account to get started.',
+              );
+            } catch (e) {
+              print('Failed to send parent welcome email to $parentEmail: $e');
+            }
+          }
+          
           importedCount++;
         }
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Successfully imported $importedCount students!'), backgroundColor: Colors.green));
+          String msg = 'Successfully imported $importedCount students!';
+          if (duplicateCount > 0) {
+            msg += ' (Skipped $duplicateCount duplicates)';
+          }
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.green));
         }
         _loadStudents();
       }

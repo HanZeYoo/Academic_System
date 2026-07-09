@@ -180,6 +180,16 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         return;
       }
     }
+    
+    // Check for Teacher ID duplicate
+    final teacherIdToCheck = _teacherIdController.text.trim();
+    if (teacherIdToCheck.isNotEmpty) {
+      final existingTeacher = await DatabaseHelper().getTeacherByTeacherId(teacherIdToCheck);
+      if (existingTeacher != null && (widget.teacherToEdit == null || widget.teacherToEdit!['teacher_id'] != teacherIdToCheck)) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Teacher ID already exists! Please use a unique ID.'), backgroundColor: Colors.red));
+        return;
+      }
+    }
 
     setState(() => _isLoading = true);
     

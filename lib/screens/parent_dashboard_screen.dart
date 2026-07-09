@@ -94,7 +94,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
     _schedule = await dbHelper.getStudentSchedule(studentEmail);
 
-    final attendanceRecords = await dbHelper.getStudentAttendance(studentEmail);
+    final attendanceRecords = await dbHelper.getStudentAttendance(studentEmail, _selectedSchoolYear);
     _hasAttendance = attendanceRecords.isNotEmpty;
     if (_hasAttendance) {
       final presentCount = attendanceRecords

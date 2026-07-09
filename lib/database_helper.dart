@@ -169,6 +169,13 @@ class DatabaseHelper {
     return null;
   }
 
+  // Get a single student by student_id
+  Future<Map<String, dynamic>?> getStudentByStudentId(String studentId) async {
+    final results = await Supabase.instance.client.from('students').select().eq('student_id', studentId).limit(1);
+    if (results.isNotEmpty) return results.first as Map<String, dynamic>;
+    return null;
+  }
+
   // Update student profile picture path
   Future<void> updateStudentProfilePicture(String email, String imagePath) async {
     await Supabase.instance.client.from('students').update({'profile_picture': imagePath}).eq('email', email);
@@ -462,6 +469,31 @@ class DatabaseHelper {
     return results.isNotEmpty ? results.first as Map<String, dynamic> : null;
   }
 
+  // Get teacher record by teacher ID
+  Future<Map<String, dynamic>?> getTeacherByTeacherId(String teacherId) async {
+    final results = await Supabase.instance.client.from('teachers').select().eq('teacher_id', teacherId).limit(1);
+    return results.isNotEmpty ? results.first as Map<String, dynamic> : null;
+  }
+
+  // Check subject class duplicate
+  Future<Map<String, dynamic>?> checkSubjectClassDuplicate({
+    required String subjectCode,
+    required String gradeLevel,
+    required String sectionName,
+    required String teacherName,
+    required String schoolYear,
+  }) async {
+    final results = await Supabase.instance.client.from('subjects_classes')
+        .select()
+        .eq('subject_code', subjectCode)
+        .eq('grade_level', gradeLevel)
+        .eq('section_name', sectionName)
+        .eq('assigned_teacher', teacherName)
+        .eq('school_year', schoolYear)
+        .limit(1);
+    return results.isNotEmpty ? results.first as Map<String, dynamic> : null;
+  }
+
   // Generate the next teacher ID automatically
   Future<String> generateNextTeacherId() async {
     final results = await Supabase.instance.client.from('teachers').select('teacher_id');
@@ -638,11 +670,15 @@ class DatabaseHelper {
 
   // Save or update attendance
   Future<void> saveAttendance(Map<String, dynamic> data) async {
+    final activeYear = await getActiveSchoolYear();
+    data['school_year'] ??= activeYear;
+
     final existing = await Supabase.instance.client.from('attendance')
         .select()
         .eq('student_id', data['student_id'])
         .eq('class_name', data['class_name'])
         .eq('date', data['date'])
+        .eq('school_year', data['school_year'])
         .limit(1);
 
     if (existing.isNotEmpty) {
@@ -729,12 +765,14 @@ class DatabaseHelper {
   }
 
   // Get student attendance
-  Future<List<Map<String, dynamic>>> getStudentAttendance(String email) async {
+  Future<List<Map<String, dynamic>>> getStudentAttendance(String email, [String? schoolYear]) async {
     final s = await getStudentByEmail(email);
     if (s != null) {
+      final year = schoolYear ?? await getActiveSchoolYear();
       final results = await Supabase.instance.client.from('attendance')
           .select()
           .eq('student_id', s['student_id'])
+          .eq('school_year', year)
           .order('date', ascending: false);
       return List<Map<String, dynamic>>.from(results);
     }
@@ -742,10 +780,12 @@ class DatabaseHelper {
   }
 
   // Get student attendance percentage by student_id
-  Future<String> getStudentAttendancePercentage(String studentId) async {
+  Future<String> getStudentAttendancePercentage(String studentId, [String? schoolYear]) async {
+    final year = schoolYear ?? await getActiveSchoolYear();
     final results = await Supabase.instance.client.from('attendance')
         .select()
-        .eq('student_id', studentId);
+        .eq('student_id', studentId)
+        .eq('school_year', year);
     
     if (results.isEmpty) return 'No Data';
 

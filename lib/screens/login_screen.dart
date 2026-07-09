@@ -242,7 +242,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toLowerCase())),
                       ],
                       decoration: InputDecoration(
-                        hintText: 'e.g., student.id@school.edu',
+                        hintText: 'Enter your Email',
                         hintStyle: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 14,
@@ -285,6 +285,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _passwordController,
                       obscureText: _obscurePassword,
                       decoration: InputDecoration(
+                        hintText: 'Enter your password',
+                        hintStyle: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 14,
+                        ),
                         filled: true,
                         fillColor: Colors.grey.shade100,
                         border: OutlineInputBorder(

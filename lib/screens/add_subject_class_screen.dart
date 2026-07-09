@@ -97,10 +97,34 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
   Future<void> _saveSubjectClass() async {
     if (_subjectCodeController.text.isEmpty ||
         _subjectNameController.text.isEmpty ||
-        (_selectedSectionName == null || _selectedSectionName!.isEmpty)) {
+        (_selectedSectionName == null || _selectedSectionName!.isEmpty) ||
+        (_selectedTeacher == null || _selectedTeacher!.isEmpty) ||
+        (_selectedGradeLevel == null || _selectedGradeLevel!.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all required fields.')),
       );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    
+    // Check for duplicate subject class
+    final activeYear = await DatabaseHelper().getActiveSchoolYear();
+    final existingClass = await DatabaseHelper().checkSubjectClassDuplicate(
+      subjectCode: _subjectCodeController.text,
+      gradeLevel: _selectedGradeLevel!,
+      sectionName: _selectedSectionName!,
+      teacherName: _selectedTeacher!,
+      schoolYear: activeYear,
+    );
+    
+    if (existingClass != null && (widget.subjectClassToEdit == null || widget.subjectClassToEdit!['id'] != existingClass['id'])) {
+      setState(() => _isSaving = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This Subject Class already exists for the selected Teacher, Grade, and Section!'), backgroundColor: Colors.red),
+        );
+      }
       return;
     }
 
