@@ -344,6 +344,48 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
 
   Future<void> _saveScores() async {
     if (_selectedClassRecord == null) return;
+
+    // Check if any student score field is empty or invalid
+    bool hasEmptyScore = false;
+    bool hasInvalidScore = false;
+    for (final student in _students) {
+      final sid = student['student_id']?.toString() ?? '';
+      final valStr = _scoreControllers[sid]?.text.trim() ?? '';
+      if (valStr.isEmpty) {
+        hasEmptyScore = true;
+        break;
+      }
+      final val = int.tryParse(valStr);
+      if (val == null || val < 0 || val > _totalScore) {
+        hasInvalidScore = true;
+        break;
+      }
+    }
+
+    if (hasEmptyScore) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('All student scores are required. Please enter a score for each student.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (hasInvalidScore) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invalid score entered. Scores must be numbers between 0 and $_totalScore.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     final subjectCode =
