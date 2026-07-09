@@ -29,6 +29,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   double _attendancePercentage = 0.0;
   bool _hasAttendance = false;
 
+  String? _selectedSchoolYear;
+  List<String> _schoolYears = [];
+
   @override
   void initState() {
     super.initState();
@@ -55,6 +58,19 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       setState(() => _isLoading = true);
     }
     final dbHelper = DatabaseHelper();
+    
+    final years = await dbHelper.getAllSchoolYears();
+    final activeYear = await dbHelper.getActiveSchoolYear();
+    if (_selectedSchoolYear == null) {
+      _selectedSchoolYear = activeYear;
+    }
+    
+    if (mounted) {
+      setState(() {
+        _schoolYears = years.isNotEmpty ? years : [activeYear];
+      });
+    }
+
     _children = await dbHelper.getStudentsByParentEmail(widget.username);
     if (_children.isNotEmpty) {
       await _fetchDashboardDataForChild(_children[_selectedChildIndex], isRefresh: isRefresh);
@@ -89,7 +105,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       _attendancePercentage = 0.0;
     }
 
-    final scores = await dbHelper.getStudentAllScores(studentEmail);
+    final scores = await dbHelper.getStudentAllScores(studentEmail, _selectedSchoolYear);
     final remarks = await dbHelper.getStudentAllRemarksByEmail(studentEmail);
     _subjectGrades.clear();
     double sumOfAverages = 0.0;
@@ -297,6 +313,36 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
           ),
           actions: [
+            if (_schoolYears.isNotEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedSchoolYear,
+                      dropdownColor: const Color(0xFF224A60),
+                      icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      onChanged: (String? newValue) {
+                        if (newValue != null && newValue != _selectedSchoolYear) {
+                          setState(() {
+                            _selectedSchoolYear = newValue;
+                            if (_children.isNotEmpty) {
+                              _fetchDashboardDataForChild(_children[_selectedChildIndex]);
+                            }
+                          });
+                        }
+                      },
+                      items: _schoolYears.map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.only(right: 16.0),
               child: CircleAvatar(

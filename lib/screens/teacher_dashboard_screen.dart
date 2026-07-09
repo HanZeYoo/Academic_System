@@ -34,6 +34,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   String? _pendingStudentId;
   String? _pendingMessage;
 
+  String? _selectedSchoolYear;
+  List<String> _schoolYears = [];
+
   @override
   void initState() {
     super.initState();
@@ -45,10 +48,19 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       setState(() => _isLoading = true);
     }
     final db = DatabaseHelper();
+    
+    // Load school years
+    final years = await db.getAllSchoolYears();
+    final activeYear = await db.getActiveSchoolYear();
+    
+    if (_selectedSchoolYear == null) {
+      _selectedSchoolYear = activeYear;
+    }
+    
     final teacher = await db.getTeacherByEmail(widget.username);
     final tName = teacher?['name']?.toString() ?? 'Teacher';
     
-    final classes = await db.getSubjectClassesByTeacher(tName);
+    final classes = await db.getSubjectClassesByTeacher(tName, _selectedSchoolYear);
     
     // Calculate total students across all classes
     int studentCount = 0;
@@ -57,7 +69,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       final sec = '${c['grade_level']}-${c['section_name']}';
       if (!processedSections.contains(sec)) {
         processedSections.add(sec);
-        final students = await db.getStudentsBySection(c['grade_level']?.toString() ?? '', c['section_name']?.toString() ?? '');
+        final students = await db.getStudentsBySection(c['grade_level']?.toString() ?? '', c['section_name']?.toString() ?? '', _selectedSchoolYear);
         studentCount += students.length;
       }
     }
@@ -70,6 +82,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
     if (mounted) {
       setState(() {
+        _schoolYears = years.isNotEmpty ? years : [activeYear];
         _teacherName = tName;
         _totalClasses = classes.length;
         _totalStudents = studentCount;
@@ -136,6 +149,35 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             ),
           ),
           actions: [
+            if (_schoolYears.isNotEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedSchoolYear,
+                      dropdownColor: const Color(0xFF224A60),
+                      icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      onChanged: (String? newValue) {
+                        if (newValue != null && newValue != _selectedSchoolYear) {
+                          setState(() {
+                            _selectedSchoolYear = newValue;
+                            // When changing school year, reload the dashboard data
+                            _loadDashboardData();
+                          });
+                        }
+                      },
+                      items: _schoolYears.map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.only(right: 16.0),
               child: GestureDetector(

@@ -13,6 +13,8 @@ class _StudentGradesViewScreenState extends State<StudentGradesViewScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _scores = [];
   List<Map<String, dynamic>> _remarks = [];
+  String? _selectedSchoolYear;
+  List<String> _schoolYears = [];
 
   @override
   void initState() {
@@ -25,11 +27,19 @@ class _StudentGradesViewScreenState extends State<StudentGradesViewScreen> {
       setState(() => _isLoading = true);
     }
     final db = DatabaseHelper();
-    final scores = await db.getStudentAllScores(widget.username);
+    
+    final years = await db.getAllSchoolYears();
+    final activeYear = await db.getActiveSchoolYear();
+    if (_selectedSchoolYear == null) {
+      _selectedSchoolYear = activeYear;
+    }
+
+    final scores = await db.getStudentAllScores(widget.username, _selectedSchoolYear);
     final remarks = await db.getStudentAllRemarksByEmail(widget.username);
     
     if (mounted) {
       setState(() {
+        _schoolYears = years.isNotEmpty ? years : [activeYear];
         _scores = scores;
         _remarks = remarks;
         _isLoading = false;
@@ -59,24 +69,59 @@ class _StudentGradesViewScreenState extends State<StudentGradesViewScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E66B4),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.grade, color: Colors.white),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E66B4),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.grade, color: Colors.white),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'My Grades',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E66B4),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                const Text(
-                  'My Grades',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E66B4),
+                if (_schoolYears.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedSchoolYear,
+                        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF1E66B4)),
+                        style: const TextStyle(color: Color(0xFF1E66B4), fontWeight: FontWeight.bold),
+                        onChanged: (String? newValue) {
+                          if (newValue != null && newValue != _selectedSchoolYear) {
+                            setState(() {
+                              _selectedSchoolYear = newValue;
+                              _loadScores();
+                            });
+                          }
+                        },
+                        items: _schoolYears.map<DropdownMenuItem<String>>((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
+                          );
+                        }).toList(),
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 24),

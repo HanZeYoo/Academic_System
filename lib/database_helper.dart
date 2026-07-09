@@ -29,6 +29,8 @@ class DatabaseHelper {
     String? parentContact,
     String? address,
   }) async {
+    final activeYear = await getActiveSchoolYear();
+    
     // Insert student
     await Supabase.instance.client.from('students').insert({
       'student_id': studentId,
@@ -43,6 +45,7 @@ class DatabaseHelper {
       'parent_name': parentName,
       'parent_contact': parentContact,
       'address': address,
+      'school_year': activeYear,
     });
 
     // Auto-create user account for student
@@ -185,13 +188,24 @@ class DatabaseHelper {
   }
 
   // Get students by grade level and section
-  Future<List<Map<String, dynamic>>> getStudentsBySection(String gradeLevel, String section) async {
-    final results = await Supabase.instance.client.from('students')
-        .select()
-        .eq('grade_level', gradeLevel)
-        .eq('section', section)
-        .order('name', ascending: true);
-    return List<Map<String, dynamic>>.from(results);
+  Future<List<Map<String, dynamic>>> getStudentsBySection(String gradeLevel, String section, [String? schoolYear]) async {
+    final year = schoolYear ?? await getActiveSchoolYear();
+    try {
+      final results = await Supabase.instance.client.from('students')
+          .select()
+          .eq('grade_level', gradeLevel)
+          .eq('section', section)
+          .eq('school_year', year)
+          .order('name', ascending: true);
+      return List<Map<String, dynamic>>.from(results);
+    } catch (e) {
+      final results = await Supabase.instance.client.from('students')
+          .select()
+          .eq('grade_level', gradeLevel)
+          .eq('section', section)
+          .order('name', ascending: true);
+      return List<Map<String, dynamic>>.from(results);
+    }
   }
 
   // Save or update a score
@@ -213,11 +227,22 @@ class DatabaseHelper {
   }
 
   // Get all scores for a student by email
-  Future<List<Map<String, dynamic>>> getStudentAllScores(String email) async {
+  Future<List<Map<String, dynamic>>> getStudentAllScores(String email, [String? schoolYear]) async {
     final s = await getStudentByEmail(email);
     if (s != null) {
-      final results = await Supabase.instance.client.from('scores').select().eq('student_id', s['student_id']);
-      return List<Map<String, dynamic>>.from(results);
+      final year = schoolYear ?? await getActiveSchoolYear();
+      try {
+        final results = await Supabase.instance.client.from('scores')
+            .select()
+            .eq('student_id', s['student_id'])
+            .eq('school_year', year);
+        return List<Map<String, dynamic>>.from(results);
+      } catch (e) {
+        final results = await Supabase.instance.client.from('scores')
+            .select()
+            .eq('student_id', s['student_id']);
+        return List<Map<String, dynamic>>.from(results);
+      }
     }
     return [];
   }
@@ -315,15 +340,29 @@ class DatabaseHelper {
     required String sectionName,
     required String gradeLevel,
     required String gradingPeriod,
+    String? schoolYear,
   }) async {
-    final results = await Supabase.instance.client.from('scores')
-        .select()
-        .eq('subject_code', subjectCode)
-        .eq('section_name', sectionName)
-        .eq('grade_level', gradeLevel)
-        .eq('grading_period', gradingPeriod)
-        .order('student_name', ascending: true);
-    return List<Map<String, dynamic>>.from(results);
+    final year = schoolYear ?? await getActiveSchoolYear();
+    try {
+      final results = await Supabase.instance.client.from('scores')
+          .select()
+          .eq('subject_code', subjectCode)
+          .eq('section_name', sectionName)
+          .eq('grade_level', gradeLevel)
+          .eq('grading_period', gradingPeriod)
+          .eq('school_year', year)
+          .order('student_name', ascending: true);
+      return List<Map<String, dynamic>>.from(results);
+    } catch (e) {
+      final results = await Supabase.instance.client.from('scores')
+          .select()
+          .eq('subject_code', subjectCode)
+          .eq('section_name', sectionName)
+          .eq('grade_level', gradeLevel)
+          .eq('grading_period', gradingPeriod)
+          .order('student_name', ascending: true);
+      return List<Map<String, dynamic>>.from(results);
+    }
   }
 
   // Save (upsert) assessment setup for a class/period
@@ -357,7 +396,12 @@ class DatabaseHelper {
 
   // Add Subject / Class
   Future<void> addSubjectClass(Map<String, dynamic> subjectClassData) async {
-    await Supabase.instance.client.from('subjects_classes').insert(subjectClassData);
+    final activeYear = await getActiveSchoolYear();
+    final dataToInsert = Map<String, dynamic>.from(subjectClassData);
+    if (!dataToInsert.containsKey('school_year') || dataToInsert['school_year'] == null) {
+      dataToInsert['school_year'] = activeYear;
+    }
+    await Supabase.instance.client.from('subjects_classes').insert(dataToInsert);
   }
 
   // Update Subject / Class
@@ -393,12 +437,23 @@ class DatabaseHelper {
   }
 
   // Get classes assigned to a specific teacher (by name)
-  Future<List<Map<String, dynamic>>> getSubjectClassesByTeacher(String teacherName) async {
-    final results = await Supabase.instance.client.from('subjects_classes')
-        .select()
-        .eq('assigned_teacher', teacherName)
-        .order('id', ascending: false);
-    return List<Map<String, dynamic>>.from(results);
+  Future<List<Map<String, dynamic>>> getSubjectClassesByTeacher(String teacherName, [String? schoolYear]) async {
+    final year = schoolYear ?? await getActiveSchoolYear();
+    try {
+      final results = await Supabase.instance.client.from('subjects_classes')
+          .select()
+          .eq('assigned_teacher', teacherName)
+          .eq('school_year', year)
+          .order('id', ascending: false);
+      return List<Map<String, dynamic>>.from(results);
+    } catch (e) {
+      // Fallback if column doesn't exist yet
+      final results = await Supabase.instance.client.from('subjects_classes')
+          .select()
+          .eq('assigned_teacher', teacherName)
+          .order('id', ascending: false);
+      return List<Map<String, dynamic>>.from(results);
+    }
   }
 
   // Get teacher record by email (used as login username)
@@ -833,4 +888,57 @@ class DatabaseHelper {
       print('Error updating FCM token: $e');
     }
   }
+  // --- SCHOOL YEAR MANAGEMENT ---
+  Future<String> getActiveSchoolYear() async {
+    try {
+      final results = await Supabase.instance.client.from('school_years')
+          .select()
+          .eq('is_active', true)
+          .limit(1);
+      if (results.isNotEmpty) return results.first['year_label'].toString();
+    } catch (e) {
+      print('Error getting active school year: $e');
+    }
+    return 'S.Y. 2025-2026'; // Fallback
+  }
+
+  Future<List<String>> getAllSchoolYears() async {
+    try {
+      final results = await Supabase.instance.client.from('school_years')
+          .select('year_label')
+          .order('id', ascending: false);
+      return results.map((e) => e['year_label'].toString()).toList();
+    } catch (e) {
+      print('Error getting all school years: $e');
+      return ['S.Y. 2025-2026'];
+    }
+  }
+
+  Future<void> addSchoolYear(String yearLabel) async {
+    await Supabase.instance.client.from('school_years').insert({
+      'year_label': yearLabel,
+      'is_active': false,
+    });
+  }
+
+  Future<void> setActiveSchoolYear(String yearLabel) async {
+    // Set all to false
+    await Supabase.instance.client.from('school_years').update({'is_active': false}).neq('id', 0);
+    // Set specific to true
+    await Supabase.instance.client.from('school_years').update({'is_active': true}).eq('year_label', yearLabel);
+  }
+
+  // --- MASS PROMOTION (End of School Year) ---
+  Future<void> massPromoteStudents(String currentGradeLevel, String currentSection, String newGradeLevel) async {
+    final activeYear = await getActiveSchoolYear();
+    await Supabase.instance.client.from('students')
+        .update({
+          'grade_level': newGradeLevel,
+          'section': '', // Clear section so they can be assigned later
+          'school_year': activeYear,
+        })
+        .eq('grade_level', currentGradeLevel)
+        .eq('section', currentSection);
+  }
+
 }
