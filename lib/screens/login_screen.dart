@@ -326,6 +326,35 @@ class _LoginScreenState extends State<LoginScreen> {
                           activeColor: const Color(0xFF2B81B7),
                         ),
                         const Text('Remember Me', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w500)),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Forgot Password?', style: TextStyle(color: Color(0xFF2B81B7), fontWeight: FontWeight.bold)),
+                                content: const Text(
+                                  'For security reasons, password resets must be verified. Please contact your school administrator or IT department to request a password reset.',
+                                  style: TextStyle(height: 1.4),
+                                ),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Understood', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Forgot Password?',
+                            style: TextStyle(
+                              color: Color(0xFF2B81B7),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 20),

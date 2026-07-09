@@ -617,6 +617,20 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                                 isDense: true,
                               ),
                               style: const TextStyle(fontSize: 14),
+                              onChanged: (val) {
+                                setState(() {
+                                  _totalScore = int.tryParse(val) ?? 1;
+                                  if (_totalScore <= 0) _totalScore = 1;
+                                });
+                                // Revalidate student scores against new total
+                                for (var ctrl in _scoreControllers.values) {
+                                  int? s = int.tryParse(ctrl.text);
+                                  if (s != null && s > _totalScore) {
+                                    ctrl.text = _totalScore.toString();
+                                    ctrl.selection = TextSelection.fromPosition(TextPosition(offset: ctrl.text.length));
+                                  }
+                                }
+                              },
                             ),
                           ),
                         ],
@@ -832,8 +846,19 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                                                   EdgeInsets.symmetric(
                                                       vertical: 8),
                                             ),
-                                            onChanged: (_) =>
-                                                localSet(() {}),
+                                            onChanged: (val) {
+                                              int? parsed = int.tryParse(val);
+                                              if (parsed != null) {
+                                                if (parsed > _totalScore) {
+                                                  ctrl.text = _totalScore.toString();
+                                                  ctrl.selection = TextSelection.fromPosition(TextPosition(offset: ctrl.text.length));
+                                                } else if (parsed < 0) {
+                                                  ctrl.text = '0';
+                                                  ctrl.selection = TextSelection.fromPosition(TextPosition(offset: ctrl.text.length));
+                                                }
+                                              }
+                                              localSet(() {});
+                                            },
                                           ),
                                         ),
                                       ),

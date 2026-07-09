@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
 
 class TeacherAttendanceScreen extends StatefulWidget {
@@ -150,6 +151,57 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
         'date': dateStr,
         'status': student['status'],
       });
+
+      // --- SEND PUSH NOTIFICATION FOR ABSENT STUDENTS ---
+      if (student['status'] == 'Absent') {
+        try {
+          // 1. Get Parent Email from Students table
+          final studentData = await Supabase.instance.client
+              .from('students')
+              .select('parent_email')
+              .eq('student_id', student['id'])
+              .maybeSingle();
+
+          final parentEmail = studentData?['parent_email']?.toString() ?? '';
+
+          if (parentEmail.isNotEmpty) {
+            final reasonToSend = 'Attendance Alert: Absent';
+            final messageToSend = '${student['name']} was marked ABSENT for $_selectedClass today ($dateStr).';
+
+            // 2. Insert In-App Notification Record
+            await dbHelper.insertNotification({
+              'sender_username': widget.username,
+              'receiver_username': parentEmail,
+              'student_id': student['id'],
+              'title': reasonToSend,
+              'message': messageToSend,
+              'date': "${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}",
+              'status': 'Sent'
+            });
+
+            // 3. Get Parent FCM Token & Send Push
+            final parentUser = await Supabase.instance.client
+                .from('users')
+                .select('fcm_token')
+                .eq('username', parentEmail)
+                .maybeSingle();
+
+            final fcmToken = parentUser?['fcm_token'];
+            if (fcmToken != null && fcmToken.toString().isNotEmpty) {
+              await Supabase.instance.client.functions.invoke('send-fcm', body: {
+                'title': reasonToSend,
+                'body': messageToSend,
+                'token': fcmToken.toString(),
+                'data': {
+                  'route': 'notifications',
+                },
+              });
+            }
+          }
+        } catch (e) {
+          debugPrint('Error sending absent notification: $e');
+        }
+      }
     }
     
     // Hide loading

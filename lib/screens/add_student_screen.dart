@@ -186,13 +186,22 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         address: _homeAddressController.text,
       );
 
-      // Send Welcome Email
+      // Send Welcome Email to Student
       if (_sendCredentials) {
         await EmailService.sendEmail(
           toEmail: _emailController.text,
           subject: 'Welcome to the Academic System!',
           messageText: 'Hello $fullName,<br><br>Your student account has been created successfully.<br><br><b>Username/Email:</b> ${_emailController.text}<br><b>Temporary Password:</b> student123<br><br>Please log in to your account and change your password immediately.',
         );
+        
+        // Send Welcome Email to Parent
+        if (_parentEmailController.text.isNotEmpty) {
+          await EmailService.sendEmail(
+            toEmail: _parentEmailController.text,
+            subject: 'Parent Portal - Academic System',
+            messageText: 'Hello Parent of $fullName,<br><br>Your parent account has been created successfully. You can now monitor your child\'s academic progress.<br><br><b>Username/Email:</b> ${_parentEmailController.text}<br><b>Temporary Password:</b> parent123<br><br>Please log in to your account to get started.',
+          );
+        }
       }
     }
 
