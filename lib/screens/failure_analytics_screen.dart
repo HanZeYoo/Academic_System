@@ -30,7 +30,13 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
   int _mediumRiskCount = 0;
   int _lowRiskCount = 0;
 
+  int _touchedIndex = -1;
   String _searchQuery = '';
+
+  String _selectedGradeLevel = 'All';
+  String _selectedSection = 'All';
+  List<String> _availableGradeLevels = ['All'];
+  List<String> _availableSections = ['All'];
 
   @override
   void initState() {
@@ -61,10 +67,31 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
       classes = await db.getSubjectClassesByTeacher(teacher['name'].toString());
     }
 
+    Set<String> grades = {'All'};
+    Set<String> sections = {'All'};
+    for (var c in classes) {
+      grades.add(c['grade_level'].toString());
+      if (_selectedGradeLevel == 'All' || _selectedGradeLevel == c['grade_level'].toString()) {
+        sections.add(c['section_name'].toString());
+      }
+    }
+    
+    _availableGradeLevels = grades.toList()..sort();
+    _availableSections = sections.toList()..sort();
+    
+    if (!_availableGradeLevels.contains(_selectedGradeLevel)) _selectedGradeLevel = 'All';
+    if (!_availableSections.contains(_selectedSection)) _selectedSection = 'All';
+
+    var filteredClasses = classes.where((c) {
+      if (_selectedGradeLevel != 'All' && c['grade_level'].toString() != _selectedGradeLevel) return false;
+      if (_selectedSection != 'All' && c['section_name'].toString() != _selectedSection) return false;
+      return true;
+    }).toList();
+
     // subjectName -> {total: int, failed: int}
     Map<String, Map<String, int>> subjectStats = {};
 
-    for (var c in classes) {
+    for (var c in filteredClasses) {
       final subjectCode = c['subject_code'].toString();
       final subjectName = c['subject_name'].toString();
       final gradeLevel = c['grade_level'].toString();
@@ -129,6 +156,8 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
             final prjAvg = _categoryAvg(studentId, 'Project', scores);
             final exmAvg = _categoryAvg(studentId, 'Exam', scores);
 
+            final attendanceStats = await db.getStudentAttendanceStats(studentId, setup?['school_year']);
+
             _atRiskStudents.add({
               'name': studentName,
               'id': studentId,
@@ -139,6 +168,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
               'riskColor': riskColor,
               'iconBgColor': iconBgColor,
               'rawGrade': grade,
+              'attendanceStats': attendanceStats,
               'breakdown': {
                 'Quiz': qAvg.toStringAsFixed(1),
                 'Assignment': asgAvg.toStringAsFixed(1),
@@ -364,6 +394,26 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
             buildBreakdownRow('Activities', breakdown['Activity']),
             buildBreakdownRow('Projects', breakdown['Project']),
             buildBreakdownRow('Exams', breakdown['Exam']),
+            if (student['attendanceStats'] != null) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              const Text('Attendance Context', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1664C5))),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Absences: ${student['attendanceStats']['absent']} / ${student['attendanceStats']['total']} days',
+                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                  ),
+                  Text(
+                    'Rate: ${student['attendanceStats']['percentage']}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
@@ -385,7 +435,9 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Suggestion: Student is falling behind$reasonText. Notify the parent for a conference to discuss an intervention plan.',
+                      student['attendanceStats'] != null && (student['attendanceStats']['absent'] as int) >= 3
+                          ? 'Suggestion: Student is failing$reasonText, and has multiple absences (${student['attendanceStats']['absent']}). Address both attendance and academic performance.'
+                          : 'Suggestion: Student is falling behind$reasonText. Notify the parent for a conference to discuss an intervention plan.',
                       style: const TextStyle(fontSize: 12, color: Color(0xFFE74C3C)),
                     ),
                   ),
@@ -658,6 +710,65 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          // Grade & Section Filters
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: Colors.black12),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: _selectedGradeLevel,
+                      hint: const Text('Grade Level', style: TextStyle(fontSize: 12)),
+                      items: _availableGradeLevels
+                          .map((g) => DropdownMenuItem(value: g, child: Text(g == 'All' ? 'All Grades' : g, style: const TextStyle(fontSize: 12))))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _selectedGradeLevel = val);
+                          _loadData();
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: Colors.black12),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: _selectedSection,
+                      hint: const Text('Section', style: TextStyle(fontSize: 12)),
+                      items: _availableSections
+                          .map((s) => DropdownMenuItem(value: s, child: Text(s == 'All' ? 'All Sections' : s, style: const TextStyle(fontSize: 12))))
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _selectedSection = val);
+                          _loadData();
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 20),
           // Title
           Row(
@@ -829,7 +940,8 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
       const Color(0xFFB5DAFE),
     ];
 
-    final subjects = _failureRatesBySubject.keys.take(5).toList();
+    var subjects = _failureRatesBySubject.keys.toList();
+    subjects.sort((a, b) => _failureRatesBySubject[b]!.compareTo(_failureRatesBySubject[a]!));
     final List<BarChartGroupData> barGroups = [];
     
     for (int i = 0; i < subjects.length; i++) {
@@ -839,6 +951,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
       barGroups.add(
         BarChartGroupData(
           x: i,
+          showingTooltipIndicators: _touchedIndex == i ? [0] : [],
           barRods: [
             BarChartRodData(
               toY: value,
@@ -869,16 +982,37 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            height: 180,
-            child: BarChart(
-              BarChartData(
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              height: 180,
+              width: subjects.length > 5 
+                  ? subjects.length * 70.0 
+                  : MediaQuery.of(context).size.width - 64,
+              child: BarChart(
+                BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: 100,
+                maxY: 130,
                 minY: 0,
                 barTouchData: BarTouchData(
                   enabled: true,
+                  handleBuiltInTouches: false,
+                  touchCallback: (FlTouchEvent event, barTouchResponse) {
+                    if (event is FlTapUpEvent || event is FlTapCancelEvent || event is FlLongPressEnd) {
+                      setState(() {
+                        _touchedIndex = -1;
+                      });
+                      return;
+                    }
+                    if (barTouchResponse != null && barTouchResponse.spot != null) {
+                      setState(() {
+                        _touchedIndex = barTouchResponse.spot!.touchedBarGroupIndex;
+                      });
+                    }
+                  },
                   touchTooltipData: BarTouchTooltipData(
+                    fitInsideHorizontally: true,
+                    fitInsideVertically: true,
                     getTooltipColor: (group) => Colors.black87,
                     tooltipPadding: const EdgeInsets.all(8),
                     getTooltipItem: (group, groupIndex, rod, rodIndex) {
@@ -888,14 +1022,14 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
                         const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          fontSize: 10,
+                          fontSize: 14,
                         ),
                         children: [
                           TextSpan(
                             text: '${rod.toY.toStringAsFixed(1)}%',
                             style: const TextStyle(
                               color: Colors.yellow,
-                              fontSize: 10,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -971,6 +1105,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
                 barGroups: barGroups,
               ),
             ),
+          ),
           ),
         ],
       ),

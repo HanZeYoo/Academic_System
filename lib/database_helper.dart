@@ -799,6 +799,36 @@ class DatabaseHelper {
     return '${pct.toStringAsFixed(1)}%';
   }
 
+  // Get student full attendance stats
+  Future<Map<String, dynamic>> getStudentAttendanceStats(String studentId, [String? schoolYear]) async {
+    final year = schoolYear ?? await getActiveSchoolYear();
+    final results = await Supabase.instance.client.from('attendance')
+        .select()
+        .eq('student_id', studentId)
+        .eq('school_year', year);
+    
+    if (results.isEmpty) {
+      return {'total': 0, 'present': 0, 'late': 0, 'absent': 0, 'percentage': 'No Data'};
+    }
+
+    int present = 0;
+    int late = 0;
+    int absent = 0;
+    for (var r in results) {
+      if (r['status'] == 'Present') present++;
+      else if (r['status'] == 'Late') late++;
+      else if (r['status'] == 'Absent') absent++;
+    }
+    double pct = ((present + late) / results.length) * 100;
+    return {
+      'total': results.length,
+      'present': present,
+      'late': late,
+      'absent': absent,
+      'percentage': '${pct.toStringAsFixed(1)}%'
+    };
+  }
+
   // Get Announcements
   Future<List<Map<String, dynamic>>> getAnnouncements(String? username, {String? role}) async {
     if (role == 'student' && username != null) {

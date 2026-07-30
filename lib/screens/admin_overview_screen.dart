@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../database_helper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'reports_generation_screen.dart';
+import 'failure_analytics_screen.dart';
 class AdminOverviewScreen extends StatefulWidget {
   const AdminOverviewScreen({super.key});
 
@@ -24,6 +25,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
 
   // Failure Rates
   List<Map<String, dynamic>> _failureRates = [];
+  bool _showAllFailureRates = false;
 
   // Trend Data (Q1, Q2, Q3, Q4)
   List<double> _trendData = [0.0, 0.0, 0.0, 0.0];
@@ -198,9 +200,6 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
         }
       });
       _failureRates.sort((a, b) => (b['rate'] as double).compareTo(a['rate'] as double));
-      if (_failureRates.length > 5) {
-         _failureRates = _failureRates.sublist(0, 5);
-      }
       
       // Calculate Trend Data (Q1, Q2, Q3, Q4)
       List<String> quarters = ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'];
@@ -559,7 +558,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
             ],
           ),
           const SizedBox(height: 20),
-          ..._failureRates.asMap().entries.map((entry) {
+          ...(_showAllFailureRates ? _failureRates : _failureRates.take(5)).toList().asMap().entries.map((entry) {
              int idx = entry.key;
              Map<String, dynamic> item = entry.value;
              return Padding(
@@ -574,7 +573,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
              );
           }).toList(),
           if (_failureRates.isNotEmpty) const SizedBox(height: 8),
-          _buildViewReportButton(),
+          _buildViewFailureReportButton(),
         ],
       ),
     );
@@ -730,6 +729,31 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
         ),
         Text(percentage, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
       ],
+    );
+  }
+
+  Widget _buildViewFailureReportButton() {
+    if (_failureRates.length <= 5) return const SizedBox.shrink();
+
+    return SizedBox(
+      width: double.infinity,
+      child: TextButton.icon(
+        onPressed: () {
+          setState(() {
+            _showAllFailureRates = !_showAllFailureRates;
+          });
+        },
+        icon: Icon(_showAllFailureRates ? Icons.expand_less : Icons.expand_more, size: 18),
+        label: Text(_showAllFailureRates ? 'Show Less' : 'View All Subjects'),
+        style: TextButton.styleFrom(
+          foregroundColor: const Color(0xFF1664C5),
+          backgroundColor: const Color(0xFFE6F0FA),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
     );
   }
 
