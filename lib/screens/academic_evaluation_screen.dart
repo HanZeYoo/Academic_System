@@ -149,12 +149,29 @@ class _AcademicEvaluationScreenState
       final exmAvg = _categoryAvg(studentId, 'Exam');
       final attAvg = _attendancePct(studentId);
 
-      return (qAvg * (wQuiz / 100)) +
-             (asgAvg * (wAssignment / 100)) +
-             (actAvg * (wActivity / 100)) +
-             (prjAvg * (wProject / 100)) +
-             (exmAvg * (wExam / 100)) +
-             (attAvg * (wAttendance / 100));
+      double totalWeight = 0;
+      double earned = 0;
+
+      bool hasQuiz = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'quiz');
+      bool hasAsg = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'assignment');
+      bool hasAct = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'activity');
+      bool hasPrj = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'project');
+      bool hasExm = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'exam');
+
+      if (hasQuiz) { earned += qAvg * (wQuiz / 100); totalWeight += (wQuiz / 100); }
+      if (hasAsg) { earned += asgAvg * (wAssignment / 100); totalWeight += (wAssignment / 100); }
+      if (hasAct) { earned += actAvg * (wActivity / 100); totalWeight += (wActivity / 100); }
+      if (hasPrj) { earned += prjAvg * (wProject / 100); totalWeight += (wProject / 100); }
+      if (hasExm) { earned += exmAvg * (wExam / 100); totalWeight += (wExam / 100); }
+      
+      if (wAttendance > 0) {
+        earned += attAvg * (wAttendance / 100);
+        totalWeight += (wAttendance / 100);
+      }
+
+      if (totalWeight == 0) return 0.0;
+      final initialGrade = earned / totalWeight;
+      return DatabaseHelper().transmuteGrade(initialGrade);
     }
 
     final s = _allScores.where((r) => r['student_id'].toString() == studentId).toList();
@@ -165,13 +182,33 @@ class _AcademicEvaluationScreenState
       max   += (r['total_score'] as num?)?.toDouble() ?? 0;
     }
     if (max == 0) return 0.0;
-    return (total / max) * 100;
+    final initialGrade = (total / max) * 100;
+    return DatabaseHelper().transmuteGrade(initialGrade);
   }
 
   double _categoryAvg(String studentId, String category) {
-    final s = _allScores.where((r) =>
-      r['student_id'].toString() == studentId &&
-      r['category'].toString().toLowerCase() == category.toLowerCase()).toList();
+    int maxItems = 999;
+    if (_assessmentSetup != null) {
+      if (category.toLowerCase() == 'quiz') maxItems = (_assessmentSetup!['quizzes'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'assignment') maxItems = (_assessmentSetup!['assignments'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'activity') maxItems = (_assessmentSetup!['activities'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'project') maxItems = (_assessmentSetup!['projects'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'exam') maxItems = (_assessmentSetup!['exams'] as num?)?.toInt() ?? 999;
+    }
+
+    final s = _allScores.where((r) {
+      if (r['student_id'].toString() != studentId) return false;
+      if (r['category'].toString().toLowerCase() != category.toLowerCase()) return false;
+      
+      final itemLabel = r['item_label'].toString();
+      final parts = itemLabel.split(' ');
+      if (parts.length > 1) {
+        final itemNum = int.tryParse(parts.last);
+        if (itemNum != null && itemNum > maxItems) return false;
+      }
+      return true;
+    }).toList();
+
     if (s.isEmpty) return 0.0;
     double total = 0, max = 0;
     for (final r in s) {
@@ -183,7 +220,27 @@ class _AcademicEvaluationScreenState
   }
 
   double _classCategoryAvg(String category) {
-    final s = _allScores.where((r) => r['category'].toString().toLowerCase() == category.toLowerCase()).toList();
+    int maxItems = 999;
+    if (_assessmentSetup != null) {
+      if (category.toLowerCase() == 'quiz') maxItems = (_assessmentSetup!['quizzes'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'assignment') maxItems = (_assessmentSetup!['assignments'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'activity') maxItems = (_assessmentSetup!['activities'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'project') maxItems = (_assessmentSetup!['projects'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'exam') maxItems = (_assessmentSetup!['exams'] as num?)?.toInt() ?? 999;
+    }
+
+    final s = _allScores.where((r) {
+      if (r['category'].toString().toLowerCase() != category.toLowerCase()) return false;
+      
+      final itemLabel = r['item_label'].toString();
+      final parts = itemLabel.split(' ');
+      if (parts.length > 1) {
+        final itemNum = int.tryParse(parts.last);
+        if (itemNum != null && itemNum > maxItems) return false;
+      }
+      return true;
+    }).toList();
+
     if (s.isEmpty) return 0.0;
     double total = 0, max = 0;
     for (final r in s) {

@@ -233,6 +233,30 @@ class DatabaseHelper {
     }
   }
 
+  // Delete score (when textfield is cleared)
+  Future<void> deleteScore({
+    required String studentId,
+    required String subjectCode,
+    required String sectionName,
+    required String gradeLevel,
+    required String category,
+    required String itemLabel,
+    required String gradingPeriod,
+    String? schoolYear,
+  }) async {
+    final year = schoolYear ?? await getActiveSchoolYear();
+    await Supabase.instance.client.from('scores')
+        .delete()
+        .eq('student_id', studentId)
+        .eq('subject_code', subjectCode)
+        .eq('section_name', sectionName)
+        .eq('grade_level', gradeLevel)
+        .eq('category', category)
+        .eq('item_label', itemLabel)
+        .eq('grading_period', gradingPeriod)
+        .eq('school_year', year);
+  }
+
   // Get all scores for a student by email
   Future<List<Map<String, dynamic>>> getStudentAllScores(String email, [String? schoolYear]) async {
     final s = await getStudentByEmail(email);
@@ -291,46 +315,140 @@ class DatabaseHelper {
     return List<Map<String, dynamic>>.from(results);
   }
 
-  // Calculate General Average for a student
+  // Calculate General Average for a student (Using Official K-12 Formula)
   Future<String> getStudentGeneralAverage(String studentId) async {
     final rawScores = await getScoresByStudentId(studentId);
     if (rawScores.isEmpty) return 'N/A';
 
-    Map<String, Map<String, Map<String, double>>> aggregator = {};
-    for (var row in rawScores) {
-      final subj = row['subject_name']?.toString() ?? '';
-      final period = row['grading_period']?.toString() ?? '';
-      final score = (row['score'] as num?)?.toDouble() ?? 0.0;
-      final total = (row['total_score'] as num?)?.toDouble() ?? 0.0;
+    final studentQuery = await Supabase.instance.client.from('students')
+        .select()
+        .eq('student_id', studentId)
+        .limit(1);
+    
+    if (studentQuery.isEmpty) return 'N/A';
+    final gradeLevel = studentQuery[0]['grade_level'].toString();
+    final section = studentQuery[0]['section'].toString();
+    final className = '$gradeLevel - $section';
 
-      String quarterKey = '';
-      if (period.contains('1st')) quarterKey = 'Q1';
-      else if (period.contains('2nd')) quarterKey = 'Q2';
-      else if (period.contains('3rd')) quarterKey = 'Q3';
-      else if (period.contains('4th')) quarterKey = 'Q4';
+    // Group scores by subject_code and grading_period
+    Map<String, Map<String, List<Map<String, dynamic>>>> groupedScores = {};
+    for (var r in rawScores) {
+      final subj = r['subject_code']?.toString() ?? '';
+      final period = r['grading_period']?.toString() ?? '';
+      if (subj.isEmpty || period.isEmpty) continue;
+      groupedScores.putIfAbsent(subj, () => {});
+      groupedScores[subj]!.putIfAbsent(period, () => []);
+      groupedScores[subj]![period]!.add(r);
+    }
 
-      if (quarterKey.isEmpty || total == 0) continue;
+    if (groupedScores.isEmpty) return 'N/A';
 
-      aggregator.putIfAbsent(subj, () => {});
-      aggregator[subj]!.putIfAbsent(quarterKey, () => {'score': 0.0, 'total': 0.0});
-      aggregator[subj]![quarterKey]!['score'] = aggregator[subj]![quarterKey]!['score']! + score;
-      aggregator[subj]![quarterKey]!['total'] = aggregator[subj]![quarterKey]!['total']! + total;
+    // Fetch attendance for class once to calculate attendance percentage
+    final attendanceRecords = await getAttendanceForClass(className);
+    final uniqueDates = attendanceRecords.map((r) => r['date'].toString()).toSet();
+    final totalClassDays = uniqueDates.length;
+
+    double attendancePct = 0.0;
+    if (totalClassDays > 0) {
+      final studentAtt = attendanceRecords.where((r) => r['student_id'].toString() == studentId).toList();
+      double points = 0.0;
+      for (final record in studentAtt) {
+        final status = record['status']?.toString() ?? '';
+        if (status == 'Present' || status == 'Excused') points += 1.0;
+        else if (status == 'Late') points += 0.5;
+      }
+      attendancePct = (points / totalClassDays) * 100;
     }
 
     double sumFinals = 0;
     int countFinals = 0;
 
-    for (var subj in aggregator.keys) {
+    for (var subj in groupedScores.keys) {
       double sumQ = 0;
       int countQ = 0;
-      for (var q in ['Q1', 'Q2', 'Q3', 'Q4']) {
-        if (aggregator[subj]!.containsKey(q)) {
-          double s = aggregator[subj]![q]!['score']!;
-          double t = aggregator[subj]![q]!['total']!;
-          sumQ += (s / t) * 100;
-          countQ++;
+
+      for (var period in groupedScores[subj]!.keys) {
+        final scores = groupedScores[subj]![period]!;
+        
+        final setup = await getAssessmentSetup(
+          subjectCode: subj,
+          sectionName: section,
+          gradeLevel: gradeLevel,
+          gradingPeriod: period,
+        );
+
+        if (setup != null) {
+          // Calculate weighted grade using setup
+          double earned = 0.0;
+          double totalWeight = 0.0;
+          
+          double wQuiz = (setup['quiz_weight'] as num?)?.toDouble() ?? 0.0;
+          double wAsg = (setup['assignment_weight'] as num?)?.toDouble() ?? 0.0;
+          double wAct = (setup['activity_weight'] as num?)?.toDouble() ?? 0.0;
+          double wPrj = (setup['project_weight'] as num?)?.toDouble() ?? 0.0;
+          double wExm = (setup['exam_weight'] as num?)?.toDouble() ?? 0.0;
+          double wAtt = (setup['attendance_weight'] as num?)?.toDouble() ?? 0.0;
+
+          double catAvg(String cat) {
+            int maxItems = 999;
+            if (cat.toLowerCase() == 'quiz') maxItems = (setup['quizzes'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'assignment') maxItems = (setup['assignments'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'activity') maxItems = (setup['activities'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'project') maxItems = (setup['projects'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'exam') maxItems = (setup['exams'] as num?)?.toInt() ?? 999;
+
+            var filtered = scores.where((r) {
+              final itemCat = r['category']?.toString() ?? '';
+              final itemLabel = r['item_label']?.toString() ?? '';
+              if (itemCat != cat) return false;
+              int? num = int.tryParse(itemLabel.replaceAll(RegExp(r'[^0-9]'), ''));
+              if (num != null && num > maxItems) return false;
+              return true;
+            }).toList();
+
+            if (filtered.isEmpty) return -1.0;
+            double t = 0, m = 0;
+            for (var r in filtered) {
+              t += (r['score'] as num?)?.toDouble() ?? 0;
+              m += (r['total_score'] as num?)?.toDouble() ?? 0;
+            }
+            if (m == 0) return 0.0;
+            return (t / m) * 100;
+          }
+
+          final qAvg = catAvg('Quiz');
+          if (qAvg >= 0 && wQuiz > 0) { earned += qAvg * (wQuiz / 100); totalWeight += (wQuiz / 100); }
+          final asgAvg = catAvg('Assignment');
+          if (asgAvg >= 0 && wAsg > 0) { earned += asgAvg * (wAsg / 100); totalWeight += (wAsg / 100); }
+          final actAvg = catAvg('Activity');
+          if (actAvg >= 0 && wAct > 0) { earned += actAvg * (wAct / 100); totalWeight += (wAct / 100); }
+          final prjAvg = catAvg('Project');
+          if (prjAvg >= 0 && wPrj > 0) { earned += prjAvg * (wPrj / 100); totalWeight += (wPrj / 100); }
+          final exmAvg = catAvg('Exam');
+          if (exmAvg >= 0 && wExm > 0) { earned += exmAvg * (wExm / 100); totalWeight += (wExm / 100); }
+          
+          if (wAtt > 0) { earned += attendancePct * (wAtt / 100); totalWeight += (wAtt / 100); }
+
+          if (totalWeight > 0) {
+            double initialGrade = earned / totalWeight;
+            sumQ += transmuteGrade(initialGrade);
+            countQ++;
+          }
+        } else {
+          // Fallback if no setup is available
+          double t = 0, m = 0;
+          for (var r in scores) {
+            t += (r['score'] as num?)?.toDouble() ?? 0;
+            m += (r['total_score'] as num?)?.toDouble() ?? 0;
+          }
+          if (m > 0) {
+            double initialGrade = (t / m) * 100;
+            sumQ += transmuteGrade(initialGrade);
+            countQ++;
+          }
         }
       }
+
       if (countQ > 0) {
         sumFinals += sumQ / countQ;
         countFinals++;
@@ -340,6 +458,7 @@ class DatabaseHelper {
     if (countFinals == 0) return 'N/A';
     return (sumFinals / countFinals).toStringAsFixed(1);
   }
+
 
   // Get all scores for a subject/section/period (for class-wide evaluation)
   Future<List<Map<String, dynamic>>> getScoresForClass({
@@ -825,7 +944,8 @@ class DatabaseHelper {
       'present': present,
       'late': late,
       'absent': absent,
-      'percentage': '${pct.toStringAsFixed(1)}%'
+      'percentage': '${pct.toStringAsFixed(1)}%',
+      'present_pct': pct,
     };
   }
 
@@ -1011,4 +1131,48 @@ class DatabaseHelper {
         .eq('section', currentSection);
   }
 
+  // --- GRADING SYSTEM (DepEd K-12 Transmutation) ---
+  double transmuteGrade(double initialGrade) {
+    if (initialGrade == 100) return 100.0;
+    if (initialGrade >= 98.40) return 99.0;
+    if (initialGrade >= 96.80) return 98.0;
+    if (initialGrade >= 95.20) return 97.0;
+    if (initialGrade >= 93.60) return 96.0;
+    if (initialGrade >= 92.00) return 95.0;
+    if (initialGrade >= 90.40) return 94.0;
+    if (initialGrade >= 88.80) return 93.0;
+    if (initialGrade >= 87.20) return 92.0;
+    if (initialGrade >= 85.60) return 91.0;
+    if (initialGrade >= 84.00) return 90.0;
+    if (initialGrade >= 82.40) return 89.0;
+    if (initialGrade >= 80.80) return 88.0;
+    if (initialGrade >= 79.20) return 87.0;
+    if (initialGrade >= 77.60) return 86.0;
+    if (initialGrade >= 76.00) return 85.0;
+    if (initialGrade >= 74.40) return 84.0;
+    if (initialGrade >= 72.80) return 83.0;
+    if (initialGrade >= 71.20) return 82.0;
+    if (initialGrade >= 69.60) return 81.0;
+    if (initialGrade >= 68.00) return 80.0;
+    if (initialGrade >= 66.40) return 79.0;
+    if (initialGrade >= 64.80) return 78.0;
+    if (initialGrade >= 63.20) return 77.0;
+    if (initialGrade >= 61.60) return 76.0;
+    if (initialGrade >= 60.00) return 75.0;
+    if (initialGrade >= 56.00) return 74.0;
+    if (initialGrade >= 52.00) return 73.0;
+    if (initialGrade >= 48.00) return 72.0;
+    if (initialGrade >= 44.00) return 71.0;
+    if (initialGrade >= 40.00) return 70.0;
+    if (initialGrade >= 36.00) return 69.0;
+    if (initialGrade >= 32.00) return 68.0;
+    if (initialGrade >= 28.00) return 67.0;
+    if (initialGrade >= 24.00) return 66.0;
+    if (initialGrade >= 20.00) return 65.0;
+    if (initialGrade >= 16.00) return 64.0;
+    if (initialGrade >= 12.00) return 63.0;
+    if (initialGrade >= 8.00) return 62.0;
+    if (initialGrade >= 4.00) return 61.0;
+    return 60.0;
+  }
 }

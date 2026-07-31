@@ -398,6 +398,22 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
 
     for (final student in _students) {
       final sid = student['student_id']?.toString() ?? '';
+      final textValue = _scoreControllers[sid]?.text.trim();
+      
+      if (textValue == null || textValue.isEmpty) {
+        // If the teacher cleared the score or left it blank, delete the record.
+        await DatabaseHelper().deleteScore(
+          studentId: sid,
+          subjectCode: subjectCode,
+          sectionName: section,
+          gradeLevel: grade,
+          category: _selectedCategory,
+          itemLabel: _selectedItem,
+          gradingPeriod: _selectedPeriod,
+        );
+        continue;
+      }
+
       final score = _scoreOf(sid);
       await DatabaseHelper().saveScore({
         'student_id': sid,

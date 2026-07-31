@@ -145,9 +145,25 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
             gradingPeriod: period,
           );
 
+          final attendanceRecords = await DatabaseHelper().getAttendanceForClass('$gradeLevel - $section');
+          final uniqueDates = attendanceRecords.map((r) => r['date'].toString()).toSet();
+          final totalClassDays = uniqueDates.length;
+
+          double attendancePct = 0.0;
+          if (totalClassDays > 0) {
+            final studentAtt = attendanceRecords.where((r) => r['student_id'].toString() == studentId).toList();
+            double points = 0.0;
+            for (final record in studentAtt) {
+              final status = record['status']?.toString() ?? '';
+              if (status == 'Present' || status == 'Excused') points += 1.0;
+              else if (status == 'Late') points += 0.5;
+            }
+            attendancePct = (points / totalClassDays) * 100;
+          }
+
           if (scores.isNotEmpty) {
             hasData = true;
-            final grade = _computeGrade(studentId, scores, setup);
+            final grade = _computeGrade(studentId, scores, setup, attendancePct);
             if (grade > 0) {
               if (grade < lowestGrade) lowestGrade = grade;
               if (grade < 75) hasFailing = true;
@@ -192,26 +208,45 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     String studentId,
     List<Map<String, dynamic>> allScores,
     Map<String, dynamic>? setup,
+    double attendancePct,
   ) {
     if (setup != null) {
       final wQuiz = (setup['quiz_weight'] as num?)?.toDouble() ?? 20;
-      final wAssignment =
-          (setup['assignment_weight'] as num?)?.toDouble() ?? 15;
+      final wAssignment = (setup['assignment_weight'] as num?)?.toDouble() ?? 15;
       final wActivity = (setup['activity_weight'] as num?)?.toDouble() ?? 20;
       final wProject = (setup['project_weight'] as num?)?.toDouble() ?? 15;
       final wExam = (setup['exam_weight'] as num?)?.toDouble() ?? 30;
+      final wAttendance = (setup['attendance_weight'] as num?)?.toDouble() ?? 0;
 
-      final qAvg = _categoryAvg(studentId, 'Quiz', allScores);
-      final asgAvg = _categoryAvg(studentId, 'Assignment', allScores);
-      final actAvg = _categoryAvg(studentId, 'Activity', allScores);
-      final prjAvg = _categoryAvg(studentId, 'Project', allScores);
-      final exmAvg = _categoryAvg(studentId, 'Exam', allScores);
+      final qAvg = _categoryAvg(studentId, 'Quiz', allScores, setup);
+      final asgAvg = _categoryAvg(studentId, 'Assignment', allScores, setup);
+      final actAvg = _categoryAvg(studentId, 'Activity', allScores, setup);
+      final prjAvg = _categoryAvg(studentId, 'Project', allScores, setup);
+      final exmAvg = _categoryAvg(studentId, 'Exam', allScores, setup);
 
-      return (qAvg * (wQuiz / 100)) +
-          (asgAvg * (wAssignment / 100)) +
-          (actAvg * (wActivity / 100)) +
-          (prjAvg * (wProject / 100)) +
-          (exmAvg * (wExam / 100));
+      double totalWeight = 0;
+      double earned = 0;
+
+      bool hasQuiz = allScores.any((r) => r['category'].toString().toLowerCase() == 'quiz');
+      bool hasAsg = allScores.any((r) => r['category'].toString().toLowerCase() == 'assignment');
+      bool hasAct = allScores.any((r) => r['category'].toString().toLowerCase() == 'activity');
+      bool hasPrj = allScores.any((r) => r['category'].toString().toLowerCase() == 'project');
+      bool hasExm = allScores.any((r) => r['category'].toString().toLowerCase() == 'exam');
+
+      if (hasQuiz) { earned += qAvg * (wQuiz / 100); totalWeight += (wQuiz / 100); }
+      if (hasAsg) { earned += asgAvg * (wAssignment / 100); totalWeight += (wAssignment / 100); }
+      if (hasAct) { earned += actAvg * (wActivity / 100); totalWeight += (wActivity / 100); }
+      if (hasPrj) { earned += prjAvg * (wProject / 100); totalWeight += (wProject / 100); }
+      if (hasExm) { earned += exmAvg * (wExam / 100); totalWeight += (wExam / 100); }
+      
+      if (wAttendance > 0) {
+        earned += attendancePct * (wAttendance / 100);
+        totalWeight += (wAttendance / 100);
+      }
+
+      if (totalWeight == 0) return 0.0;
+      final initialGrade = earned / totalWeight;
+      return DatabaseHelper().transmuteGrade(initialGrade);
     }
 
     if (allScores.isEmpty) return 0.0;
@@ -221,20 +256,37 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
       max += (r['total_score'] as num?)?.toDouble() ?? 0;
     }
     if (max == 0) return 0.0;
-    return (total / max) * 100;
+    final initialGrade = (total / max) * 100;
+    return DatabaseHelper().transmuteGrade(initialGrade);
   }
 
   double _categoryAvg(
     String studentId,
     String category,
     List<Map<String, dynamic>> allScores,
+    Map<String, dynamic>? setup,
   ) {
-    final s = allScores
-        .where(
-          (r) =>
-              r['category'].toString().toLowerCase() == category.toLowerCase(),
-        )
-        .toList();
+    int maxItems = 999;
+    if (setup != null) {
+      if (category.toLowerCase() == 'quiz') maxItems = (setup['quizzes'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'assignment') maxItems = (setup['assignments'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'activity') maxItems = (setup['activities'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'project') maxItems = (setup['projects'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'exam') maxItems = (setup['exams'] as num?)?.toInt() ?? 999;
+    }
+
+    final s = allScores.where((r) {
+      if (r['category'].toString().toLowerCase() != category.toLowerCase()) return false;
+      
+      final itemLabel = r['item_label'].toString();
+      final parts = itemLabel.split(' ');
+      if (parts.length > 1) {
+        final itemNum = int.tryParse(parts.last);
+        if (itemNum != null && itemNum > maxItems) return false;
+      }
+      return true;
+    }).toList();
+
     if (s.isEmpty) return 0.0;
     double total = 0, max = 0;
     for (final r in s) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'parent_notification_screen.dart';
+import '../database_helper.dart';
 
 class StudentEvaluationDetailScreen extends StatelessWidget {
   final Map<String, dynamic> student;
@@ -20,7 +21,27 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
   });
 
   double _categoryAvg(String category) {
-    final s = scores.where((r) => r['category'].toString().toLowerCase() == category.toLowerCase()).toList();
+    int maxItems = 999;
+    if (assessmentSetup != null) {
+      if (category.toLowerCase() == 'quiz') maxItems = (assessmentSetup!['quizzes'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'assignment') maxItems = (assessmentSetup!['assignments'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'activity') maxItems = (assessmentSetup!['activities'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'project') maxItems = (assessmentSetup!['projects'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'exam') maxItems = (assessmentSetup!['exams'] as num?)?.toInt() ?? 999;
+    }
+
+    final s = scores.where((r) {
+      if (r['category'].toString().toLowerCase() != category.toLowerCase()) return false;
+      
+      final itemLabel = r['item_label'].toString();
+      final parts = itemLabel.split(' ');
+      if (parts.length > 1) {
+        final itemNum = int.tryParse(parts.last);
+        if (itemNum != null && itemNum > maxItems) return false;
+      }
+      return true;
+    }).toList();
+
     if (s.isEmpty) return 0.0;
     double total = 0, max = 0;
     for (final r in s) {
@@ -41,12 +62,35 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
       final wExam = (assessmentSetup!['exam_weight'] as num?)?.toDouble() ?? 30;
       final wAttendance = (assessmentSetup!['attendance_weight'] as num?)?.toDouble() ?? 0;
 
-      return (_categoryAvg('Quiz') * (wQuiz / 100)) +
-             (_categoryAvg('Assignment') * (wAssignment / 100)) +
-             (_categoryAvg('Activity') * (wActivity / 100)) +
-             (_categoryAvg('Project') * (wProject / 100)) +
-             (_categoryAvg('Exam') * (wExam / 100)) +
-             (attendancePct * (wAttendance / 100));
+      final qAvg = _categoryAvg('Quiz');
+      final asgAvg = _categoryAvg('Assignment');
+      final actAvg = _categoryAvg('Activity');
+      final prjAvg = _categoryAvg('Project');
+      final exmAvg = _categoryAvg('Exam');
+
+      double totalWeight = 0;
+      double earned = 0;
+
+      bool hasQuiz = scores.any((r) => r['category'].toString().toLowerCase() == 'quiz');
+      bool hasAsg = scores.any((r) => r['category'].toString().toLowerCase() == 'assignment');
+      bool hasAct = scores.any((r) => r['category'].toString().toLowerCase() == 'activity');
+      bool hasPrj = scores.any((r) => r['category'].toString().toLowerCase() == 'project');
+      bool hasExm = scores.any((r) => r['category'].toString().toLowerCase() == 'exam');
+
+      if (hasQuiz) { earned += qAvg * (wQuiz / 100); totalWeight += (wQuiz / 100); }
+      if (hasAsg) { earned += asgAvg * (wAssignment / 100); totalWeight += (wAssignment / 100); }
+      if (hasAct) { earned += actAvg * (wActivity / 100); totalWeight += (wActivity / 100); }
+      if (hasPrj) { earned += prjAvg * (wProject / 100); totalWeight += (wProject / 100); }
+      if (hasExm) { earned += exmAvg * (wExam / 100); totalWeight += (wExam / 100); }
+      
+      if (wAttendance > 0) {
+        earned += attendancePct * (wAttendance / 100);
+        totalWeight += (wAttendance / 100);
+      }
+
+      if (totalWeight == 0) return 0.0;
+      final initialGrade = earned / totalWeight;
+      return DatabaseHelper().transmuteGrade(initialGrade);
     }
 
     double total = 0, max = 0;
@@ -55,7 +99,8 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
       max   += (r['total_score'] as num?)?.toDouble() ?? 0;
     }
     if (max == 0) return 0.0;
-    return (total / max) * 100;
+    final initialGrade = (total / max) * 100;
+    return DatabaseHelper().transmuteGrade(initialGrade);
   }
 
   @override
