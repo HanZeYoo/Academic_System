@@ -135,22 +135,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           gradingPeriod: gradingPeriod,
         );
 
-        double categoryAvg(String category) {
-          final catScores = subjectScores
-              .where((r) =>
-                  r['category'].toString().toLowerCase() ==
-                  category.toLowerCase())
-              .toList();
-          if (catScores.isEmpty) return 0.0;
-          double total = 0, max = 0;
-          for (final r in catScores) {
-            total += (r['score'] as num?)?.toDouble() ?? 0;
-            max += (r['total_score'] as num?)?.toDouble() ?? 0;
-          }
-          return max == 0 ? 0.0 : (total / max) * 100;
-        }
-
         if (setup != null) {
+          double earned = 0.0;
+          double totalWeight = 0.0;
           final wQuiz = (setup['quiz_weight'] as num?)?.toDouble() ?? 20;
           final wAssignment = (setup['assignment_weight'] as num?)?.toDouble() ?? 15;
           final wActivity = (setup['activity_weight'] as num?)?.toDouble() ?? 20;
@@ -158,19 +145,62 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           final wExam = (setup['exam_weight'] as num?)?.toDouble() ?? 30;
           final wAttendance = (setup['attendance_weight'] as num?)?.toDouble() ?? 0;
 
-          grade = (categoryAvg('Quiz') * (wQuiz / 100)) +
-              (categoryAvg('Assignment') * (wAssignment / 100)) +
-              (categoryAvg('Activity') * (wActivity / 100)) +
-              (categoryAvg('Project') * (wProject / 100)) +
-              (categoryAvg('Exam') * (wExam / 100)) +
-              (classAttendancePct * (wAttendance / 100));
+          double categoryAvg(String cat) {
+            int maxItems = 999;
+            if (cat.toLowerCase() == 'quiz') maxItems = (setup['quizzes'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'assignment') maxItems = (setup['assignments'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'activity') maxItems = (setup['activities'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'project') maxItems = (setup['projects'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'exam') maxItems = (setup['exams'] as num?)?.toInt() ?? 999;
+
+            var filtered = subjectScores.where((r) {
+              final itemCat = r['category']?.toString() ?? '';
+              final itemLabel = r['item_label']?.toString() ?? '';
+              if (itemCat != cat) return false;
+              int? num = int.tryParse(itemLabel.replaceAll(RegExp(r'[^0-9]'), ''));
+              if (num != null && num > maxItems) return false;
+              return true;
+            }).toList();
+
+            if (filtered.isEmpty) return -1.0;
+            double t = 0, m = 0;
+            for (var r in filtered) {
+              t += (r['score'] as num?)?.toDouble() ?? 0;
+              m += (r['total_score'] as num?)?.toDouble() ?? 0;
+            }
+            if (m == 0) return 0.0;
+            return (t / m) * 100;
+          }
+
+          final qAvg = categoryAvg('Quiz');
+          if (qAvg >= 0 && wQuiz > 0) { earned += qAvg * (wQuiz / 100); totalWeight += (wQuiz / 100); }
+          final asgAvg = categoryAvg('Assignment');
+          if (asgAvg >= 0 && wAssignment > 0) { earned += asgAvg * (wAssignment / 100); totalWeight += (wAssignment / 100); }
+          final actAvg = categoryAvg('Activity');
+          if (actAvg >= 0 && wActivity > 0) { earned += actAvg * (wActivity / 100); totalWeight += (wActivity / 100); }
+          final prjAvg = categoryAvg('Project');
+          if (prjAvg >= 0 && wProject > 0) { earned += prjAvg * (wProject / 100); totalWeight += (wProject / 100); }
+          final exmAvg = categoryAvg('Exam');
+          if (exmAvg >= 0 && wExam > 0) { earned += exmAvg * (wExam / 100); totalWeight += (wExam / 100); }
+          
+          if (wAttendance > 0) { earned += classAttendancePct * (wAttendance / 100); totalWeight += (wAttendance / 100); }
+
+          if (totalWeight > 0) {
+            double initialGrade = earned / totalWeight;
+            grade = dbHelper.transmuteGrade(initialGrade);
+          } else {
+             grade = 0.0;
+          }
         } else {
           double total = 0, max = 0;
           for (final r in subjectScores) {
             total += (r['score'] as num?)?.toDouble() ?? 0;
-            max += (r['total_score'] as num?)?.toDouble() ?? 0;
+            max   += (r['total_score'] as num?)?.toDouble() ?? 0;
           }
-          if (max > 0) grade = (total / max) * 100;
+          if (max > 0) {
+             double initialGrade = (total / max) * 100;
+             grade = dbHelper.transmuteGrade(initialGrade);
+          }
         }
 
         sumOfAverages += grade;
@@ -216,9 +246,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     }
   }
 
-  void _onMenuTap(String menu) {
+  void _onMenuTap(String menu, {bool fromDrawer = false}) {
     setState(() => _selectedMenu = menu);
-    Navigator.pop(context);
+    if (fromDrawer) Navigator.pop(context);
   }
 
   void _handleLogout() {
@@ -456,7 +486,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 fontWeight:
                     isSelected ? FontWeight.bold : FontWeight.normal,
                 fontSize: 14)),
-        onTap: () => _onMenuTap(title),
+        onTap: () => _onMenuTap(title, fromDrawer: true),
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         dense: true,

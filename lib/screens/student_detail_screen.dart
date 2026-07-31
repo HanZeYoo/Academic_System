@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import 'login_screen.dart';
 
 class StudentDetailScreen extends StatefulWidget {
   final Map<String, dynamic> student;
@@ -64,6 +65,37 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     }
   }
 
+  void _resetPassword(BuildContext context, String email) {
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No email found for this student.')));
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Password'),
+        content: Text('Are you sure you want to reset the password for $email to "student123"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await DatabaseHelper().updatePassword(email, 'student123');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset successfully to "student123".')));
+              }
+            },
+            child: const Text('Reset', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final student = widget.student;
@@ -78,6 +110,14 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          if (LoginScreen.loggedInRole == 'admin')
+            IconButton(
+              icon: const Icon(Icons.lock_reset, color: Colors.white),
+              tooltip: 'Reset Password',
+              onPressed: () => _resetPassword(context, widget.student['email']?.toString() ?? ''),
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
