@@ -21,6 +21,7 @@ class _AcademicEvaluationScreenState
   Map<String, dynamic>? _selectedClassData;
   String _selectedPeriod = '1st Quarter';
   String _searchQuery = '';
+  bool _showOnlyAtRisk = false;
   final _searchController = TextEditingController();
 
   List<Map<String, dynamic>> _students = [];
@@ -277,6 +278,10 @@ class _AcademicEvaluationScreenState
     }
 
     final gradeList = _students.where((s) {
+      if (_showOnlyAtRisk) {
+        final g = _computeGrade(s['student_id'].toString());
+        if (g <= 0 || g > 80) return false;
+      }
       final q = _searchQuery.toLowerCase();
       return q.isEmpty ||
           s['name'].toString().toLowerCase().contains(q) ||
@@ -1193,12 +1198,12 @@ class _AcademicEvaluationScreenState
   }
 
   Widget _buildAttentionCard({required int atRisk, required int totalStudents}) {
-    final below60 = _students.where((s) => _computeGrade(s['student_id'].toString()) > 0 && _computeGrade(s['student_id'].toString()) < 60).length;
-    final between60and75 = _students.where((s) {
+    final highRisk = _students.where((s) => _computeGrade(s['student_id'].toString()) > 0 && _computeGrade(s['student_id'].toString()) < 75).length;
+    final mediumRisk = _students.where((s) {
       final g = _computeGrade(s['student_id'].toString());
-      return g >= 60 && g < 75;
+      return g >= 75 && g <= 80;
     }).length;
-    if (atRisk == 0) return const SizedBox.shrink();
+    if (highRisk == 0 && mediumRisk == 0) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1249,14 +1254,14 @@ class _AcademicEvaluationScreenState
                             style: const TextStyle(fontSize: 12, fontFamily: 'Roboto'),
                             children: [
                               TextSpan(
-                                text: '$atRisk',
+                                text: '${highRisk + mediumRisk}',
                                 style: const TextStyle(
                                   color: Colors.black87,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               TextSpan(
-                                text: ' students below 75%',
+                                text: ' students need attention (<= 80%)',
                                 style: TextStyle(color: Colors.grey.shade700),
                               ),
                             ],
@@ -1286,14 +1291,14 @@ class _AcademicEvaluationScreenState
                         style: const TextStyle(fontSize: 13, fontFamily: 'Roboto'),
                         children: [
                           TextSpan(
-                            text: '$atRisk',
+                            text: '${highRisk + mediumRisk}',
                             style: const TextStyle(
                               color: Colors.black87,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           TextSpan(
-                            text: ' students are performing below 75%',
+                            text: ' students need attention (<= 80%)',
                             style: TextStyle(color: Colors.grey.shade700),
                           ),
                         ],
@@ -1301,21 +1306,25 @@ class _AcademicEvaluationScreenState
                     ),
                     const SizedBox(height: 12),
                     InkWell(
-                      onTap: () {},
-                      child: const Row(
+                      onTap: () {
+                        setState(() {
+                          _showOnlyAtRisk = !_showOnlyAtRisk;
+                        });
+                      },
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'View At-Risk Students',
-                            style: TextStyle(
+                            _showOnlyAtRisk ? 'Show All Students' : 'View At-Risk Students',
+                            style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF3B82F6),
                             ),
                           ),
-                          SizedBox(width: 4),
-                          Icon(Icons.chevron_right,
-                              size: 18, color: Color(0xFF3B82F6)),
+                          const SizedBox(width: 4),
+                          Icon(_showOnlyAtRisk ? Icons.close : Icons.chevron_right,
+                              size: 18, color: const Color(0xFF3B82F6)),
                         ],
                       ),
                     ),
@@ -1325,21 +1334,25 @@ class _AcademicEvaluationScreenState
             if (isSmall) const SizedBox(height: 16),
             if (isSmall)
               InkWell(
-                onTap: () {},
-                child: const Row(
+                onTap: () {
+                  setState(() {
+                    _showOnlyAtRisk = !_showOnlyAtRisk;
+                  });
+                },
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'View At-Risk Students',
-                      style: TextStyle(
+                      _showOnlyAtRisk ? 'Show All Students' : 'View At-Risk Students',
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF3B82F6),
                       ),
                     ),
-                    SizedBox(width: 4),
-                    Icon(Icons.chevron_right,
-                        size: 18, color: Color(0xFF3B82F6)),
+                    const SizedBox(width: 4),
+                    Icon(_showOnlyAtRisk ? Icons.close : Icons.chevron_right,
+                        size: 18, color: const Color(0xFF3B82F6)),
                   ],
                 ),
               ),
@@ -1353,9 +1366,9 @@ class _AcademicEvaluationScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildBreakdownRow(const Color(0xFFEF4444), 'Below 60%', '$below60'),
+                  _buildBreakdownRow(const Color(0xFFEF4444), 'High Risk (Below 75)', '$highRisk'),
                   const SizedBox(height: 8),
-                  _buildBreakdownRow(const Color(0xFFF59E0B), '60% – 74%', '$between60and75'),
+                  _buildBreakdownRow(const Color(0xFFF59E0B), 'Medium Risk (75 - 80)', '$mediumRisk'),
                 ],
               ),
             ),
