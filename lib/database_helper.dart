@@ -1131,48 +1131,23 @@ class DatabaseHelper {
         .eq('section', currentSection);
   }
 
-  // --- GRADING SYSTEM (DepEd K-12 Transmutation) ---
+  // --- GRADING SYSTEM (New DepEd DO 015 s. 2026 Transmutation) ---
+  // Base-70 Transmutation: Raw score of 70 = 75.
   double transmuteGrade(double initialGrade) {
-    if (initialGrade == 100) return 100.0;
-    if (initialGrade >= 98.40) return 99.0;
-    if (initialGrade >= 96.80) return 98.0;
-    if (initialGrade >= 95.20) return 97.0;
-    if (initialGrade >= 93.60) return 96.0;
-    if (initialGrade >= 92.00) return 95.0;
-    if (initialGrade >= 90.40) return 94.0;
-    if (initialGrade >= 88.80) return 93.0;
-    if (initialGrade >= 87.20) return 92.0;
-    if (initialGrade >= 85.60) return 91.0;
-    if (initialGrade >= 84.00) return 90.0;
-    if (initialGrade >= 82.40) return 89.0;
-    if (initialGrade >= 80.80) return 88.0;
-    if (initialGrade >= 79.20) return 87.0;
-    if (initialGrade >= 77.60) return 86.0;
-    if (initialGrade >= 76.00) return 85.0;
-    if (initialGrade >= 74.40) return 84.0;
-    if (initialGrade >= 72.80) return 83.0;
-    if (initialGrade >= 71.20) return 82.0;
-    if (initialGrade >= 69.60) return 81.0;
-    if (initialGrade >= 68.00) return 80.0;
-    if (initialGrade >= 66.40) return 79.0;
-    if (initialGrade >= 64.80) return 78.0;
-    if (initialGrade >= 63.20) return 77.0;
-    if (initialGrade >= 61.60) return 76.0;
-    if (initialGrade >= 60.00) return 75.0;
-    if (initialGrade >= 56.00) return 74.0;
-    if (initialGrade >= 52.00) return 73.0;
-    if (initialGrade >= 48.00) return 72.0;
-    if (initialGrade >= 44.00) return 71.0;
-    if (initialGrade >= 40.00) return 70.0;
-    if (initialGrade >= 36.00) return 69.0;
-    if (initialGrade >= 32.00) return 68.0;
-    if (initialGrade >= 28.00) return 67.0;
-    if (initialGrade >= 24.00) return 66.0;
-    if (initialGrade >= 20.00) return 65.0;
-    if (initialGrade >= 16.00) return 64.0;
-    if (initialGrade >= 12.00) return 63.0;
-    if (initialGrade >= 8.00) return 62.0;
-    if (initialGrade >= 4.00) return 61.0;
-    return 60.0;
+    if (initialGrade >= 100) return 100.0;
+    if (initialGrade <= 0) return 60.0;
+
+    double transmuted;
+    if (initialGrade >= 70) {
+      // Passing: 70 to 100 maps to 75 to 100
+      transmuted = 75 + ((initialGrade - 70) / 30) * 25;
+      return transmuted.roundToDouble();
+    } else {
+      // Failing: 0 to 69.99 maps to 60 to 74
+      transmuted = 60 + (initialGrade / 70) * 15;
+      double rounded = transmuted.roundToDouble();
+      // Ensure a failing raw score does not round up to a passing 75
+      return rounded >= 75 ? 74.0 : rounded;
+    }
   }
 }
