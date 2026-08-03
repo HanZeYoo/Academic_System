@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 
 class AddSubjectClassScreen extends StatefulWidget {
   final Map<String, dynamic>? subjectClassToEdit;
@@ -100,9 +101,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
         (_selectedSectionName == null || _selectedSectionName!.isEmpty) ||
         (_selectedTeacher == null || _selectedTeacher!.isEmpty) ||
         (_selectedGradeLevel == null || _selectedGradeLevel!.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all required fields.')),
-      );
+      AestheticDialogs.showErrorDialog(context, 'Missing Fields', 'Please fill all required fields.');
       return;
     }
 
@@ -121,9 +120,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
     if (existingClass != null && (widget.subjectClassToEdit == null || widget.subjectClassToEdit!['id'] != existingClass['id'])) {
       setState(() => _isSaving = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This Subject Class already exists for the selected Teacher, Grade, and Section!'), backgroundColor: Colors.red),
-        );
+        AestheticDialogs.showErrorDialog(context, 'Duplicate Entry', 'This Subject Class already exists for the selected Teacher, Grade, and Section!');
       }
       return;
     }

@@ -84,10 +84,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       String subjectCode = subjectData['subject_code'] ?? 'Unknown';
 
       // Subject-specific attendance
-      // In this system, attendance is taken per section, not per subject.
-      // Therefore, the subject's attendance percentage is the overall student attendance.
-      // If there are no attendance records yet, we assume 100% so grades aren't penalized prematurely.
-      double classAttendancePct = _hasAttendance ? _attendancePercentage : 100.0;
+      final subjAttendance = attendanceRecords.where((r) {
+        final className = r['class_name']?.toString() ?? '';
+        return className.contains(subjectCode);
+      }).toList();
+      
+      double classAttendancePct = 100.0;
+      if (subjAttendance.isNotEmpty) {
+        int subjPresentCount = subjAttendance.where((r) => r['status'] == 'Present' || r['status'] == 'Late').length;
+        classAttendancePct = (subjPresentCount / subjAttendance.length) * 100;
+      }
 
       // Filter scores
       var subjectScores = scores.where((s) => s['subject_code'] == subjectCode && s['grading_period'] == gradingPeriod).toList();

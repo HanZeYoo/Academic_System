@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 import 'admin_dashboard.dart';
 import 'teacher_dashboard_screen.dart';
 import 'student_dashboard_screen.dart';
@@ -88,12 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
+    AestheticDialogs.showErrorDialog(context, 'Login Failed', message);
   }
 
   Future<void> _handleLogin() async {

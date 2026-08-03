@@ -119,7 +119,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     for (var subjectData in uniqueSubjects.values) {
       final subjectName = subjectData['subject_name'] ?? 'Unknown';
       final subjectCode = subjectData['subject_code'] ?? 'Unknown';
-      final classAttendancePct = _hasAttendance ? _attendancePercentage : 100.0;
+      final subjAttendance = attendanceRecords.where((r) {
+        final className = r['class_name']?.toString() ?? '';
+        return className.contains(subjectCode);
+      }).toList();
+      
+      double classAttendancePct = 100.0;
+      if (subjAttendance.isNotEmpty) {
+        int subjPresentCount = subjAttendance.where((r) => r['status'] == 'Present' || r['status'] == 'Late').length;
+        classAttendancePct = (subjPresentCount / subjAttendance.length) * 100;
+      }
       final subjectScores = scores
           .where((s) =>
               s['subject_code'] == subjectCode &&

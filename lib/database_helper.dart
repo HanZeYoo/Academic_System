@@ -343,29 +343,30 @@ class DatabaseHelper {
 
     if (groupedScores.isEmpty) return 'N/A';
 
-    // Fetch attendance for class once to calculate attendance percentage
-    final attendanceRecords = await getAttendanceForClass(className);
-    final uniqueDates = attendanceRecords.map((r) => r['date'].toString()).toSet();
-    final totalClassDays = uniqueDates.length;
-
-    double attendancePct = 0.0;
-    if (totalClassDays > 0) {
-      final studentAtt = attendanceRecords.where((r) => r['student_id'].toString() == studentId).toList();
-      double points = 0.0;
-      for (final record in studentAtt) {
-        final status = record['status']?.toString() ?? '';
-        if (status == 'Present' || status == 'Excused') points += 1.0;
-        else if (status == 'Late') points += 0.5;
-      }
-      attendancePct = (points / totalClassDays) * 100;
-    }
-
     double sumFinals = 0;
     int countFinals = 0;
 
     for (var subj in groupedScores.keys) {
       double sumQ = 0;
       int countQ = 0;
+
+      // Compute attendance specific to this subject
+      final subjClassName = '$subj - $gradeLevel - $section';
+      final subjAttendance = await getAttendanceForClass(subjClassName);
+      final uniqueDates = subjAttendance.map((r) => r['date'].toString()).toSet();
+      final totalClassDays = uniqueDates.length;
+
+      double attendancePct = 100.0; // Default to 100% if no classes recorded
+      if (totalClassDays > 0) {
+        final studentAtt = subjAttendance.where((r) => r['student_id'].toString() == studentId).toList();
+        double points = 0.0;
+        for (final record in studentAtt) {
+          final status = record['status']?.toString() ?? '';
+          if (status == 'Present' || status == 'Excused') points += 1.0;
+          else if (status == 'Late') points += 0.5;
+        }
+        attendancePct = (points / totalClassDays) * 100;
+      }
 
       for (var period in groupedScores[subj]!.keys) {
         final scores = groupedScores[subj]![period]!;
@@ -841,7 +842,7 @@ class DatabaseHelper {
     int presentRecords = 0;
 
     for (var c in classes) {
-      final className = '${c['grade_level']} - ${c['section_name']}';
+      final className = '${c['subject_code']} - ${c['grade_level']} - ${c['section_name']}';
       final records = await getAttendanceForClass(className);
       totalRecords += records.length;
       presentRecords += records.where((r) => r['status'] == 'Present' || r['status'] == 'Late').length;

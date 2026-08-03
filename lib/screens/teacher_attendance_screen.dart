@@ -21,6 +21,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
   List<Map<String, dynamic>> _students = [];
   String _searchQuery = '';
   Set<DateTime> _markedDates = {};
+  List<Map<String, dynamic>> _assignedClassesFull = [];
 
   @override
   void initState() {
@@ -36,10 +37,11 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
       final name = teacherData['name']?.toString() ?? '';
       // Get classes
       final assignedClasses = await dbHelper.getSubjectClassesByTeacher(name);
-      // Create a unique list of classes (Grade Level - Section)
-      final uniqueClasses = assignedClasses.map((c) => '${c['grade_level']} - ${c['section_name']}').toSet().toList();
+      // Create a unique list of classes (SubjectCode - Grade Level - Section)
+      final uniqueClasses = assignedClasses.map((c) => '${c['subject_code']} - ${c['grade_level']} - ${c['section_name']}').toSet().toList();
       
       setState(() {
+        _assignedClassesFull = assignedClasses;
         _classes = uniqueClasses;
         if (_classes.isNotEmpty) {
           if (widget.initialClass != null && _classes.contains(widget.initialClass)) {
@@ -76,15 +78,16 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
     });
 
     final parts = _selectedClass!.split(' - ');
-    if (parts.length < 2) {
+    if (parts.length < 3) {
       setState(() {
         _isLoading = false;
         _students = [];
       });
       return;
     }
-    final gradeLevel = parts[0];
-    final section = parts[1];
+    // parts[0] is subject_code, parts[1] is gradeLevel, parts[2] is section
+    final gradeLevel = parts[1];
+    final section = parts[2];
 
     final dbHelper = DatabaseHelper();
     // Get students for this class
@@ -123,12 +126,113 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
     });
   }
 
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.rectangle,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: const [
+              BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 10)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.error_outline, color: Colors.red, size: 48),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF224A60)),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.4),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  child: const Text('Got it', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _saveAttendance() async {
     if (_selectedClass == null || _students.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No students to save.')),
-      );
+      _showErrorDialog('Warning', 'No students to save.');
       return;
+    }
+
+    // --- TIME LOCKING LOGIC ---
+    final classRecord = _assignedClassesFull.firstWhere(
+      (c) => '${c['subject_code']} - ${c['grade_level']} - ${c['section_name']}' == _selectedClass,
+      orElse: () => {},
+    );
+    
+    final timeStr = classRecord['time']?.toString() ?? '';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final selectedDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+
+    if (selectedDay.isBefore(today)) {
+      _showErrorDialog('Action Blocked', 'Cannot edit attendance for past dates.\n\nClass time is already over.');
+      return;
+    }
+    if (selectedDay.isAfter(today)) {
+      _showErrorDialog('Action Blocked', 'Cannot take attendance for future dates.');
+      return;
+    }
+
+    if (timeStr.isNotEmpty) {
+      final timeParts = timeStr.split(' - ');
+      if (timeParts.length == 2) {
+        final endTimeStr = timeParts[1];
+        final match = RegExp(r'(\d+):(\d+)\s*(AM|PM)', caseSensitive: false).firstMatch(endTimeStr.trim());
+        if (match != null) {
+          int h = int.parse(match.group(1)!);
+          int m = int.parse(match.group(2)!);
+          String ampm = match.group(3)!.toUpperCase();
+          if (ampm == 'PM' && h < 12) h += 12;
+          if (ampm == 'AM' && h == 12) h = 0;
+          
+          final endDateTime = DateTime(now.year, now.month, now.day, h, m);
+          if (now.isAfter(endDateTime)) {
+            _showErrorDialog('Attendance Locked', 'Class time is over. Attendance editing is now locked.');
+            return;
+          }
+        }
+      }
     }
 
     // Show loading indicator
@@ -152,23 +256,36 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
         'status': student['status'],
       });
 
-      // --- SEND PUSH NOTIFICATION FOR ABSENT STUDENTS ---
-      if (student['status'] == 'Absent') {
+      // --- SEND PUSH NOTIFICATIONS ---
+      if (student['status'] == 'Absent' || student['status'] == 'Late') {
+        final currentStatus = student['status'].toString().toUpperCase();
+        debugPrint('--- ATTENDANCE PUSH FOR ${student['name']} ($currentStatus) ---');
+        
+        String parentEmail = '';
+        String studentEmail = '';
+        
         try {
-          // 1. Get Parent Email from Students table
+          // 1. Get Parent and Student Email from Students table
           final studentData = await Supabase.instance.client
               .from('students')
-              .select('parent_email')
+              .select('parent_email, email')
               .eq('student_id', student['id'])
               .maybeSingle();
 
-          final parentEmail = studentData?['parent_email']?.toString() ?? '';
+          parentEmail = studentData?['parent_email']?.toString() ?? '';
+          studentEmail = studentData?['email']?.toString() ?? '';
+          debugPrint('Parent Email: $parentEmail | Student Email: $studentEmail');
+        } catch (e) {
+          debugPrint('Error fetching emails: $e');
+        }
 
-          if (parentEmail.isNotEmpty) {
-            final reasonToSend = 'Attendance Alert: Absent';
-            final messageToSend = '${student['name']} was marked ABSENT for $_selectedClass today ($dateStr).';
+        // --- NOTIFY PARENT (Absent only, as per original logic) ---
+        if (parentEmail.isNotEmpty && student['status'] == 'Absent') {
+          try {
+            final reasonToSend = 'Attendance Alert: $currentStatus';
+            final messageToSend = '${student['name']} was marked $currentStatus for $_selectedClass today ($dateStr).';
 
-            // 2. Insert In-App Notification Record
+            // Insert In-App Notification Record for Parent
             await dbHelper.insertNotification({
               'sender_username': widget.username,
               'receiver_username': parentEmail,
@@ -179,7 +296,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
               'status': 'Sent'
             });
 
-            // 3. Get Parent FCM Token & Send Push
+            // Get Parent FCM Token & Send Push
             final parentUser = await Supabase.instance.client
                 .from('users')
                 .select('fcm_token')
@@ -187,6 +304,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
                 .maybeSingle();
 
             final fcmToken = parentUser?['fcm_token'];
+            debugPrint('Parent FCM Token: $fcmToken');
             if (fcmToken != null && fcmToken.toString().isNotEmpty) {
               await Supabase.instance.client.functions.invoke('send-fcm', body: {
                 'title': reasonToSend,
@@ -196,10 +314,49 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
                   'route': 'notifications',
                 },
               });
+              debugPrint('Parent Push Notification Invoked.');
+            } else {
+              debugPrint('Failed to send Parent Push: FCM Token is null/empty.');
             }
+          } catch (e) {
+            debugPrint('Error sending PARENT attendance notification: $e');
           }
-        } catch (e) {
-          debugPrint('Error sending absent notification: $e');
+        }
+
+        // --- NOTIFY STUDENT (Absent or Late, Push Only) ---
+        if (studentEmail.isNotEmpty) {
+          try {
+            final reasonToSend = 'Attendance Alert: $currentStatus';
+            final messageToSend = 'You were marked $currentStatus for $_selectedClass today ($dateStr).';
+
+            // Get Student FCM Token & Send Push
+            final studentUser = await Supabase.instance.client
+                .from('users')
+                .select('fcm_token')
+                .eq('username', studentEmail)
+                .maybeSingle();
+
+            final studentFcmToken = studentUser?['fcm_token'];
+            debugPrint('Student FCM Token: $studentFcmToken');
+            
+            if (studentFcmToken != null && studentFcmToken.toString().isNotEmpty) {
+              await Supabase.instance.client.functions.invoke('send-fcm', body: {
+                'title': reasonToSend,
+                'body': messageToSend,
+                'token': studentFcmToken.toString(),
+                'data': {
+                  'route': 'attendance', // Route to attendance screen or dashboard
+                },
+              });
+              debugPrint('Student Push Notification Invoked.');
+            } else {
+              debugPrint('Failed to send Student Push: FCM Token is null/empty.');
+            }
+          } catch (e) {
+            debugPrint('Error sending STUDENT attendance notification: $e');
+          }
+        } else {
+          debugPrint('Failed to send Student Push: Student Email is empty in DB.');
         }
       }
     }
