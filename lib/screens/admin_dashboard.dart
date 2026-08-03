@@ -75,191 +75,148 @@ class _AdminDashboardState extends State<AdminDashboard> {
           );
         }
       },
-      child: Scaffold(
-        backgroundColor: backgroundColor,
-        appBar: AppBar(
-          backgroundColor: appBarColor,
-          iconTheme: const IconThemeData(color: textWhite),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: InkWell(
-                onTap: () {
-                  setState(() {
-                    _selectedIndex = 9; // Index para sa Admin Profile
-                  });
-                },
-                child: const CircleAvatar(
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person, color: Colors.black),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth >= 800;
+
+          Widget drawerContent = Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.only(
+                  top: 20,
+                  left: 24,
+                  right: 16,
+                  bottom: 20,
                 ),
-              ),
-            ),
-          ],
-        ),
-        drawer: Drawer(
-          backgroundColor: drawerColor,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-          child: SafeArea(
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.only(
-                    top: 20,
-                    left: 24,
-                    right: 16,
-                    bottom: 20,
+                decoration: const BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: Colors.white24, width: 0.5),
                   ),
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(color: Colors.white24, width: 0.5),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Menu',
-                        style: TextStyle(
-                          color: textWhite,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Admin Portal',
+                      style: TextStyle(
+                        color: textWhite,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
+                    ),
+                    if (!isDesktop)
                       InkWell(
-                        onTap: () {
-                          Navigator.pop(context);
-                        },
+                        onTap: () => Navigator.pop(context),
                         child: const Icon(
                           Icons.arrow_back,
                           color: textWhite,
                           size: 20,
                         ),
                       ),
-                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    _buildMenuItem(0, Icons.home, 'Dashboard', hoveredColor, isDesktop),
+                    _buildMenuItem(1, Icons.people, 'Student Management', hoveredColor, isDesktop),
+                    _buildMenuItem(2, Icons.co_present, 'Teacher Management', hoveredColor, isDesktop),
+                    _buildMenuItem(3, Icons.menu_book, 'Subject & Classes', hoveredColor, isDesktop),
+                    _buildMenuItem(4, Icons.assignment_turned_in, 'Academic Evaluation', hoveredColor, isDesktop),
+                    _buildMenuItem(5, Icons.show_chart, 'Failure Analytics', hoveredColor, isDesktop),
+                    _buildMenuItem(6, Icons.notifications, 'Parent Notification', hoveredColor, isDesktop),
+                    _buildMenuItem(7, Icons.pie_chart, 'Reports Generation', hoveredColor, isDesktop),
+                    _buildMenuItem(8, Icons.campaign, 'Announcements', hoveredColor, isDesktop),
+                    _buildMenuItem(11, Icons.archive, 'Archive & Bin', hoveredColor, isDesktop),
+                    _buildMenuItem(10, Icons.settings, 'Settings', hoveredColor, isDesktop),
+                  ],
+                ),
+              ),
+              Container(
+                decoration: const BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: Colors.white24, width: 0.5),
                   ),
                 ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.zero,
-                    children: [
-                      _buildMenuItem(0, Icons.home, 'Dashboard', hoveredColor),
-                      _buildMenuItem(
-                        1,
-                        Icons.people,
-                        'Student Management',
-                        hoveredColor,
-                      ),
-                      _buildMenuItem(
-                        2,
-                        Icons.co_present,
-                        'Teacher Management',
-                        hoveredColor,
-                      ),
-                      _buildMenuItem(
-                        3,
-                        Icons.menu_book,
-                        'Subject & Classes',
-                        hoveredColor,
-                      ),
-                      _buildMenuItem(
-                        4,
-                        Icons.assignment_turned_in,
-                        'Academic Evaluation',
-                        hoveredColor,
-                      ),
-                      _buildMenuItem(
-                        5,
-                        Icons.show_chart,
-                        'Failure Analytics',
-                        hoveredColor,
-                      ),
-                      _buildMenuItem(
-                        6,
-                        Icons.notifications,
-                        'Parent Notification',
-                        hoveredColor,
-                      ),
-                      _buildMenuItem(
-                        7,
-                        Icons.pie_chart,
-                        'Reports Generation',
-                        hoveredColor,
-                      ),
-                      _buildMenuItem(
-                        8,
-                        Icons.campaign,
-                        'Announcements',
-                        hoveredColor,
-                      ),
-                      _buildMenuItem(
-                        11,
-                        Icons.archive,
-                        'Archive & Bin',
-                        hoveredColor,
-                      ),
-                      _buildMenuItem(
-                        10,
-                        Icons.settings,
-                        'Settings',
-                        hoveredColor,
-                      ),
-                    ],
+                child: ListTile(
+                  leading: const Padding(
+                    padding: EdgeInsets.only(left: 16.0),
+                    child: Icon(Icons.logout, color: textWhite),
                   ),
-                ),
-                Container(
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: Colors.white24, width: 0.5),
-                    ),
+                  title: const Text(
+                    'Logout',
+                    style: TextStyle(color: textWhite, fontSize: 15),
                   ),
-                  child: ListTile(
-                    leading: const Padding(
-                      padding: EdgeInsets.only(left: 16.0),
-                      child: Icon(Icons.logout, color: textWhite),
-                    ),
-                    title: const Text(
-                      'Logout',
-                      style: TextStyle(color: textWhite, fontSize: 15),
-                    ),
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Logout'),
-                          content: const Text('Are you sure you want to logout?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(context); // Close dialog
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const LoginScreen(isLoggingOut: true),
-                                  ),
-                                );
-                              },
-                              child: const Text(
-                                'Logout',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
+                  onTap: () async {
+                    final logout = await _showLogoutDialog();
+                    if (logout && mounted) {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(isLoggingOut: true),
                         ),
                       );
+                    }
+                  },
+                ),
+              ),
+            ],
+          );
+
+          return Scaffold(
+            backgroundColor: backgroundColor,
+            appBar: AppBar(
+              backgroundColor: appBarColor,
+              automaticallyImplyLeading: !isDesktop,
+              iconTheme: const IconThemeData(color: textWhite),
+              title: isDesktop
+                  ? const Text(
+                      'Academic Management System - Admin',
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                    )
+                  : null,
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedIndex = 9; // Admin Profile
+                      });
                     },
+                    child: const CircleAvatar(
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.person, color: Colors.black),
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
-        ),
-        body: _buildBody(),
+            drawer: !isDesktop
+                ? Drawer(
+                    backgroundColor: drawerColor,
+                    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                    child: SafeArea(child: drawerContent),
+                  )
+                : null,
+            body: Row(
+              children: [
+                if (isDesktop)
+                  Container(
+                    width: 260,
+                    color: drawerColor,
+                    child: SafeArea(child: drawerContent),
+                  ),
+                Expanded(
+                  child: _buildBody(),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -300,6 +257,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     IconData icon,
     String title,
     Color hoveredColor,
+    bool isDesktop,
   ) {
     bool isSelected = _selectedIndex == index;
     return Container(
@@ -319,7 +277,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
           setState(() {
             _selectedIndex = index;
           });
-          Navigator.pop(context); // Optional: close drawer when selected
+          if (!isDesktop) {
+            Navigator.pop(context); // Close drawer on mobile
+          }
         },
       ),
     );

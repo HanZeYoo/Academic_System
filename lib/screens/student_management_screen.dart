@@ -175,17 +175,14 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
           const SizedBox(height: 24),
 
           // Title and Add button
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            runSpacing: 12,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
                 'Student List',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
-              Wrap(
-                spacing: 8,
+              Row(
                 children: [
                   OutlinedButton.icon(
                     onPressed: _importCSV,
@@ -194,9 +191,11 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFF1664C5),
                       side: const BorderSide(color: Color(0xFF1664C5)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
+                  const SizedBox(width: 12),
                   ElevatedButton.icon(
                     onPressed: () async {
                       final result = await Navigator.push(
@@ -212,6 +211,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1664C5),
                       foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                   ),

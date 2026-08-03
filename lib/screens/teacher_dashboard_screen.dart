@@ -137,86 +137,30 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           );
         }
       },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFD6F0FA), // Light blue background
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF3383B3), // App bar blue color
-          elevation: 0,
-          leading: Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.menu, color: Colors.white),
-              onPressed: () => Scaffold.of(context).openDrawer(),
-            ),
-          ),
-          actions: [
-            if (_schoolYears.isNotEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 16.0),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedSchoolYear,
-                      dropdownColor: const Color(0xFF224A60),
-                      icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      onChanged: (String? newValue) {
-                        if (newValue != null && newValue != _selectedSchoolYear) {
-                          setState(() {
-                            _selectedSchoolYear = newValue;
-                            // When changing school year, reload the dashboard data
-                            _loadDashboardData();
-                          });
-                        }
-                      },
-                      items: _schoolYears.map<DropdownMenuItem<String>>((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value),
-                        );
-                      }).toList(),
-                    ),
-                  ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth >= 800;
+
+          Widget drawerContent = Column(
+            children: [
+              // Drawer Header
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 16.0,
                 ),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedMenu = 'Profile';
-                  });
-                },
-                child: const CircleAvatar(
-                  backgroundColor: Colors.white,
-                  radius: 18,
-                  child: Icon(Icons.person, color: Color(0xFF3383B3), size: 24),
-                ),
-              ),
-            ),
-          ],
-        ),
-        drawer: Drawer(
-          backgroundColor: const Color(0xFF224A60), // Dark teal drawer background
-          child: SafeArea(
-            child: Column(
-              children: [
-                // Drawer Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 16.0,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Menu',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Teacher Portal',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
+                    ),
+                    if (!isDesktop)
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
                         child: const Icon(
@@ -225,137 +169,196 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           size: 20,
                         ),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
-                const Divider(color: Colors.white24, height: 1, thickness: 1),
-                const SizedBox(height: 8),
+              ),
+              const Divider(color: Colors.white24, height: 1, thickness: 1),
+              const SizedBox(height: 8),
 
-                // Drawer Menu Items
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                    children: [
-                      _buildMenuItem(
-                        title: 'Dashboard',
-                        icon: Icons.home,
-                        isSelected: _selectedMenu == 'Dashboard',
-                        onTap: () => _onMenuTap('Dashboard'),
-                      ),
-                      _buildMenuItem(
-                        title: 'My Classes',
-                        icon: Icons.menu_book,
-                        isSelected: _selectedMenu == 'My Classes',
-                        onTap: () => _onMenuTap('My Classes'),
-                      ),
-                      _buildMenuItem(
-                        title: 'Student',
-                        icon: Icons.people,
-                        isSelected: _selectedMenu == 'Student',
-                        onTap: () => _onMenuTap('Student'),
-                      ),
-                      _buildExpandableMenuItem(
-                        title: 'Grade Encoding',
-                        icon: Icons.assignment_add,
-                        subItems: ['Encode score', 'Assessment setup'],
-                      ),
-                      _buildMenuItem(
-                        title: 'Academic Evaluation',
-                        icon: Icons.fact_check,
-                        isSelected: _selectedMenu == 'Academic Evaluation',
-                        onTap: () => _onMenuTap('Academic Evaluation'),
-                      ),
-                      _buildMenuItem(
-                        title: 'Failure Analytics',
-                        icon: Icons.show_chart,
-                        isSelected: _selectedMenu == 'Failure Analytics',
-                        onTap: () => _onMenuTap('Failure Analytics'),
-                      ),
-                      _buildMenuItem(
-                        title: 'Parent Notification',
-                        icon: Icons.notifications,
-                        isSelected: _selectedMenu == 'Parent Notification',
-                        onTap: () => _onMenuTap('Parent Notification'),
-                      ),
-                      _buildMenuItem(
-                        title: 'Attendance',
-                        icon: Icons.assignment_turned_in,
-                        isSelected: _selectedMenu == 'Attendance',
-                        onTap: () => _onMenuTap('Attendance'),
-                      ),
-                      _buildMenuItem(
-                        title: 'Reports',
-                        icon: Icons.pie_chart,
-                        isSelected: _selectedMenu == 'Reports',
-                        onTap: () => _onMenuTap('Reports'),
-                      ),
-                      _buildMenuItem(
-                        title: 'Announcement',
-                        icon: Icons.campaign,
-                        isSelected: _selectedMenu == 'Announcement',
-                        onTap: () => _onMenuTap('Announcement'),
-                      ),
-                      _buildMenuItem(
-                        title: 'Settings',
-                        icon: Icons.settings,
-                        isSelected: _selectedMenu == 'Settings',
-                        onTap: () => _onMenuTap('Settings'),
-                      ),
-                    ],
+              // Drawer Menu Items
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                  children: [
+                    _buildMenuItem(
+                      title: 'Dashboard',
+                      icon: Icons.home,
+                      isSelected: _selectedMenu == 'Dashboard',
+                      onTap: () => _onMenuTap('Dashboard', isDesktop: isDesktop),
+                    ),
+                    _buildMenuItem(
+                      title: 'My Classes',
+                      icon: Icons.menu_book,
+                      isSelected: _selectedMenu == 'My Classes',
+                      onTap: () => _onMenuTap('My Classes', isDesktop: isDesktop),
+                    ),
+                    _buildMenuItem(
+                      title: 'Student',
+                      icon: Icons.people,
+                      isSelected: _selectedMenu == 'Student',
+                      onTap: () => _onMenuTap('Student', isDesktop: isDesktop),
+                    ),
+                    _buildExpandableMenuItem(
+                      title: 'Grade Encoding',
+                      icon: Icons.assignment_add,
+                      subItems: ['Encode score', 'Assessment setup'],
+                      isDesktop: isDesktop,
+                    ),
+                    _buildMenuItem(
+                      title: 'Academic Evaluation',
+                      icon: Icons.fact_check,
+                      isSelected: _selectedMenu == 'Academic Evaluation',
+                      onTap: () => _onMenuTap('Academic Evaluation', isDesktop: isDesktop),
+                    ),
+                    _buildMenuItem(
+                      title: 'Failure Analytics',
+                      icon: Icons.show_chart,
+                      isSelected: _selectedMenu == 'Failure Analytics',
+                      onTap: () => _onMenuTap('Failure Analytics', isDesktop: isDesktop),
+                    ),
+                    _buildMenuItem(
+                      title: 'Parent Notification',
+                      icon: Icons.notifications,
+                      isSelected: _selectedMenu == 'Parent Notification',
+                      onTap: () => _onMenuTap('Parent Notification', isDesktop: isDesktop),
+                    ),
+                    _buildMenuItem(
+                      title: 'Attendance',
+                      icon: Icons.assignment_turned_in,
+                      isSelected: _selectedMenu == 'Attendance',
+                      onTap: () => _onMenuTap('Attendance', isDesktop: isDesktop),
+                    ),
+                    _buildMenuItem(
+                      title: 'Reports',
+                      icon: Icons.pie_chart,
+                      isSelected: _selectedMenu == 'Reports',
+                      onTap: () => _onMenuTap('Reports', isDesktop: isDesktop),
+                    ),
+                    _buildMenuItem(
+                      title: 'Announcement',
+                      icon: Icons.campaign,
+                      isSelected: _selectedMenu == 'Announcement',
+                      onTap: () => _onMenuTap('Announcement', isDesktop: isDesktop),
+                    ),
+                    _buildMenuItem(
+                      title: 'Settings',
+                      icon: Icons.settings,
+                      isSelected: _selectedMenu == 'Settings',
+                      onTap: () => _onMenuTap('Settings', isDesktop: isDesktop),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                decoration: const BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: Colors.white24, width: 0.5),
                   ),
                 ),
-                Container(
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: Colors.white24, width: 0.5),
-                    ),
+                child: ListTile(
+                  leading: const Padding(
+                    padding: EdgeInsets.only(left: 16.0),
+                    child: Icon(Icons.logout, color: Colors.white),
                   ),
-                  child: ListTile(
-                    leading: const Padding(
-                      padding: EdgeInsets.only(left: 16.0),
-                      child: Icon(Icons.logout, color: Colors.white),
-                    ),
-                    title: const Text(
-                      'Logout',
-                      style: TextStyle(color: Colors.white, fontSize: 15),
-                    ),
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Logout'),
-                          content: const Text('Are you sure you want to logout?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(context); // Close dialog
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const LoginScreen(isLoggingOut: true),
-                                  ),
-                                );
-                              },
-                              child: const Text(
-                                'Logout',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
+                  title: const Text(
+                    'Logout',
+                    style: TextStyle(color: Colors.white, fontSize: 15),
+                  ),
+                  onTap: () async {
+                    final logout = await _showLogoutDialog();
+                    if (logout && mounted) {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(isLoggingOut: true),
                         ),
                       );
+                    }
+                  },
+                ),
+              ),
+            ],
+          );
+
+          return Scaffold(
+            backgroundColor: const Color(0xFFD6F0FA), // Light blue background
+            appBar: AppBar(
+              backgroundColor: const Color(0xFF3383B3), // App bar blue color
+              elevation: 0,
+              automaticallyImplyLeading: !isDesktop,
+              title: isDesktop
+                  ? const Text(
+                      'Academic Management System - Teacher',
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                    )
+                  : null,
+              actions: [
+                if (_schoolYears.isNotEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 16.0),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedSchoolYear,
+                          dropdownColor: const Color(0xFF224A60),
+                          icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          onChanged: (String? newValue) {
+                            if (newValue != null && newValue != _selectedSchoolYear) {
+                              setState(() {
+                                _selectedSchoolYear = newValue;
+                                _loadDashboardData();
+                              });
+                            }
+                          },
+                          items: _schoolYears.map<DropdownMenuItem<String>>((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedMenu = 'Profile';
+                      });
                     },
+                    child: const CircleAvatar(
+                      backgroundColor: Colors.white,
+                      radius: 18,
+                      child: Icon(Icons.person, color: Color(0xFF3383B3), size: 24),
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
-        ),
-        body: _buildBody(),
+            drawer: !isDesktop
+                ? Drawer(
+                    backgroundColor: const Color(0xFF224A60),
+                    child: SafeArea(child: drawerContent),
+                  )
+                : null,
+            body: Row(
+              children: [
+                if (isDesktop)
+                  Container(
+                    width: 260,
+                    color: const Color(0xFF224A60),
+                    child: SafeArea(child: drawerContent),
+                  ),
+                Expanded(
+                  child: _buildBody(),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -643,6 +646,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     required String title,
     required IconData icon,
     required List<String> subItems,
+    bool isDesktop = false,
   }) {
     bool isExpandedOrSelected = subItems.contains(_selectedMenu);
     return Container(
@@ -694,7 +698,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         : FontWeight.normal,
                   ),
                 ),
-                onTap: () => _onMenuTap(subItem),
+                onTap: () => _onMenuTap(subItem, isDesktop: isDesktop),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
                 visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
               ),
@@ -705,10 +709,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
-  void _onMenuTap(String title) {
+  void _onMenuTap(String title, {bool isDesktop = false}) {
     setState(() {
       _selectedMenu = title;
     });
-    Navigator.pop(context); // Close the drawer
+    if (!isDesktop) {
+      Navigator.pop(context); // Close the drawer on mobile
+    }
   }
 }
