@@ -6,32 +6,39 @@ import 'firebase_options.dart';
 import 'services/push_notification_service.dart';
 import 'screens/landing_screen.dart';
 
+import 'package:flutter/foundation.dart';
+
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 String? pendingDeepLinkRoute;
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Make sure you call `initializeApp` before using other Firebase services.
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  print("Handling a background message: ${message.messageId}");
+  if (!kIsWeb) {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    print("Handling a background message: ${message.messageId}");
+  }
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  // Initialize Firebase (Mobile only)
+  if (!kIsWeb) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  }
 
   await Supabase.initialize(
     url: 'https://vslqselpnkpghtpnxryg.supabase.co',
     anonKey: 'sb_publishable_qAfWW1fw67Xb85gAtWyBZg_sKB-ISaW',
   );
 
-  // Request Permissions and Get Token
-  await PushNotificationService().initialize();
+  // Request Permissions and Get Token (Mobile only)
+  if (!kIsWeb) {
+    await PushNotificationService().initialize();
+  }
 
   runApp(const MyApp());
 }
