@@ -80,10 +80,10 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     // Get all students
     final allStudents = await DatabaseHelper().getStudents();
 
-    // Filter: show ALL if no classes assigned, else match grade+section
+    // Filter: show empty list if no classes assigned, else match grade+section
     List<Map<String, dynamic>> filtered;
     if (assignedKeys.isEmpty) {
-      filtered = allStudents;
+      filtered = [];
     } else {
       filtered = allStudents.where((s) {
         final sGrade = s['grade_level']?.toString().trim().toLowerCase() ?? '';
