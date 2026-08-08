@@ -4,6 +4,7 @@ import 'settings_screen.dart';
 import 'my_classes_screen.dart';
 import 'assessment_setup_screen.dart';
 import 'encode_scores_screen.dart';
+import 'ecr_import_screen.dart';
 import 'teacher_student_screen.dart';
 import 'shared_profile_screen.dart';
 import 'academic_evaluation_screen.dart';
@@ -201,7 +202,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     _buildExpandableMenuItem(
                       title: 'Grade Encoding',
                       icon: Icons.assignment_add,
-                      subItems: ['Encode score', 'Assessment setup'],
+                      subItems: ['Encode score', 'Assessment setup', 'ECR Import'],
                       isDesktop: isDesktop,
                     ),
                     _buildMenuItem(
@@ -378,6 +379,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     }
     if (_selectedMenu == 'Encode score') {
       return EncodeScoresScreen(username: widget.username);
+    }
+    if (_selectedMenu == 'ECR Import') {
+      return EcrImportScreen(username: widget.username);
     }
     if (_selectedMenu == 'Profile') {
       return SharedProfileScreen(username: widget.username, role: UserRole.teacher);

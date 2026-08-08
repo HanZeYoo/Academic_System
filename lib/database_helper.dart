@@ -1151,4 +1151,86 @@ class DatabaseHelper {
       return rounded >= 75 ? 74.0 : rounded;
     }
   }
+
+  // --- ECR Import & Mapping Template Helpers ---
+
+  /// Save or update column mapping template for teacher + subject
+  Future<void> saveMappingTemplate({
+    required String teacherId,
+    required String subjectId,
+    required Map<String, String> mappingJson,
+  }) async {
+    try {
+      final existing = await Supabase.instance.client
+          .from('column_mapping_templates')
+          .select()
+          .eq('teacher_id', teacherId)
+          .eq('subject_id', subjectId)
+          .limit(1);
+
+      final payload = {
+        'teacher_id': teacherId,
+        'subject_id': subjectId,
+        'mapping_json': jsonEncode(mappingJson),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      if (existing.isNotEmpty) {
+        await Supabase.instance.client
+            .from('column_mapping_templates')
+            .update(payload)
+            .eq('id', existing.first['id']);
+      } else {
+        await Supabase.instance.client
+            .from('column_mapping_templates')
+            .insert(payload);
+      }
+    } catch (e) {
+      print('Note: column_mapping_templates table missing or error saving: $e');
+    }
+  }
+
+  /// Get column mapping template for teacher + subject
+  Future<Map<String, String>?> getMappingTemplate({
+    required String teacherId,
+    required String subjectId,
+  }) async {
+    try {
+      final results = await Supabase.instance.client
+          .from('column_mapping_templates')
+          .select()
+          .eq('teacher_id', teacherId)
+          .eq('subject_id', subjectId)
+          .limit(1);
+
+      if (results.isNotEmpty) {
+        final raw = results.first['mapping_json'];
+        if (raw is String) {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map) {
+            return decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
+          }
+        } else if (raw is Map) {
+          return raw.map((k, v) => MapEntry(k.toString(), v.toString()));
+        }
+      }
+    } catch (e) {
+      print('Note: column_mapping_templates query error: $e');
+    }
+    return null;
+  }
+
+  /// Save or update scores in batch
+  Future<int> batchSaveScores(List<Map<String, dynamic>> scoreList) async {
+    int savedCount = 0;
+    for (final scoreData in scoreList) {
+      try {
+        await saveScore(scoreData);
+        savedCount++;
+      } catch (e) {
+        print('Error saving individual score: $e');
+      }
+    }
+    return savedCount;
+  }
 }

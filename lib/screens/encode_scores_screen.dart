@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import 'ecr_import_screen.dart';
 
 class EncodeScoresScreen extends StatefulWidget {
   final String username;
@@ -707,18 +708,41 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _uploadMasterCSV,
-                    icon: const Icon(Icons.upload_file, size: 18),
-                    label: const Text('Upload CSV (Auto-fill Scores)'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.green.shade700,
-                      side: BorderSide(color: Colors.green.shade700),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _uploadMasterCSV,
+                        icon: const Icon(Icons.upload_file, size: 18),
+                        label: const Text('Quick CSV Auto-fill'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.green.shade700,
+                          side: BorderSide(color: Colors.green.shade700),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => EcrImportScreen(username: widget.username),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.drive_folder_upload_rounded, size: 18),
+                        label: const Text('Open ECR Import'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
