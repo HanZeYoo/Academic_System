@@ -1,0 +1,18 @@
+﻿          double wQuiz = (setup['quiz_weight'] as num?)?.toDouble() ?? 0.0;
+          double wAsg = (setup['assignment_weight'] as num?)?.toDouble() ?? 0.0;
+          double wSeatwork = (setup['seatwork_weight'] as num?)?.toDouble() ?? 0.0;
+          double wAct = (setup['activity_weight'] as num?)?.toDouble() ?? 0.0;
+          double wPrj = (setup['project_weight'] as num?)?.toDouble() ?? 0.0;
+          double wRecitation = (setup['recitation_weight'] as num?)?.toDouble() ?? 0.0;
+          double wExm = (setup['exam_weight'] as num?)?.toDouble() ?? 0.0;
+          double wAtt = (setup['attendance_weight'] as num?)?.toDouble() ?? 0.0;
+
+          double catAvg(String cat) {
+            int maxItems = 999;
+            if (cat.toLowerCase() == 'quiz') maxItems = (setup['quizzes'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'assignment') maxItems = (setup['assignments'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'seatwork') maxItems = (setup['seatworks'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'activity') maxItems = (setup['activities'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'project') maxItems = (setup['projects'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'recitation') maxItems = (setup['recitations'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'exam') maxItems = (setup['exams'] as num?)?.toInt() ?? 999;

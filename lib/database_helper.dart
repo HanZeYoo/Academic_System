@@ -595,20 +595,16 @@ class DatabaseHelper {
           double earned = 0.0;
           double totalWeight = 0.0;
           
-          double wQuiz = (setup['quiz_weight'] as num?)?.toDouble() ?? 0.0;
-          double wAsg = (setup['assignment_weight'] as num?)?.toDouble() ?? 0.0;
-          double wAct = (setup['activity_weight'] as num?)?.toDouble() ?? 0.0;
-          double wPrj = (setup['project_weight'] as num?)?.toDouble() ?? 0.0;
-          double wExm = (setup['exam_weight'] as num?)?.toDouble() ?? 0.0;
+          double wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 0.0;
+          double wPT = (setup['pt_weight'] as num?)?.toDouble() ?? 0.0;
+          double wTE = (setup['te_weight'] as num?)?.toDouble() ?? 0.0;
           double wAtt = (setup['attendance_weight'] as num?)?.toDouble() ?? 0.0;
 
           double catAvg(String cat) {
             int maxItems = 999;
-            if (cat.toLowerCase() == 'quiz') maxItems = (setup['quizzes'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'assignment') maxItems = (setup['assignments'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'activity') maxItems = (setup['activities'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'project') maxItems = (setup['projects'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'exam') maxItems = (setup['exams'] as num?)?.toInt() ?? 999;
+            if (cat == 'Written Works') maxItems = (setup['ww_items'] as num?)?.toInt() ?? 999;
+            else if (cat == 'Performance Tasks') maxItems = (setup['pt_items'] as num?)?.toInt() ?? 999;
+            else if (cat == 'Term Exams') maxItems = (setup['te_items'] as num?)?.toInt() ?? 999;
 
             var filtered = scores.where((r) {
               final itemCat = r['category']?.toString() ?? '';
@@ -629,22 +625,18 @@ class DatabaseHelper {
             return (t / m) * 100;
           }
 
-          final qAvg = catAvg('Quiz');
-          if (qAvg >= 0 && wQuiz > 0) { earned += qAvg * (wQuiz / 100); totalWeight += (wQuiz / 100); }
-          final asgAvg = catAvg('Assignment');
-          if (asgAvg >= 0 && wAsg > 0) { earned += asgAvg * (wAsg / 100); totalWeight += (wAsg / 100); }
-          final actAvg = catAvg('Activity');
-          if (actAvg >= 0 && wAct > 0) { earned += actAvg * (wAct / 100); totalWeight += (wAct / 100); }
-          final prjAvg = catAvg('Project');
-          if (prjAvg >= 0 && wPrj > 0) { earned += prjAvg * (wPrj / 100); totalWeight += (wPrj / 100); }
-          final exmAvg = catAvg('Exam');
-          if (exmAvg >= 0 && wExm > 0) { earned += exmAvg * (wExm / 100); totalWeight += (wExm / 100); }
+          final wwAvg = catAvg('Written Works');
+          if (wwAvg >= 0 && wWW > 0) { earned += wwAvg * (wWW / 100); totalWeight += (wWW / 100); }
+          final ptAvg = catAvg('Performance Tasks');
+          if (ptAvg >= 0 && wPT > 0) { earned += ptAvg * (wPT / 100); totalWeight += (wPT / 100); }
+          final teAvg = catAvg('Term Exams');
+          if (teAvg >= 0 && wTE > 0) { earned += teAvg * (wTE / 100); totalWeight += (wTE / 100); }
           
           if (wAtt > 0) { earned += attendancePct * (wAtt / 100); totalWeight += (wAtt / 100); }
 
           if (totalWeight > 0) {
             double initialGrade = earned / totalWeight;
-            sumQ += transmuteGrade(initialGrade);
+            sumQ += initialGrade; // Zero-based grading
             countQ++;
           }
         } else {
@@ -656,7 +648,7 @@ class DatabaseHelper {
           }
           if (m > 0) {
             double initialGrade = (t / m) * 100;
-            sumQ += transmuteGrade(initialGrade);
+            sumQ += initialGrade; // Zero-based grading
             countQ++;
           }
         }
@@ -1602,5 +1594,132 @@ class DatabaseHelper {
       }
     }
     return savedCount;
+  }
+
+  Future<Map<String, dynamic>> getGradeBreakdown({
+    required String studentId,
+    required String subjectCode,
+    required String sectionName,
+    required String gradeLevel,
+    required String gradingPeriod,
+    required String schoolYear,
+  }) async {
+    final setup = await getAssessmentSetup(
+      subjectCode: subjectCode,
+      sectionName: sectionName,
+      gradeLevel: gradeLevel,
+      gradingPeriod: gradingPeriod,
+    );
+
+    final scores = await Supabase.instance.client
+        .from('scores')
+        .select()
+        .eq('student_id', studentId)
+        .eq('subject_code', subjectCode)
+        .eq('grading_period', gradingPeriod)
+        .eq('school_year', schoolYear);
+
+    List<String> parseLabels(dynamic data, int fallbackCount, String prefix) {
+      if (data != null && data is String) {
+        try {
+          final decoded = jsonDecode(data);
+          if (decoded is List && decoded.isNotEmpty) {
+            return decoded.map((e) => e.toString()).toList();
+          }
+        } catch (_) {}
+      } else if (data is List && data.isNotEmpty) {
+        return data.map((e) => e.toString()).toList();
+      }
+      return fallbackCount > 0 ? List.generate(fallbackCount, (i) => '$prefix ${i + 1}') : ['$prefix 1'];
+    }
+
+    List<Map<String, dynamic>> validScores = List.from(scores);
+
+    if (setup != null) {
+      final wwItems = (setup['ww_items'] as int?) ?? 10;
+      final ptItems = (setup['pt_items'] as int?) ?? 10;
+      final teItems = (setup['te_items'] as int?) ?? 1;
+
+      final wwLabels = parseLabels(setup['ww_labels'], wwItems, 'Written Works');
+      final ptLabels = parseLabels(setup['pt_labels'], ptItems, 'Performance Tasks');
+      final teLabels = parseLabels(setup['te_labels'], teItems, 'Term Exams');
+      
+      validScores = validScores.where((s) {
+        final cat = s['category'].toString();
+        final label = s['item_label'].toString();
+        
+        if (cat == 'Written Works') return wwLabels.contains(label);
+        if (cat == 'Performance Tasks') return ptLabels.contains(label);
+        if (cat == 'Term Exams') return teLabels.contains(label);
+        return false;
+      }).toList();
+    }
+
+    // If no setup, compute raw average
+    if (setup == null) {
+      double total = 0, max = 0;
+      for (final r in validScores) {
+        total += (r['score'] as num?)?.toDouble() ?? 0;
+        max += (r['total_score'] as num?)?.toDouble() ?? 0;
+      }
+      double initial = max > 0 ? (total / max) * 100 : 0.0;
+      double finalGrade = initial; // Zero-based, no transmutation
+      return {
+        'hasSetup': false,
+        'initialGrade': initial,
+        'finalGrade': finalGrade,
+        'rawScores': validScores,
+      };
+    }
+
+    // With setup, compute breakdown
+    double wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 0.0;
+    double wPT = (setup['pt_weight'] as num?)?.toDouble() ?? 0.0;
+    double wTE = (setup['te_weight'] as num?)?.toDouble() ?? 0.0;
+
+    Map<String, dynamic> computeCat(String cat, double weight) {
+      var filtered = validScores.where((s) => s['category'] == cat).toList();
+      double t = 0, m = 0;
+      for (var s in filtered) {
+        t += (s['score'] as num?)?.toDouble() ?? 0;
+        m += (s['total_score'] as num?)?.toDouble() ?? 0;
+      }
+      double avg = m > 0 ? (t / m) * 100 : 0.0;
+      double earned = avg * (weight / 100);
+      return {
+        'weight': weight,
+        'average': avg,
+        'earned': earned,
+        'scores': filtered,
+      };
+    }
+
+    final wwData = computeCat('Written Works', wWW);
+    final ptData = computeCat('Performance Tasks', wPT);
+    final teData = computeCat('Term Exams', wTE);
+
+    double totalEarned = (wwData['earned'] as double) +
+        (ptData['earned'] as double) +
+        (teData['earned'] as double);
+
+    double totalWeight = 0;
+    if (wwData['scores'].isNotEmpty) totalWeight += wWW / 100;
+    if (ptData['scores'].isNotEmpty) totalWeight += wPT / 100;
+    if (teData['scores'].isNotEmpty) totalWeight += wTE / 100;
+
+    double initialGrade = totalWeight > 0 ? totalEarned / totalWeight : 0.0;
+    double finalGrade = initialGrade; // Zero-based, no transmutation
+
+    return {
+      'hasSetup': true,
+      'initialGrade': initialGrade,
+      'finalGrade': finalGrade,
+      'components': {
+        'Written Works': wwData,
+        'Performance Tasks': ptData,
+        'Term Exams': teData,
+      },
+      'rawScores': validScores,
+    };
   }
 }

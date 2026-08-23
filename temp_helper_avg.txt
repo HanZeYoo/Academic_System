@@ -1,0 +1,61 @@
+﻿          double earned = 0.0;
+          double totalWeight = 0.0;
+          
+          double wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 0.0;
+          double wPT = (setup['pt_weight'] as num?)?.toDouble() ?? 0.0;
+          double wTE = (setup['te_weight'] as num?)?.toDouble() ?? 0.0;
+          double wAtt = (setup['attendance_weight'] as num?)?.toDouble() ?? 0.0;
+
+          double catAvg(String cat) {
+            int maxItems = 999;
+            if (cat == 'Written Works') maxItems = (setup['ww_items'] as num?)?.toInt() ?? 999;
+            else if (cat == 'Performance Tasks') maxItems = (setup['pt_items'] as num?)?.toInt() ?? 999;
+            else if (cat == 'Term Exams') maxItems = (setup['te_items'] as num?)?.toInt() ?? 999;
+
+            var filtered = scores.where((r) {
+              final itemCat = r['category']?.toString() ?? '';
+              final itemLabel = r['item_label']?.toString() ?? '';
+              if (itemCat != cat) return false;
+              int? num = int.tryParse(itemLabel.replaceAll(RegExp(r'[^0-9]'), ''));
+              if (num != null && num > maxItems) return false;
+              return true;
+            }).toList();
+
+            if (filtered.isEmpty) return -1.0;
+            double t = 0, m = 0;
+            for (var r in filtered) {
+              t += (r['score'] as num?)?.toDouble() ?? 0;
+              m += (r['total_score'] as num?)?.toDouble() ?? 0;
+            }
+            if (m == 0) return 0.0;
+            return (t / m) * 100;
+          }
+
+          final wwAvg = catAvg('Written Works');
+          if (wwAvg >= 0 && wWW > 0) { earned += wwAvg * (wWW / 100); totalWeight += (wWW / 100); }
+          final ptAvg = catAvg('Performance Tasks');
+          if (ptAvg >= 0 && wPT > 0) { earned += ptAvg * (wPT / 100); totalWeight += (wPT / 100); }
+          final teAvg = catAvg('Term Exams');
+          if (teAvg >= 0 && wTE > 0) { earned += teAvg * (wTE / 100); totalWeight += (wTE / 100); }
+          
+          if (wAtt > 0) { earned += attendancePct * (wAtt / 100); totalWeight += (wAtt / 100); }
+
+          if (totalWeight > 0) {
+            double initialGrade = earned / totalWeight;
+            sumQ += initialGrade; // Zero-based, no transmutation
+            countQ++;
+          }
+        } else {
+          // Fallback if no setup is available
+          double t = 0, m = 0;
+          for (var r in scores) {
+            t += (r['score'] as num?)?.toDouble() ?? 0;
+            m += (r['total_score'] as num?)?.toDouble() ?? 0;
+          }
+          if (m > 0) {
+            double initialGrade = (t / m) * 100;
+            sumQ += initialGrade; // Zero-based, no transmutation
+            countQ++;
+          }
+        }
+      }

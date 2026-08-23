@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
 import 'announcement_management_screen.dart';
@@ -43,7 +43,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     final student = await dbHelper.getStudentByEmail(widget.username);
     final gradeLevel = student?['grade_level'] ?? '';
     final sectionName = student?['section'] ?? '';
-    const gradingPeriod = '1st Quarter'; // Assuming first quarter for dashboard view
+    const gradingPeriod = '1st Term'; // Assuming first quarter for dashboard view
 
     if (student != null && student['name'] != null) {
       _studentName = student['name'];
@@ -532,7 +532,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             ),
             const SizedBox(height: 4),
             const Text(
-              'SY 2026-2027 | 1st Quarter',
+              'SY 2026-2027 | 1st Term',
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey,
@@ -839,3 +839,4 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     }
   }
 }
+

@@ -15,12 +15,11 @@ class FailureAnalyticsScreen extends StatefulWidget {
 class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
   final DatabaseHelper db = DatabaseHelper();
   bool _isLoading = true;
-  String _selectedPeriod = '1st Quarter';
+  String _selectedPeriod = '1st Term';
   static const _periods = [
-    '1st Quarter',
-    '2nd Quarter',
-    '3rd Quarter',
-    '4th Quarter',
+    '1st Term',
+    '2nd Term',
+    '3rd Term',
   ];
 
   // Data stores
@@ -166,11 +165,9 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
           }
 
           if (grade < 80) {
-            final qAvg = _categoryAvg(studentId, 'Quiz', scores, setup);
-            final asgAvg = _categoryAvg(studentId, 'Assignment', scores, setup);
-            final actAvg = _categoryAvg(studentId, 'Activity', scores, setup);
-            final prjAvg = _categoryAvg(studentId, 'Project', scores, setup);
-            final exmAvg = _categoryAvg(studentId, 'Exam', scores, setup);
+            final wwAvg = _categoryAvg(studentId, 'Written Works', scores, setup);
+            final ptAvg = _categoryAvg(studentId, 'Performance Tasks', scores, setup);
+            final teAvg = _categoryAvg(studentId, 'Term Exams', scores, setup);
             final attendanceStats = await db.getStudentAttendanceStats(studentId, setup?['school_year']);
 
             _atRiskStudents.add({
@@ -185,11 +182,9 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
               'rawGrade': grade,
               'attendanceStats': attendanceStats,
               'breakdown': {
-                'Quiz': qAvg.toStringAsFixed(1),
-                'Assignment': asgAvg.toStringAsFixed(1),
-                'Activity': actAvg.toStringAsFixed(1),
-                'Project': prjAvg.toStringAsFixed(1),
-                'Exam': exmAvg.toStringAsFixed(1),
+                'Written Works': wwAvg.toStringAsFixed(1),
+                'Performance Tasks': ptAvg.toStringAsFixed(1),
+                'Term Exams': teAvg.toStringAsFixed(1),
               },
             });
           }
@@ -305,11 +300,9 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
     });
 
     String pluralCategory = lowestCategory;
-    if (lowestCategory == 'Quiz') pluralCategory = 'Quizzes';
-    else if (lowestCategory == 'Assignment') pluralCategory = 'Assignments';
-    else if (lowestCategory == 'Activity') pluralCategory = 'Activities';
-    else if (lowestCategory == 'Project') pluralCategory = 'Projects';
-    else if (lowestCategory == 'Exam') pluralCategory = 'Exams';
+    if (lowestCategory == 'Written Works') pluralCategory = 'Written Works';
+    else if (lowestCategory == 'Performance Tasks') pluralCategory = 'Performance Tasks';
+    else if (lowestCategory == 'Term Exams') pluralCategory = 'Term Exams';
 
     String reasonText = lowestCategory.isNotEmpty ? ' primarily due to low scores in $pluralCategory' : '';
 
@@ -404,11 +397,9 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 8),
-            buildBreakdownRow('Quizzes', breakdown['Quiz']),
-            buildBreakdownRow('Assignments', breakdown['Assignment']),
-            buildBreakdownRow('Activities', breakdown['Activity']),
-            buildBreakdownRow('Projects', breakdown['Project']),
-            buildBreakdownRow('Exams', breakdown['Exam']),
+            buildBreakdownRow('Written Works', breakdown['Written Works'] ?? '0.0'),
+            buildBreakdownRow('Performance Tasks', breakdown['Performance Tasks'] ?? '0.0'),
+            buildBreakdownRow('Term Exams', breakdown['Term Exams'] ?? '0.0'),
             if (student['attendanceStats'] != null) ...[
               const SizedBox(height: 12),
               const Divider(),
@@ -497,11 +488,9 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
     });
 
     String pluralCategory = lowestCategory;
-    if (lowestCategory == 'Quiz') pluralCategory = 'Quizzes';
-    else if (lowestCategory == 'Assignment') pluralCategory = 'Assignments';
-    else if (lowestCategory == 'Activity') pluralCategory = 'Activities';
-    else if (lowestCategory == 'Project') pluralCategory = 'Projects';
-    else if (lowestCategory == 'Exam') pluralCategory = 'Exams';
+    if (lowestCategory == 'Written Works') pluralCategory = 'Written Works';
+    else if (lowestCategory == 'Performance Tasks') pluralCategory = 'Performance Tasks';
+    else if (lowestCategory == 'Term Exams') pluralCategory = 'Term Exams';
 
     String reasonText = lowestCategory.isNotEmpty ? ' primarily due to low scores in $pluralCategory' : '';
 
@@ -586,25 +575,16 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
     double attendancePct,
   ) {
     if (setup != null) {
-      final wQuiz = (setup['quiz_weight'] as num?)?.toDouble() ?? 20;
-      final wAssignment =
-          (setup['assignment_weight'] as num?)?.toDouble() ?? 15;
-      final wActivity = (setup['activity_weight'] as num?)?.toDouble() ?? 20;
-      final wProject = (setup['project_weight'] as num?)?.toDouble() ?? 15;
-      final wExam = (setup['exam_weight'] as num?)?.toDouble() ?? 30;
+      final wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 30;
+      final wPT = (setup['pt_weight'] as num?)?.toDouble() ?? 50;
+      final wTE = (setup['te_weight'] as num?)?.toDouble() ?? 20;
       final wAttendance = (setup['attendance_weight'] as num?)?.toDouble() ?? 0;
 
-      final qAvg = _categoryAvg(studentId, 'Quiz', allScores, setup);
-      final asgAvg = _categoryAvg(studentId, 'Assignment', allScores, setup);
-      final actAvg = _categoryAvg(studentId, 'Activity', allScores, setup);
-      final prjAvg = _categoryAvg(studentId, 'Project', allScores, setup);
-      final exmAvg = _categoryAvg(studentId, 'Exam', allScores, setup);
+      final wwAvg = _categoryAvg(studentId, 'Written Works', allScores, setup);
+      final ptAvg = _categoryAvg(studentId, 'Performance Tasks', allScores, setup);
+      final teAvg = _categoryAvg(studentId, 'Term Exams', allScores, setup);
 
-      if (qAvg == 0 &&
-          asgAvg == 0 &&
-          actAvg == 0 &&
-          prjAvg == 0 &&
-          exmAvg == 0) {
+      if (wwAvg == 0 && ptAvg == 0 && teAvg == 0) {
         if (allScores
             .where((r) => r['student_id'].toString() == studentId)
             .isEmpty)
@@ -614,17 +594,13 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
       double totalWeight = 0;
       double earned = 0;
       
-      bool hasQuiz = allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'quiz');
-      bool hasAsg = allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'assignment');
-      bool hasAct = allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'activity');
-      bool hasPrj = allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'project');
-      bool hasExm = allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'exam');
+      bool hasWW = allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'written works');
+      bool hasPT = allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'performance tasks');
+      bool hasTE = allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'term exams');
 
-      if (hasQuiz) { earned += qAvg * (wQuiz / 100); totalWeight += (wQuiz / 100); }
-      if (hasAsg) { earned += asgAvg * (wAssignment / 100); totalWeight += (wAssignment / 100); }
-      if (hasAct) { earned += actAvg * (wActivity / 100); totalWeight += (wActivity / 100); }
-      if (hasPrj) { earned += prjAvg * (wProject / 100); totalWeight += (wProject / 100); }
-      if (hasExm) { earned += exmAvg * (wExam / 100); totalWeight += (wExam / 100); }
+      if (hasWW) { earned += wwAvg * (wWW / 100); totalWeight += (wWW / 100); }
+      if (hasPT) { earned += ptAvg * (wPT / 100); totalWeight += (wPT / 100); }
+      if (hasTE) { earned += teAvg * (wTE / 100); totalWeight += (wTE / 100); }
       
       if (wAttendance > 0) {
         earned += attendancePct * (wAttendance / 100);
@@ -632,8 +608,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
       }
 
       if (totalWeight == 0) return 0.0;
-      final initialGrade = earned / totalWeight;
-      return DatabaseHelper().transmuteGrade(initialGrade);
+      return earned / totalWeight;
     }
 
     final s = allScores
@@ -646,8 +621,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
       max += (r['total_score'] as num?)?.toDouble() ?? 0;
     }
     if (max == 0) return 0.0;
-    final initialGrade = (total / max) * 100;
-    return DatabaseHelper().transmuteGrade(initialGrade);
+    return (total / max) * 100;
   }
 
   double _categoryAvg(
@@ -656,30 +630,11 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
     List<Map<String, dynamic>> allScores,
     Map<String, dynamic>? setup,
   ) {
-    int maxItems = 999;
-    if (setup != null) {
-      if (category.toLowerCase() == 'quiz') maxItems = (setup['quizzes'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'assignment') maxItems = (setup['assignments'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'activity') maxItems = (setup['activities'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'project') maxItems = (setup['projects'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'exam') maxItems = (setup['exams'] as num?)?.toInt() ?? 999;
-    }
-
     final s = allScores
-        .where((r) {
-          if (r['student_id'].toString() != studentId) return false;
-          if (r['category'].toString().toLowerCase() != category.toLowerCase()) return false;
-          
-          // Filter by setup limit
-          final itemLabel = r['item_label'].toString(); // e.g., "Quiz 4"
-          final parts = itemLabel.split(' ');
-          if (parts.length > 1) {
-            final itemNum = int.tryParse(parts.last);
-            if (itemNum != null && itemNum > maxItems) return false;
-          }
-          return true;
-        })
-        .toList();
+        .where((r) => 
+          r['student_id'].toString() == studentId && 
+          r['category'].toString().toLowerCase() == category.toLowerCase()
+        ).toList();
 
     if (s.isEmpty) return 0.0;
     double total = 0, max = 0;
@@ -1321,7 +1276,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
                       ),
                     ),
                     const Text(
-                      '•',
+                      'â€¢',
                       style: TextStyle(color: Colors.grey, fontSize: 10),
                     ),
                     Text(
@@ -1346,7 +1301,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
                       ),
                     ),
                     const Text(
-                      '•',
+                      'â€¢',
                       style: TextStyle(color: Colors.grey, fontSize: 10),
                     ),
                     Text(
@@ -1412,3 +1367,5 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
     );
   }
 }
+
+

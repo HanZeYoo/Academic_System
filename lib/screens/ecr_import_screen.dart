@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+﻿import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
@@ -27,7 +27,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
   String? _teacherName;
   List<Map<String, dynamic>> _assignedClasses = [];
   Map<String, dynamic>? _selectedClassRecord;
-  String _selectedPeriod = '1st Quarter';
+  String _selectedPeriod = '1st Term';
 
   // Parser & Engine
   final EcrParserService _parserService = EcrParserService();
@@ -72,7 +72,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     });
   }
 
-  // ── STEP 1: PICK AND PARSE FILE ──────────────────────────────────────────
+  // â”€â”€ STEP 1: PICK AND PARSE FILE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _pickAndParseFile() async {
     if (_selectedClassRecord == null) {
@@ -161,7 +161,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     }
   }
 
-  // ── STEP 2: RE-EVALUATE MAPPINGS ─────────────────────────────────────────
+  // â”€â”€ STEP 2: RE-EVALUATE MAPPINGS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _reevaluateMappings() {
     if (_parseResult == null) return;
@@ -180,7 +180,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     });
   }
 
-  // ── STEP 3: RUN FULL VALIDATION ──────────────────────────────────────────
+  // â”€â”€ STEP 3: RUN FULL VALIDATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _proceedToValidation() {
     if (_parseResult == null) return;
@@ -196,7 +196,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     });
   }
 
-  // ── STEP 4: SAVE TO SUPABASE & PERSIST TEMPLATE ─────────────────────────
+  // â”€â”€ STEP 4: SAVE TO SUPABASE & PERSIST TEMPLATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _executeSave({bool skipErrors = false}) async {
     if (_parseResult == null || _selectedClassRecord == null) return;
@@ -331,7 +331,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     return 'Quiz';
   }
 
-  // ── BUILD UI ─────────────────────────────────────────────────────────────
+  // â”€â”€ BUILD UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   Widget build(BuildContext context) {
@@ -373,7 +373,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // ── ANIMATED LOADING SCREEN ──────────────────────────────────────────────
+  // â”€â”€ ANIMATED LOADING SCREEN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildLoadingScreen() {
     return Center(
@@ -476,7 +476,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // ── HEADER CONTEXT CARD ──────────────────────────────────────────────────
+  // â”€â”€ HEADER CONTEXT CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildHeaderContextCard() {
     return Card(
@@ -524,10 +524,9 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                           items: const [
-                            DropdownMenuItem(value: '1st Quarter', child: Text('1st Quarter')),
-                            DropdownMenuItem(value: '2nd Quarter', child: Text('2nd Quarter')),
-                            DropdownMenuItem(value: '3rd Quarter', child: Text('3rd Quarter')),
-                            DropdownMenuItem(value: '4th Quarter', child: Text('4th Quarter')),
+                            DropdownMenuItem(value: '1st Term', child: Text('1st Term')),
+                            DropdownMenuItem(value: '2nd Term', child: Text('2nd Term')),
+                            DropdownMenuItem(value: '3rd Term', child: Text('3rd Term')),
                           ],
                           onChanged: (val) {
                             if (val != null) setState(() => _selectedPeriod = val);
@@ -545,7 +544,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // ── STEP INDICATOR ───────────────────────────────────────────────────────
+  // â”€â”€ STEP INDICATOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildStepIndicator() {
     final steps = ['1. Upload File', '2. Confirm Mapping', '3. Validate', '4. Complete'];
@@ -580,7 +579,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // ── STEP 1: UPLOAD CARD ──────────────────────────────────────────────────
+  // â”€â”€ STEP 1: UPLOAD CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildUploadStep() {
     return Card(
@@ -631,7 +630,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // ── STEP 2: MAPPING CONFIRMATION STEP ────────────────────────────────────
+  // â”€â”€ STEP 2: MAPPING CONFIRMATION STEP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildMappingStep() {
     if (_parseResult == null) return const SizedBox();
@@ -870,7 +869,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // ── STEP 3: VALIDATION SUMMARY STEP ──────────────────────────────────────
+  // â”€â”€ STEP 3: VALIDATION SUMMARY STEP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildValidationStep() {
     if (_validationSummary == null) return const SizedBox();
@@ -1003,7 +1002,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // ── STEP 4: SUCCESS STEP ─────────────────────────────────────────────────
+  // â”€â”€ STEP 4: SUCCESS STEP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildSuccessStep() {
     return Card(
@@ -1058,3 +1057,5 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 }
+
+

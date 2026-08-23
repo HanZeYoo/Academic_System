@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../database_helper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -30,12 +30,11 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
   // Trend Data (Q1, Q2, Q3, Q4)
   List<double> _trendData = [0.0, 0.0, 0.0, 0.0];
 
-  String _selectedPeriod = '1st Quarter';
+  String _selectedPeriod = '1st Term';
   static const _periods = [
-    '1st Quarter',
-    '2nd Quarter',
-    '3rd Quarter',
-    '4th Quarter',
+    '1st Term',
+    '2nd Term',
+    '3rd Term',
   ];
 
   @override
@@ -202,7 +201,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
       _failureRates.sort((a, b) => (b['rate'] as double).compareTo(a['rate'] as double));
       
       // Calculate Trend Data (Q1, Q2, Q3, Q4)
-      List<String> quarters = ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'];
+      List<String> quarters = ['1st Term', '2nd Term', '3rd Term'];
       _trendData.clear();
       final allScores = await Supabase.instance.client.from('scores').select();
       
@@ -791,3 +790,5 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
     );
   }
 }
+
+

@@ -1,12 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import 'school_year_rollover_screen.dart';
 
 const List<String> _kQuarters = [
-  '1st Quarter',
-  '2nd Quarter',
-  '3rd Quarter',
-  '4th Quarter',
+  '1st Term',
+  '2nd Term',
+  '3rd Term',
 ];
 
 class SettingsScreen extends StatefulWidget {
@@ -722,3 +721,5 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
+
+

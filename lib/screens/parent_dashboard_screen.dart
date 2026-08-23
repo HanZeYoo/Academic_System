@@ -90,7 +90,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     final studentEmail = student['email'] ?? '';
     final gradeLevel = student['grade_level'] ?? '';
     final sectionName = student['section'] ?? '';
-    const gradingPeriod = '1st Quarter';
+    const gradingPeriod = '1st Term';
 
     _schedule = await dbHelper.getStudentSchedule(studentEmail);
 
@@ -233,6 +233,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       }
 
       _subjectGrades.add({
+        'studentId': student['student_id']?.toString() ?? '',
+        'section': sectionName,
+        'gradeLevel': gradeLevel,
+        'gradingPeriod': gradingPeriod,
+        'schoolYear': _selectedSchoolYear ?? '',
         'subjectName': subjectName,
         'subjectCode': subjectCode,
         'grade': grade,
@@ -286,14 +291,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  // ─── Helpers ────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Map<String, dynamic>? get _selectedChild =>
       _children.isNotEmpty ? _children[_selectedChildIndex] : null;
 
   String get _selectedChildEmail => _selectedChild?['email'] ?? '';
 
-  // ─── Scaffold ───────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Scaffold â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   Widget build(BuildContext context) {
@@ -399,7 +404,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  // ─── Drawer ─────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildDrawer() {
     return Drawer(
@@ -503,7 +508,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  // ─── Body Router ────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Body Router â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildBody() {
     if (_selectedMenu == 'Settings') {
@@ -542,7 +547,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     return _buildDashboard();
   }
 
-  // ─── No Child View ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ No Child View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildNoChildView() {
     return Center(
@@ -570,7 +575,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  // ─── Child Selector (shared widget) ─────────────────────────────────────────
+  // â”€â”€â”€ Child Selector (shared widget) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildChildSelector() {
     if (_children.length <= 1) return const SizedBox.shrink();
@@ -670,7 +675,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  // ─── Dashboard Screen ────────────────────────────────────────────────────────
+  // â”€â”€â”€ Dashboard Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildDashboard() {
     final child = _selectedChild!;
@@ -704,7 +709,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   color: Color(0xFF224A60)),
             ),
             const SizedBox(height: 4),
-            const Text('SY 2026-2027 | 1st Quarter',
+            const Text('SY 2026-2027 | 1st Term',
                 style: TextStyle(fontSize: 13, color: Colors.grey)),
             const SizedBox(height: 20),
 
@@ -830,7 +835,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  // ─── My Child Screen ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ My Child Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildMyChildScreen() {
     final child = _selectedChild!;
@@ -980,7 +985,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  // ─── Intervention Plan Screen ────────────────────────────────────────────────
+  // â”€â”€â”€ Intervention Plan Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildInterventionPlanScreen() {
     // Identify at-risk subjects (grade > 0 && grade < 75)
@@ -1226,7 +1231,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('• ',
+          const Text('â€¢ ',
               style: TextStyle(color: Color(0xFF3383B3), fontSize: 14)),
           Expanded(
               child: Text(text,
@@ -1284,7 +1289,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  // ─── Notifications Screen ────────────────────────────────────────────────────
+  // â”€â”€â”€ Notifications Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildNotificationsScreen() {
     final List<Map<String, dynamic>> notifications = [];
@@ -1427,7 +1432,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  // ─── Parent-specific Grades Screen ──────────────────────────────────────────
+  // â”€â”€â”€ Parent-specific Grades Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildGradesScreen() {
     return RefreshIndicator(
@@ -1451,7 +1456,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('Grades', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
-                    Text('${_selectedChild?['name'] ?? ''} · 1st Quarter', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text('${_selectedChild?['name'] ?? ''} Â· 1st Term', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                   ],
                 ),
               ],
@@ -1478,7 +1483,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        _overallAverage >= 90 ? '🏅 Excellent' : _overallAverage >= 75 ? '✅ Passing' : _overallAverage > 0 ? '⚠️ Needs Improvement' : 'No grades yet',
+                        _overallAverage >= 90 ? 'ðŸ… Excellent' : _overallAverage >= 75 ? 'âœ… Passing' : _overallAverage > 0 ? 'âš ï¸ Needs Improvement' : 'No grades yet',
                         style: const TextStyle(color: Colors.white70, fontSize: 13),
                       ),
                     ],
@@ -1615,7 +1620,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  // ─── Parent-specific Attendance Screen ──────────────────────────────────────
+  // â”€â”€â”€ Parent-specific Attendance Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildAttendanceScreen() {
     return _ParentAttendanceWidget(
@@ -1625,7 +1630,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  // ─── Reusable Widgets ────────────────────────────────────────────────────────
+  // â”€â”€â”€ Reusable Widgets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _statCard(String title, String value, IconData icon, Color color) {
     return Container(
@@ -1658,6 +1663,148 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
+  void _showGradeBreakdownDialog(Map<String, dynamic> subject) async {
+    final studentId = subject['studentId']?.toString();
+    final subjectCode = subject['subjectCode']?.toString();
+    final section = subject['section']?.toString();
+    final gradeLevel = subject['gradeLevel']?.toString();
+    final gradingPeriod = subject['gradingPeriod']?.toString();
+    final schoolYear = subject['schoolYear']?.toString();
+
+    if (studentId == null || studentId.isEmpty || subjectCode == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final breakdown = await DatabaseHelper().getGradeBreakdown(
+        studentId: studentId,
+        subjectCode: subjectCode,
+        sectionName: section ?? '',
+        gradeLevel: gradeLevel ?? '',
+        gradingPeriod: gradingPeriod ?? '1st Term',
+        schoolYear: schoolYear ?? '',
+      );
+
+      if (mounted) Navigator.pop(context); // Close loading dialog
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${subject['subjectName']} Breakdown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 4),
+              Text(gradingPeriod ?? '1st Term', style: const TextStyle(fontSize: 13, color: Colors.grey)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (breakdown['hasSetup'] == false) ...[
+                  const Text('No detailed weight setup for this subject yet. Computed using raw averages.',
+                      style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
+                  const SizedBox(height: 12),
+                  const Text('Raw Scores:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  ...((breakdown['rawScores'] as List).map((score) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(child: Text('${score['category']} - ${score['item_label']}')),
+                          Text('${score['score']}/${score['total_score']}'),
+                        ],
+                      ),
+                    );
+                  })).toList(),
+                ] else ...[
+                  ...((breakdown['components'] as Map<String, dynamic>).entries.where((e) => e.value['weight'] > 0).map((e) {
+                    final cat = e.key;
+                    final data = e.value;
+                    final scores = data['scores'] as List;
+                    
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.blueGrey.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('$cat (${data['weight']}%)', style: const TextStyle(fontWeight: FontWeight.bold)),
+                              Text('${data['average'].toStringAsFixed(1)}% Avg', style: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                        if (scores.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          ...scores.map((score) => Padding(
+                            padding: const EdgeInsets.only(left: 12, right: 12, bottom: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(child: Text('â€¢ ${score['item_label']}', style: const TextStyle(fontSize: 12))),
+                                Text('${score['score']}/${score['total_score']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                              ],
+                            ),
+                          )).toList(),
+                        ] else ...[
+                          const Padding(
+                            padding: EdgeInsets.only(left: 12, top: 4),
+                            child: Text('No recorded scores.', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey)),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                      ],
+                    );
+                  })).toList(),
+                ],
+                const Divider(),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Initial Computed Grade:', style: TextStyle(fontWeight: FontWeight.w600)),
+                    Text(breakdown['initialGrade'].toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Zero-based Final Grade:', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1664C5))),
+                    Text(breakdown['finalGrade'].toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1664C5))),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error loading breakdown: $e')));
+      }
+    }
+  }
+
   Widget _subjectCard(Map<String, dynamic> subject) {
     final Color color = subject['color'] as Color;
     final double grade = subject['grade'] as double;
@@ -1665,7 +1812,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -1676,93 +1822,103 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               offset: const Offset(0, 3)),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(Icons.book_rounded, color: color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _showGradeBreakdownDialog(subject),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(subject['subjectName'],
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Color(0xFF224A60))),
-                    const SizedBox(height: 2),
-                    Text('${subject['schedule']} • ${subject['time']}',
-                        style:
-                            TextStyle(color: Colors.grey[600], fontSize: 11)),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.book_rounded, color: color, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(subject['subjectName'],
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: Color(0xFF224A60))),
+                          const SizedBox(height: 2),
+                          Text('${subject['schedule']} â€¢ ${subject['time']}',
+                              style:
+                                  TextStyle(color: Colors.grey[600], fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          grade > 0 ? grade.toStringAsFixed(1) : 'N/A',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 17,
+                              color: Color(0xFF224A60)),
+                        ),
+                        const SizedBox(height: 3),
+                        Container(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(subject['status'],
+                              style: TextStyle(
+                                  color: color,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    grade > 0 ? grade.toStringAsFixed(1) : 'N/A',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 17,
-                        color: Color(0xFF224A60)),
-                  ),
-                  const SizedBox(height: 3),
+                if (remark.isNotEmpty) ...[
+                  const SizedBox(height: 12),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
+                      color: Colors.grey.shade50,
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade200),
                     ),
-                    child: Text(subject['status'],
-                        style: TextStyle(
-                            color: color,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          if (remark.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.format_quote, color: color.withOpacity(0.6), size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Teacher\'s Feedback', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
-                        const SizedBox(height: 4),
-                        Text(remark, style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black87)),
+                        Icon(Icons.format_quote, color: color.withOpacity(0.6), size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Teacher\'s Feedback', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+                              const SizedBox(height: 4),
+                              Text(remark, style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black87)),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ],
-              ),
+              ],
             ),
-          ],
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -1829,7 +1985,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   }
 }
 
-// ─── Parent Attendance Widget (separate StatefulWidget for data fetching) ─────
+// â”€â”€â”€ Parent Attendance Widget (separate StatefulWidget for data fetching) â”€â”€â”€â”€â”€
 
 class _ParentAttendanceWidget extends StatefulWidget {
   final String studentEmail;
@@ -1932,7 +2088,7 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF224A60))),
                   Text(
-                    '${widget.studentName} · 1st Quarter',
+                    '${widget.studentName} Â· 1st Term',
                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],
@@ -2114,3 +2270,4 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
     );
   }
 }
+

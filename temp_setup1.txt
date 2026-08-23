@@ -1,0 +1,45 @@
+﻿  // --- Component counts ---
+  int _ww = 10;
+  int _pt = 10;
+  int _te = 1;
+
+  // --- Weight controllers ---
+  final TextEditingController _wwWeightCtrl = TextEditingController(text: '30');
+  final TextEditingController _ptWeightCtrl = TextEditingController(text: '50');
+  final TextEditingController _teWeightCtrl = TextEditingController(text: '20');
+  final TextEditingController _attendanceWeightCtrl = TextEditingController(text: '0');
+
+  int get _wwWeight => int.tryParse(_wwWeightCtrl.text) ?? 0;
+  int get _ptWeight => int.tryParse(_ptWeightCtrl.text) ?? 0;
+  int get _teWeight => int.tryParse(_teWeightCtrl.text) ?? 0;
+  int get _attendanceWeight => int.tryParse(_attendanceWeightCtrl.text) ?? 0;
+  
+  int get _totalWeight =>
+      _wwWeight + _ptWeight + _teWeight + _attendanceWeight;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final c in [
+      _wwWeightCtrl,
+      _ptWeightCtrl,
+      _teWeightCtrl,
+      _attendanceWeightCtrl
+    ]) {
+      c.addListener(() => setState(() {}));
+    }
+    _loadClasses();
+  }
+
+  @override
+  void dispose() {
+    for (final c in [
+      _wwWeightCtrl,
+      _ptWeightCtrl,
+      _teWeightCtrl,
+      _attendanceWeightCtrl
+    ]) {
+      c.dispose();
+    }
+    super.dispose();
+  }

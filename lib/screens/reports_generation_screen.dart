@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database_helper.dart';
@@ -16,8 +16,8 @@ class _ReportsGenerationScreenState extends State<ReportsGenerationScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _classes = [];
   Map<String, dynamic>? _selectedClassData;
-  String _selectedPeriod = '1st Quarter';
-  static const _periods = ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'];
+  String _selectedPeriod = '1st Term';
+  static const _periods = ['1st Term', '2nd Term', '3rd Term'];
   String _selectedReportCategory = 'Student Performance';
   bool _isGenerating = false;
   List<Map<String, dynamic>> _recentReports = [];
@@ -486,7 +486,7 @@ class _ReportsGenerationScreenState extends State<ReportsGenerationScreen> {
                     icon,
                     color,
                     '${report['category']}',
-                    '${report['className']} • ${report['period']}',
+                    '${report['className']} â€¢ ${report['period']}',
                     'Ready',
                     const Color(0xFFD4EED9),
                     const Color(0xFF4DC271),
@@ -805,3 +805,5 @@ class _ReportsGenerationScreenState extends State<ReportsGenerationScreen> {
     }
   }
 }
+
+

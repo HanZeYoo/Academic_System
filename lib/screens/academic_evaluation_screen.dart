@@ -19,7 +19,7 @@ class _AcademicEvaluationScreenState
   bool _isLoading = true;
   List<Map<String, dynamic>> _classes = [];
   Map<String, dynamic>? _selectedClassData;
-  String _selectedPeriod = '1st Quarter';
+  String _selectedPeriod = '1st Term';
   String _searchQuery = '';
   bool _showOnlyAtRisk = false;
   final _searchController = TextEditingController();
@@ -30,10 +30,9 @@ class _AcademicEvaluationScreenState
   Map<String, dynamic>? _assessmentSetup;
 
   static const _periods = [
-    '1st Quarter',
-    '2nd Quarter',
-    '3rd Quarter',
-    '4th Quarter'
+    '1st Term',
+    '2nd Term',
+    '3rd Term'
   ];
 
   @override
@@ -136,34 +135,26 @@ class _AcademicEvaluationScreenState
 
   double _computeGrade(String studentId) {
     if (_assessmentSetup != null) {
-      final wQuiz = (_assessmentSetup!['quiz_weight'] as num?)?.toDouble() ?? 20;
-      final wAssignment = (_assessmentSetup!['assignment_weight'] as num?)?.toDouble() ?? 15;
-      final wActivity = (_assessmentSetup!['activity_weight'] as num?)?.toDouble() ?? 20;
-      final wProject = (_assessmentSetup!['project_weight'] as num?)?.toDouble() ?? 15;
-      final wExam = (_assessmentSetup!['exam_weight'] as num?)?.toDouble() ?? 30;
+      final wWW = (_assessmentSetup!['ww_weight'] as num?)?.toDouble() ?? 30;
+      final wPT = (_assessmentSetup!['pt_weight'] as num?)?.toDouble() ?? 50;
+      final wTE = (_assessmentSetup!['te_weight'] as num?)?.toDouble() ?? 20;
       final wAttendance = (_assessmentSetup!['attendance_weight'] as num?)?.toDouble() ?? 0;
 
-      final qAvg = _categoryAvg(studentId, 'Quiz');
-      final asgAvg = _categoryAvg(studentId, 'Assignment');
-      final actAvg = _categoryAvg(studentId, 'Activity');
-      final prjAvg = _categoryAvg(studentId, 'Project');
-      final exmAvg = _categoryAvg(studentId, 'Exam');
+      final wwAvg = _categoryAvg(studentId, 'Written Works');
+      final ptAvg = _categoryAvg(studentId, 'Performance Tasks');
+      final teAvg = _categoryAvg(studentId, 'Term Exams');
       final attAvg = _attendancePct(studentId);
 
       double totalWeight = 0;
       double earned = 0;
 
-      bool hasQuiz = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'quiz');
-      bool hasAsg = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'assignment');
-      bool hasAct = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'activity');
-      bool hasPrj = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'project');
-      bool hasExm = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'exam');
+      bool hasWW = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'written works');
+      bool hasPT = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'performance tasks');
+      bool hasTE = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'term exams');
 
-      if (hasQuiz) { earned += qAvg * (wQuiz / 100); totalWeight += (wQuiz / 100); }
-      if (hasAsg) { earned += asgAvg * (wAssignment / 100); totalWeight += (wAssignment / 100); }
-      if (hasAct) { earned += actAvg * (wActivity / 100); totalWeight += (wActivity / 100); }
-      if (hasPrj) { earned += prjAvg * (wProject / 100); totalWeight += (wProject / 100); }
-      if (hasExm) { earned += exmAvg * (wExam / 100); totalWeight += (wExam / 100); }
+      if (hasWW) { earned += wwAvg * (wWW / 100); totalWeight += (wWW / 100); }
+      if (hasPT) { earned += ptAvg * (wPT / 100); totalWeight += (wPT / 100); }
+      if (hasTE) { earned += teAvg * (wTE / 100); totalWeight += (wTE / 100); }
       
       if (wAttendance > 0) {
         earned += attAvg * (wAttendance / 100);
@@ -171,8 +162,7 @@ class _AcademicEvaluationScreenState
       }
 
       if (totalWeight == 0) return 0.0;
-      final initialGrade = earned / totalWeight;
-      return DatabaseHelper().transmuteGrade(initialGrade);
+      return earned / totalWeight;
     }
 
     final s = _allScores.where((r) => r['student_id'].toString() == studentId).toList();
@@ -183,32 +173,14 @@ class _AcademicEvaluationScreenState
       max   += (r['total_score'] as num?)?.toDouble() ?? 0;
     }
     if (max == 0) return 0.0;
-    final initialGrade = (total / max) * 100;
-    return DatabaseHelper().transmuteGrade(initialGrade);
+    return (total / max) * 100;
   }
 
   double _categoryAvg(String studentId, String category) {
-    int maxItems = 999;
-    if (_assessmentSetup != null) {
-      if (category.toLowerCase() == 'quiz') maxItems = (_assessmentSetup!['quizzes'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'assignment') maxItems = (_assessmentSetup!['assignments'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'activity') maxItems = (_assessmentSetup!['activities'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'project') maxItems = (_assessmentSetup!['projects'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'exam') maxItems = (_assessmentSetup!['exams'] as num?)?.toInt() ?? 999;
-    }
-
-    final s = _allScores.where((r) {
-      if (r['student_id'].toString() != studentId) return false;
-      if (r['category'].toString().toLowerCase() != category.toLowerCase()) return false;
-      
-      final itemLabel = r['item_label'].toString();
-      final parts = itemLabel.split(' ');
-      if (parts.length > 1) {
-        final itemNum = int.tryParse(parts.last);
-        if (itemNum != null && itemNum > maxItems) return false;
-      }
-      return true;
-    }).toList();
+    final s = _allScores.where((r) => 
+      r['student_id'].toString() == studentId && 
+      r['category'].toString().toLowerCase() == category.toLowerCase()
+    ).toList();
 
     if (s.isEmpty) return 0.0;
     double total = 0, max = 0;
@@ -221,26 +193,9 @@ class _AcademicEvaluationScreenState
   }
 
   double _classCategoryAvg(String category) {
-    int maxItems = 999;
-    if (_assessmentSetup != null) {
-      if (category.toLowerCase() == 'quiz') maxItems = (_assessmentSetup!['quizzes'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'assignment') maxItems = (_assessmentSetup!['assignments'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'activity') maxItems = (_assessmentSetup!['activities'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'project') maxItems = (_assessmentSetup!['projects'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'exam') maxItems = (_assessmentSetup!['exams'] as num?)?.toInt() ?? 999;
-    }
-
-    final s = _allScores.where((r) {
-      if (r['category'].toString().toLowerCase() != category.toLowerCase()) return false;
-      
-      final itemLabel = r['item_label'].toString();
-      final parts = itemLabel.split(' ');
-      if (parts.length > 1) {
-        final itemNum = int.tryParse(parts.last);
-        if (itemNum != null && itemNum > maxItems) return false;
-      }
-      return true;
-    }).toList();
+    final s = _allScores.where((r) => 
+      r['category'].toString().toLowerCase() == category.toLowerCase()
+    ).toList();
 
     if (s.isEmpty) return 0.0;
     double total = 0, max = 0;
@@ -420,11 +375,9 @@ class _AcademicEvaluationScreenState
 
             _buildClassAverageCard(
               classAvg: classAvg,
-              quizAvg: _classCategoryAvg('Quiz'),
-              asgAvg: _classCategoryAvg('Assignment'),
-              actAvg: _classCategoryAvg('Activity'),
-              prjAvg: _classCategoryAvg('Project'),
-              examAvg: _classCategoryAvg('Exam'),
+              wwAvg: _classCategoryAvg('Written Works'),
+              ptAvg: _classCategoryAvg('Performance Tasks'),
+              teAvg: _classCategoryAvg('Term Exams'),
               attAvg: _classAttendanceAvg(),
             ),
             const SizedBox(height: 24),
@@ -494,8 +447,9 @@ class _AcademicEvaluationScreenState
               ...gradeList.map((student) {
                 final sid = student['student_id'].toString();
                 final grade = _computeGrade(sid);
-                final quizPct = _categoryAvg(sid, 'Quiz');
-                final examPct = _categoryAvg(sid, 'Exam');
+                final wwPct = _categoryAvg(sid, 'Written Works');
+                final ptPct = _categoryAvg(sid, 'Performance Tasks');
+                final tePct = _categoryAvg(sid, 'Term Exams');
                 final isPassed = grade >= 75;
                 final hasScores = grade > 0;
                 return _buildStudentCard(
@@ -520,14 +474,18 @@ class _AcademicEvaluationScreenState
                       : isPassed
                           ? const Color(0xFFD1FAE5)
                           : const Color(0xFFFEE2E2),
-                  quizAvg: quizPct > 0 ? '${quizPct.toStringAsFixed(0)}%' : '--',
-                  examAvg: examPct > 0 ? '${examPct.toStringAsFixed(0)}%' : '--',
-                  quizColor: quizPct > 0 && quizPct < 75
+                  wwAvg: wwPct > 0 ? '${wwPct.toStringAsFixed(0)}%' : '--',
+                  ptAvg: ptPct > 0 ? '${ptPct.toStringAsFixed(0)}%' : '--',
+                  teAvg: tePct > 0 ? '${tePct.toStringAsFixed(0)}%' : '--',
+                  wwColor: wwPct > 0 && wwPct < 75
                       ? const Color(0xFFEF4444)
                       : const Color(0xFF3B82F6),
-                  examColor: examPct > 0 && examPct < 75
+                  ptColor: ptPct > 0 && ptPct < 75
                       ? const Color(0xFFEF4444)
-                      : const Color(0xFF3B82F6),
+                      : const Color(0xFF10B981),
+                  teColor: tePct > 0 && tePct < 75
+                      ? const Color(0xFFEF4444)
+                      : const Color(0xFFDC3545),
                   onRemarks: widget.role == 'teacher' ? () {
                     _showRemarksDialog(sid, student['name'].toString());
                   } : null,
@@ -759,11 +717,9 @@ class _AcademicEvaluationScreenState
 
   Widget _buildClassAverageCard({
     required double classAvg,
-    required double quizAvg,
-    required double asgAvg,
-    required double actAvg,
-    required double prjAvg,
-    required double examAvg,
+    required double wwAvg,
+    required double ptAvg,
+    required double teAvg,
     required double attAvg,
   }) {
     return Container(
@@ -837,11 +793,9 @@ class _AcademicEvaluationScreenState
                   spacing: 16,
                   runSpacing: 16,
                   children: [
-                    _buildComponentAvg('Quizzes', quizAvg > 0 ? '${quizAvg.toStringAsFixed(1)}%' : '--', Icons.help_outline, const Color(0xFF3B82F6)),
-                    _buildComponentAvg('Assignments', asgAvg > 0 ? '${asgAvg.toStringAsFixed(1)}%' : '--', Icons.description_outlined, const Color(0xFF10B981)),
-                    _buildComponentAvg('Activities', actAvg > 0 ? '${actAvg.toStringAsFixed(1)}%' : '--', Icons.star_border, const Color(0xFFF59E0B)),
-                    _buildComponentAvg('Project', prjAvg > 0 ? '${prjAvg.toStringAsFixed(1)}%' : '--', Icons.folder_outlined, const Color(0xFF8B5CF6)),
-                    _buildComponentAvg('Exam', examAvg > 0 ? '${examAvg.toStringAsFixed(1)}%' : '--', Icons.assignment_outlined, const Color(0xFFF97316)),
+                    _buildComponentAvg('Written Works', wwAvg > 0 ? '${wwAvg.toStringAsFixed(1)}%' : '--', Icons.assignment_outlined, const Color(0xFF0D6EFD)),
+                    _buildComponentAvg('Performance Tasks', ptAvg > 0 ? '${ptAvg.toStringAsFixed(1)}%' : '--', Icons.groups_outlined, const Color(0xFF198754)),
+                    _buildComponentAvg('Term Exams', teAvg > 0 ? '${teAvg.toStringAsFixed(1)}%' : '--', Icons.school_outlined, const Color(0xFFDC3545)),
                     _buildComponentAvg('Attendance', attAvg > 0 ? '${attAvg.toStringAsFixed(1)}%' : '--', Icons.assignment_turned_in, const Color(0xFF0DCAF0)),
                   ],
                 );
@@ -936,10 +890,12 @@ class _AcademicEvaluationScreenState
     required String status,
     required Color statusColor,
     required Color statusBgColor,
-    required String quizAvg,
-    required String examAvg,
-    Color quizColor = const Color(0xFF3B82F6),
-    Color examColor = const Color(0xFF3B82F6),
+    required String wwAvg,
+    required String ptAvg,
+    required String teAvg,
+    Color wwColor = const Color(0xFF3B82F6),
+    Color ptColor = const Color(0xFF3B82F6),
+    Color teColor = const Color(0xFF3B82F6),
     VoidCallback? onViewDetails,
     VoidCallback? onRemarks,
   }) {
@@ -990,7 +946,7 @@ class _AcademicEvaluationScreenState
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '$section  •  LRN: $id',
+                              '$section  â€¢  LRN: $id',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade500,
@@ -1075,7 +1031,7 @@ class _AcademicEvaluationScreenState
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '$section  •  LRN: $id',
+                        '$section  â€¢  LRN: $id',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,
@@ -1129,8 +1085,9 @@ class _AcademicEvaluationScreenState
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              _buildPill('Quiz Avg.', quizAvg, quizColor),
-              _buildPill('Exam Avg.', examAvg, examColor),
+              _buildPill('WW Avg.', wwAvg, wwColor),
+              _buildPill('PT Avg.', ptAvg, ptColor),
+              _buildPill('TE Avg.', teAvg, teColor),
               _buildOutlinedButton(Icons.visibility_outlined, 'View Details', const Color(0xFF3B82F6), onTap: onViewDetails),
               if (onRemarks != null) _buildOutlinedButton(Icons.chat_bubble_outline, 'Remarks', const Color(0xFF3B82F6), onTap: onRemarks),
             ],
@@ -1461,3 +1418,5 @@ class _MockChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+
+

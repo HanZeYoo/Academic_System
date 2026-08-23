@@ -21,26 +21,9 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
   });
 
   double _categoryAvg(String category) {
-    int maxItems = 999;
-    if (assessmentSetup != null) {
-      if (category.toLowerCase() == 'quiz') maxItems = (assessmentSetup!['quizzes'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'assignment') maxItems = (assessmentSetup!['assignments'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'activity') maxItems = (assessmentSetup!['activities'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'project') maxItems = (assessmentSetup!['projects'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'exam') maxItems = (assessmentSetup!['exams'] as num?)?.toInt() ?? 999;
-    }
-
-    final s = scores.where((r) {
-      if (r['category'].toString().toLowerCase() != category.toLowerCase()) return false;
-      
-      final itemLabel = r['item_label'].toString();
-      final parts = itemLabel.split(' ');
-      if (parts.length > 1) {
-        final itemNum = int.tryParse(parts.last);
-        if (itemNum != null && itemNum > maxItems) return false;
-      }
-      return true;
-    }).toList();
+    final s = scores.where((r) => 
+      r['category'].toString().toLowerCase() == category.toLowerCase()
+    ).toList();
 
     if (s.isEmpty) return 0.0;
     double total = 0, max = 0;
@@ -55,33 +38,25 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
   double _computeGrade() {
     if (scores.isEmpty) return 0.0;
     if (assessmentSetup != null) {
-      final wQuiz = (assessmentSetup!['quiz_weight'] as num?)?.toDouble() ?? 20;
-      final wAssignment = (assessmentSetup!['assignment_weight'] as num?)?.toDouble() ?? 15;
-      final wActivity = (assessmentSetup!['activity_weight'] as num?)?.toDouble() ?? 20;
-      final wProject = (assessmentSetup!['project_weight'] as num?)?.toDouble() ?? 15;
-      final wExam = (assessmentSetup!['exam_weight'] as num?)?.toDouble() ?? 30;
+      final wWW = (assessmentSetup!['ww_weight'] as num?)?.toDouble() ?? 30;
+      final wPT = (assessmentSetup!['pt_weight'] as num?)?.toDouble() ?? 50;
+      final wTE = (assessmentSetup!['te_weight'] as num?)?.toDouble() ?? 20;
       final wAttendance = (assessmentSetup!['attendance_weight'] as num?)?.toDouble() ?? 0;
 
-      final qAvg = _categoryAvg('Quiz');
-      final asgAvg = _categoryAvg('Assignment');
-      final actAvg = _categoryAvg('Activity');
-      final prjAvg = _categoryAvg('Project');
-      final exmAvg = _categoryAvg('Exam');
+      final wwAvg = _categoryAvg('Written Works');
+      final ptAvg = _categoryAvg('Performance Tasks');
+      final teAvg = _categoryAvg('Term Exams');
 
       double totalWeight = 0;
       double earned = 0;
 
-      bool hasQuiz = scores.any((r) => r['category'].toString().toLowerCase() == 'quiz');
-      bool hasAsg = scores.any((r) => r['category'].toString().toLowerCase() == 'assignment');
-      bool hasAct = scores.any((r) => r['category'].toString().toLowerCase() == 'activity');
-      bool hasPrj = scores.any((r) => r['category'].toString().toLowerCase() == 'project');
-      bool hasExm = scores.any((r) => r['category'].toString().toLowerCase() == 'exam');
+      bool hasWW = scores.any((r) => r['category'].toString().toLowerCase() == 'written works');
+      bool hasPT = scores.any((r) => r['category'].toString().toLowerCase() == 'performance tasks');
+      bool hasTE = scores.any((r) => r['category'].toString().toLowerCase() == 'term exams');
 
-      if (hasQuiz) { earned += qAvg * (wQuiz / 100); totalWeight += (wQuiz / 100); }
-      if (hasAsg) { earned += asgAvg * (wAssignment / 100); totalWeight += (wAssignment / 100); }
-      if (hasAct) { earned += actAvg * (wActivity / 100); totalWeight += (wActivity / 100); }
-      if (hasPrj) { earned += prjAvg * (wProject / 100); totalWeight += (wProject / 100); }
-      if (hasExm) { earned += exmAvg * (wExam / 100); totalWeight += (wExam / 100); }
+      if (hasWW) { earned += wwAvg * (wWW / 100); totalWeight += (wWW / 100); }
+      if (hasPT) { earned += ptAvg * (wPT / 100); totalWeight += (wPT / 100); }
+      if (hasTE) { earned += teAvg * (wTE / 100); totalWeight += (wTE / 100); }
       
       if (wAttendance > 0) {
         earned += attendancePct * (wAttendance / 100);
@@ -89,8 +64,7 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
       }
 
       if (totalWeight == 0) return 0.0;
-      final initialGrade = earned / totalWeight;
-      return DatabaseHelper().transmuteGrade(initialGrade);
+      return earned / totalWeight;
     }
 
     double total = 0, max = 0;
@@ -99,8 +73,7 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
       max   += (r['total_score'] as num?)?.toDouble() ?? 0;
     }
     if (max == 0) return 0.0;
-    final initialGrade = (total / max) * 100;
-    return DatabaseHelper().transmuteGrade(initialGrade);
+    return (total / max) * 100;
   }
 
   @override
@@ -310,15 +283,11 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _buildProgressRow('Quizzes', _categoryAvg('Quiz'), assessmentSetup?['quiz_weight'] ?? 20, const Color(0xFF3B82F6)),
+          _buildProgressRow('Written Works', _categoryAvg('Written Works'), assessmentSetup?['ww_weight'] ?? 30, const Color(0xFF0D6EFD)),
           const Divider(height: 24, color: Color(0xFFF1F5F9)),
-          _buildProgressRow('Exams', _categoryAvg('Exam'), assessmentSetup?['exam_weight'] ?? 30, const Color(0xFF8B5CF6)),
+          _buildProgressRow('Performance Tasks', _categoryAvg('Performance Tasks'), assessmentSetup?['pt_weight'] ?? 50, const Color(0xFF198754)),
           const Divider(height: 24, color: Color(0xFFF1F5F9)),
-          _buildProgressRow('Projects', _categoryAvg('Project'), assessmentSetup?['project_weight'] ?? 15, const Color(0xFFF59E0B)),
-          const Divider(height: 24, color: Color(0xFFF1F5F9)),
-          _buildProgressRow('Activities', _categoryAvg('Activity'), assessmentSetup?['activity_weight'] ?? 20, const Color(0xFF10B981)),
-          const Divider(height: 24, color: Color(0xFFF1F5F9)),
-          _buildProgressRow('Assignments', _categoryAvg('Assignment'), assessmentSetup?['assignment_weight'] ?? 15, const Color(0xFFEC4899)),
+          _buildProgressRow('Term Exams', _categoryAvg('Term Exams'), assessmentSetup?['te_weight'] ?? 20, const Color(0xFFDC3545)),
           const Divider(height: 24, color: Color(0xFFF1F5F9)),
           _buildProgressRow('Attendance', attendancePct, assessmentSetup?['attendance_weight'] ?? 0, const Color(0xFF0DCAF0)),
         ],

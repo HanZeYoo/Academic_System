@@ -24,14 +24,13 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
   List<Map<String, dynamic>> _assignedClasses = [];
   Map<String, dynamic>? _selectedClassRecord;
 
-  String _selectedPeriod = '1st Quarter';
+  String _selectedPeriod = '1st Term';
   String _selectedCategory = 'Quiz';
   String _selectedItem = 'Quiz 1';
   int _totalScore = 50;
 
   final TextEditingController _totalScoreController =
       TextEditingController(text: '50');
-
   // student_id -> score value (from text controllers)
   final Map<String, TextEditingController> _scoreControllers = {};
   
@@ -49,11 +48,9 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
 
   // --- Item options per category ---
   Map<String, List<String>> _itemsPerCategory = {
-    'Quiz': ['Quiz 1', 'Quiz 2', 'Quiz 3'],
-    'Assignment': ['Assignment 1', 'Assignment 2'],
-    'Activity': ['Activity 1', 'Activity 2', 'Activity 3'],
-    'Project': ['Project 1'],
-    'Exam': ['Exam 1'],
+    'Written Works': ['Written Works 1', 'Written Works 2', 'Written Works 3'],
+    'Performance Tasks': ['Performance Tasks 1', 'Performance Tasks 2'],
+    'Term Exams': ['Term Exams 1'],
   };
 
   List<String> get _currentItems =>
@@ -151,7 +148,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     super.dispose();
   }
 
-  // ── Data Loading ──────────────────────────────────────────────────────────
+  // â”€â”€ Data Loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
@@ -198,22 +195,44 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       gradingPeriod: _selectedPeriod,
     );
 
-    int quizzes = 3, assignments = 2, activities = 3, projects = 1, exams = 1;
+    List<String> parseLabels(dynamic data, int fallbackCount, String prefix) {
+      if (data != null && data is String) {
+        try {
+          final decoded = jsonDecode(data);
+          if (decoded is List && decoded.isNotEmpty) {
+            return decoded.map((e) => e.toString()).toList();
+          }
+        } catch (_) {}
+      } else if (data is List && data.isNotEmpty) {
+        return data.map((e) => e.toString()).toList();
+      }
+      return fallbackCount > 0 ? List.generate(fallbackCount, (i) => '$prefix ${i + 1}') : ['$prefix 1'];
+    }
+
+    int ww = 10, pt = 10, te = 1;
+    List<String> wwLabels = [];
+    List<String> ptLabels = [];
+    List<String> teLabels = [];
+
     if (savedSetup != null) {
-      quizzes = (savedSetup['quizzes'] as int?) ?? 3;
-      assignments = (savedSetup['assignments'] as int?) ?? 2;
-      activities = (savedSetup['activities'] as int?) ?? 3;
-      projects = (savedSetup['projects'] as int?) ?? 1;
-      exams = (savedSetup['exams'] as int?) ?? 1;
+      ww = (savedSetup['ww_items'] as int?) ?? 10;
+      pt = (savedSetup['pt_items'] as int?) ?? 10;
+      te = (savedSetup['te_items'] as int?) ?? 1;
+
+      wwLabels = parseLabels(savedSetup['ww_labels'], ww, 'Written Works');
+      ptLabels = parseLabels(savedSetup['pt_labels'], pt, 'Performance Tasks');
+      teLabels = parseLabels(savedSetup['te_labels'], te, 'Term Exams');
+    } else {
+      wwLabels = parseLabels(null, ww, 'Written Works');
+      ptLabels = parseLabels(null, pt, 'Performance Tasks');
+      teLabels = parseLabels(null, te, 'Term Exams');
     }
 
     // Update the map dynamically
     _itemsPerCategory = {
-      'Quiz': quizzes > 0 ? List.generate(quizzes, (i) => 'Quiz ${i + 1}') : ['Quiz 1'],
-      'Assignment': assignments > 0 ? List.generate(assignments, (i) => 'Assignment ${i + 1}') : ['Assignment 1'],
-      'Activity': activities > 0 ? List.generate(activities, (i) => 'Activity ${i + 1}') : ['Activity 1'],
-      'Project': projects > 0 ? List.generate(projects, (i) => 'Project ${i + 1}') : ['Project 1'],
-      'Exam': exams > 0 ? List.generate(exams, (i) => 'Exam ${i + 1}') : ['Exam 1'],
+      'Written Works': wwLabels,
+      'Performance Tasks': ptLabels,
+      'Term Exams': teLabels,
     };
 
     // Ensure selected category and item are valid
@@ -296,7 +315,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     }
   }
 
-  // ── CSV Import Logic ──────────────────────────────────────────────────────
+  // â”€â”€ CSV Import Logic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _uploadMasterCSV() async {
     try {
@@ -381,14 +400,14 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     setState(() {});
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   String get _classLabel {
     if (_selectedClassRecord == null) return 'No class selected';
     final subj = _selectedClassRecord!['subject_name']?.toString() ?? '';
     final grade = _selectedClassRecord!['grade_level']?.toString() ?? '';
     final section = _selectedClassRecord!['section_name']?.toString() ?? '';
-    return '$subj – $grade $section'.trim();
+    return '$subj â€“ $grade $section'.trim();
   }
 
   int _scoreOf(String studentId) {
@@ -410,7 +429,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
 
   int get _pendingCount => _students.length - _encodedCount;
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  // â”€â”€ Save â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _saveScores() async {
     if (_selectedClassRecord == null) return;
@@ -504,7 +523,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     }
   }
 
-  // ── On filter change: reload students+scores ──────────────────────────────
+  // â”€â”€ On filter change: reload students+scores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _onFilterChanged() {
     // Reset item if not valid for new category
@@ -515,7 +534,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     _loadStudentsAndScores();
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   Widget build(BuildContext context) {
@@ -560,7 +579,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // ── Encoding Locked Banner ────────────────────────────────────────
+          // â”€â”€ Encoding Locked Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           if (_isEncodingLocked)
             Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -587,7 +606,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                 ],
               ),
             ),
-          // ── Filters Card ─────────────────────────────────────────────────
+          // â”€â”€ Filters Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -624,12 +643,12 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                   iconColor: const Color(0xFF0D6EFD),
                   items: _assignedClasses
                       .map((c) =>
-                          '${c['subject_name']} – ${c['grade_level']} ${c['section_name']}')
+                          '${c['subject_name']} â€“ ${c['grade_level']} ${c['section_name']}')
                       .toList(),
                   onChanged: (val) async {
                     final found = _assignedClasses.firstWhere(
                       (c) =>
-                          '${c['subject_name']} – ${c['grade_level']} ${c['section_name']}' ==
+                          '${c['subject_name']} â€“ ${c['grade_level']} ${c['section_name']}' ==
                           val,
                       orElse: () => _assignedClasses.first,
                     );
@@ -647,10 +666,9 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                         icon: Icons.calendar_today_outlined,
                         iconColor: const Color(0xFF0D6EFD),
                         items: const [
-                          '1st Quarter',
-                          '2nd Quarter',
-                          '3rd Quarter',
-                          '4th Quarter'
+                          '1st Term',
+                          '2nd Term',
+                          '3rd Term'
                         ],
                         onChanged: (val) {
                           setState(() => _selectedPeriod = val!);
@@ -784,7 +802,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
           ),
           const SizedBox(height: 12),
 
-          // ── Stats ────────────────────────────────────────────────────────
+          // â”€â”€ Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Row(
             children: [
               Expanded(
@@ -828,7 +846,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
           ),
           const SizedBox(height: 12),
 
-          // ── Student Score Table ──────────────────────────────────────────
+          // â”€â”€ Student Score Table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           _buildCard(
             child: _students.isEmpty
                 ? _buildEmptyStudents()
@@ -842,7 +860,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Student Scores — $_selectedItem ($_selectedPeriod)',
+                              'Student Scores â€” $_selectedItem ($_selectedPeriod)',
                               style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
@@ -1047,7 +1065,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
           ),
           const SizedBox(height: 12),
 
-          // ── Info alert ───────────────────────────────────────────────────
+          // â”€â”€ Info alert â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -1071,7 +1089,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
           ),
           const SizedBox(height: 16),
 
-          // ── Buttons ──────────────────────────────────────────────────────
+          // â”€â”€ Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           Row(
             children: [
               Expanded(
@@ -1102,7 +1120,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                         )
                       : Icon(_isEncodingLocked ? Icons.lock : Icons.save, size: 18),
                   label: Text(
-                    _isSaving ? 'Saving…' : _isEncodingLocked ? 'Encoding Locked' : 'Save Scores',
+                    _isSaving ? 'Savingâ€¦' : _isEncodingLocked ? 'Encoding Locked' : 'Save Scores',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -1123,7 +1141,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     );
   }
 
-  // ── Helpers widgets ───────────────────────────────────────────────────────
+  // â”€â”€ Helpers widgets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildEmptyStudents() {
     return Column(
@@ -1269,3 +1287,5 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     );
   }
 }
+
+

@@ -1,0 +1,68 @@
+﻿    // If no setup, compute raw average
+    if (setup == null) {
+      double total = 0, max = 0;
+      for (final r in scores) {
+        total += (r['score'] as num?)?.toDouble() ?? 0;
+        max += (r['total_score'] as num?)?.toDouble() ?? 0;
+      }
+      double initial = max > 0 ? (total / max) * 100 : 0.0;
+      double finalGrade = initial; // Zero-based, no transmutation
+      return {
+        'hasSetup': false,
+        'initialGrade': initial,
+        'finalGrade': finalGrade,
+        'rawScores': scores,
+      };
+    }
+
+    // With setup, compute breakdown
+    double wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 0.0;
+    double wPT = (setup['pt_weight'] as num?)?.toDouble() ?? 0.0;
+    double wTE = (setup['te_weight'] as num?)?.toDouble() ?? 0.0;
+
+    Map<String, dynamic> computeCat(String cat, double weight) {
+      var filtered = scores.where((s) => s['category'] == cat).toList();
+      double t = 0, m = 0;
+      for (var s in filtered) {
+        t += (s['score'] as num?)?.toDouble() ?? 0;
+        m += (s['total_score'] as num?)?.toDouble() ?? 0;
+      }
+      double avg = m > 0 ? (t / m) * 100 : 0.0;
+      double earned = avg * (weight / 100);
+      return {
+        'weight': weight,
+        'average': avg,
+        'earned': earned,
+        'scores': filtered,
+      };
+    }
+
+    final wwData = computeCat('Written Works', wWW);
+    final ptData = computeCat('Performance Tasks', wPT);
+    final teData = computeCat('Term Exams', wTE);
+
+    double totalEarned = (wwData['earned'] as double) +
+        (ptData['earned'] as double) +
+        (teData['earned'] as double);
+
+    double totalWeight = 0;
+    if (wwData['scores'].isNotEmpty) totalWeight += wWW / 100;
+    if (ptData['scores'].isNotEmpty) totalWeight += wPT / 100;
+    if (teData['scores'].isNotEmpty) totalWeight += wTE / 100;
+
+    double initialGrade = totalWeight > 0 ? totalEarned / totalWeight : 0.0;
+    double finalGrade = initialGrade; // Zero-based, no transmutation
+
+    return {
+      'hasSetup': true,
+      'initialGrade': initialGrade,
+      'finalGrade': finalGrade,
+      'components': {
+        'Written Works': wwData,
+        'Performance Tasks': ptData,
+        'Term Exams': teData,
+      },
+      'rawScores': scores,
+    };
+  }
+}

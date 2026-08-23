@@ -1,0 +1,37 @@
+﻿      setState(() {
+        _quizzes = (saved['quizzes'] as int?) ?? 3;
+        _assignments = (saved['assignments'] as int?) ?? 2;
+        _seatworks = (saved['seatworks'] as int?) ?? 5;
+        _activities = (saved['activities'] as int?) ?? 3;
+        _projects = (saved['projects'] as int?) ?? 1;
+        _recitations = (saved['recitations'] as int?) ?? 3;
+        _exams = (saved['exams'] as int?) ?? 1;
+
+        _quizWeightCtrl.text = '';
+        _assignWeightCtrl.text = '';
+        _stwWeightCtrl.text = '';
+        _actWeightCtrl.text = '';
+        _projWeightCtrl.text = '';
+        _recWeightCtrl.text = '';
+        _examWeightCtrl.text = '';
+        _attendanceWeightCtrl.text = '';
+      });
+    } else {
+      // Defaults
+      setState(() {
+        _quizzes = 3;
+        _assignments = 2;
+        _seatworks = 5;
+        _activities = 3;
+        _projects = 1;
+        _recitations = 3;
+        _exams = 1;
+        _quizWeightCtrl.text = '15';
+        _assignWeightCtrl.text = '10';
+        _stwWeightCtrl.text = '10';
+        _actWeightCtrl.text = '15';
+        _projWeightCtrl.text = '10';
+        _recWeightCtrl.text = '10';
+        _examWeightCtrl.text = '30';
+        _attendanceWeightCtrl.text = '0';
+      });

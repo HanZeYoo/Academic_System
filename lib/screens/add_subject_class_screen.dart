@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
 
@@ -198,13 +198,12 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
     if (_selectedGradeLevel == 'Grade 11' || _selectedGradeLevel == 'Grade 12') {
       termOptions = ['1st Semester', '2nd Semester'];
     } else if (_selectedGradeLevel != null) {
-      termOptions = ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'];
+      termOptions = ['1st Term', '2nd Term', '3rd Term'];
     } else {
       termOptions = [
-        '1st Quarter',
-        '2nd Quarter',
-        '3rd Quarter',
-        '4th Quarter',
+        '1st Term',
+        '2nd Term',
+        '3rd Term',
         '1st Semester',
         '2nd Semester'
       ];
@@ -341,7 +340,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                                     _selectedSemester = null;
                                   }
                                 } else if (val != null) {
-                                  if (!['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'].contains(_selectedSemester)) {
+                                  if (!['1st Term', '2nd Term', '3rd Term'].contains(_selectedSemester)) {
                                     _selectedSemester = null;
                                   }
                                 }
@@ -780,3 +779,5 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
     );
   }
 }
+
+

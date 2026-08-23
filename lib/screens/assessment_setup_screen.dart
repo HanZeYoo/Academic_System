@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 
@@ -10,55 +11,42 @@ class AssessmentSetupScreen extends StatefulWidget {
 }
 
 class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
-  // ─── Loading ───────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   bool _isLoading = true;
   bool _isSaving = false;
 
-  // ─── Teacher / Classes ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Teacher / Classes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String? _teacherName;
   List<Map<String, dynamic>> _assignedClasses = [];
   Map<String, dynamic>? _selectedClassRecord;
-  String _selectedPeriod = '1st Quarter';
+  String _selectedPeriod = '1st Term';
 
-  // ─── Component counts ──────────────────────────────────────────────────────
-  int _quizzes = 3;
-  int _assignments = 2;
-  int _activities = 3;
-  int _projects = 1;
-  int _exams = 1;
+  // â”€â”€â”€ Component counts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  List<String> _wwLabels = [];
+  List<String> _ptLabels = [];
+  List<String> _teLabels = [];
 
-  // ─── Weight controllers (persistent, no rebuild flicker) ──────────────────
-  final TextEditingController _quizWeightCtrl =
-      TextEditingController(text: '20');
-  final TextEditingController _assignWeightCtrl =
-      TextEditingController(text: '15');
-  final TextEditingController _actWeightCtrl =
-      TextEditingController(text: '20');
-  final TextEditingController _projWeightCtrl =
-      TextEditingController(text: '15');
-  final TextEditingController _examWeightCtrl =
-      TextEditingController(text: '30');
-  final TextEditingController _attendanceWeightCtrl =
-      TextEditingController(text: '0');
+  // â”€â”€â”€ Weight controllers (persistent, no rebuild flicker) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  final TextEditingController _wwWeightCtrl = TextEditingController(text: '30');
+  final TextEditingController _ptWeightCtrl = TextEditingController(text: '50');
+  final TextEditingController _teWeightCtrl = TextEditingController(text: '20');
+  final TextEditingController _attendanceWeightCtrl = TextEditingController(text: '0');
 
-  int get _quizWeight => int.tryParse(_quizWeightCtrl.text) ?? 0;
-  int get _assignWeight => int.tryParse(_assignWeightCtrl.text) ?? 0;
-  int get _actWeight => int.tryParse(_actWeightCtrl.text) ?? 0;
-  int get _projWeight => int.tryParse(_projWeightCtrl.text) ?? 0;
-  int get _examWeight => int.tryParse(_examWeightCtrl.text) ?? 0;
+  int get _wwWeight => int.tryParse(_wwWeightCtrl.text) ?? 0;
+  int get _ptWeight => int.tryParse(_ptWeightCtrl.text) ?? 0;
+  int get _teWeight => int.tryParse(_teWeightCtrl.text) ?? 0;
   int get _attendanceWeight => int.tryParse(_attendanceWeightCtrl.text) ?? 0;
+  
   int get _totalWeight =>
-      _quizWeight + _assignWeight + _actWeight + _projWeight + _examWeight + _attendanceWeight;
+      _wwWeight + _ptWeight + _teWeight + _attendanceWeight;
 
   @override
   void initState() {
     super.initState();
     for (final c in [
-      _quizWeightCtrl,
-      _assignWeightCtrl,
-      _actWeightCtrl,
-      _projWeightCtrl,
-      _examWeightCtrl,
+      _wwWeightCtrl,
+      _ptWeightCtrl,
+      _teWeightCtrl,
       _attendanceWeightCtrl
     ]) {
       c.addListener(() => setState(() {}));
@@ -69,11 +57,9 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
   @override
   void dispose() {
     for (final c in [
-      _quizWeightCtrl,
-      _assignWeightCtrl,
-      _actWeightCtrl,
-      _projWeightCtrl,
-      _examWeightCtrl,
+      _wwWeightCtrl,
+      _ptWeightCtrl,
+      _teWeightCtrl,
       _attendanceWeightCtrl
     ]) {
       c.dispose();
@@ -81,7 +67,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
     super.dispose();
   }
 
-  // ─── Load teacher classes ──────────────────────────────────────────────────
+  // â”€â”€â”€ Load teacher classes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _loadClasses() async {
     setState(() => _isLoading = true);
     final rec = await DatabaseHelper().getTeacherByEmail(widget.username);
@@ -102,7 +88,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
     setState(() => _isLoading = false);
   }
 
-  // ─── Load saved setup for current selection ────────────────────────────────
+  // â”€â”€â”€ Load saved setup for current selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _loadSetup() async {
     if (_selectedClassRecord == null) return;
 
@@ -114,40 +100,44 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
     );
 
     if (saved != null) {
-      setState(() {
-        _quizzes = (saved['quizzes'] as int?) ?? 3;
-        _assignments = (saved['assignments'] as int?) ?? 2;
-        _activities = (saved['activities'] as int?) ?? 3;
-        _projects = (saved['projects'] as int?) ?? 1;
-        _exams = (saved['exams'] as int?) ?? 1;
+      List<String> parseList(dynamic data) {
+        if (data == null) return [];
+        if (data is String) {
+          try {
+            final decoded = jsonDecode(data);
+            if (decoded is List) return decoded.map((e) => e.toString()).toList();
+          } catch (_) {}
+        } else if (data is List) {
+          return data.map((e) => e.toString()).toList();
+        }
+        return [];
+      }
 
-        _quizWeightCtrl.text = '${(saved['quiz_weight'] as int?) ?? 20}';
-        _assignWeightCtrl.text =
-            '${(saved['assignment_weight'] as int?) ?? 15}';
-        _actWeightCtrl.text = '${(saved['activity_weight'] as int?) ?? 20}';
-        _projWeightCtrl.text = '${(saved['project_weight'] as int?) ?? 15}';
-        _examWeightCtrl.text = '${(saved['exam_weight'] as int?) ?? 30}';
+      setState(() {
+        _wwLabels = parseList(saved['ww_labels']);
+        _ptLabels = parseList(saved['pt_labels']);
+        _teLabels = parseList(saved['te_labels']);
+
+        _wwWeightCtrl.text = '${(saved['ww_weight'] as int?) ?? 30}';
+        _ptWeightCtrl.text = '${(saved['pt_weight'] as int?) ?? 50}';
+        _teWeightCtrl.text = '${(saved['te_weight'] as int?) ?? 20}';
         _attendanceWeightCtrl.text = '${(saved['attendance_weight'] as int?) ?? 0}';
       });
     } else {
       // Defaults
       setState(() {
-        _quizzes = 3;
-        _assignments = 2;
-        _activities = 3;
-        _projects = 1;
-        _exams = 1;
-        _quizWeightCtrl.text = '20';
-        _assignWeightCtrl.text = '15';
-        _actWeightCtrl.text = '20';
-        _projWeightCtrl.text = '15';
-        _examWeightCtrl.text = '30';
+        _wwLabels = [];
+        _ptLabels = [];
+        _teLabels = [];
+        _wwWeightCtrl.text = '30';
+        _ptWeightCtrl.text = '50';
+        _teWeightCtrl.text = '20';
         _attendanceWeightCtrl.text = '0';
       });
     }
   }
 
-  // ─── Save ──────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Save â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _saveSetup() async {
     if (_totalWeight != 100) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -169,16 +159,15 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
       'grade_level': _selectedClassRecord!['grade_level']?.toString() ?? '',
       'grading_period': _selectedPeriod,
       'teacher_name': _teacherName ?? '',
-      'quizzes': _quizzes,
-      'assignments': _assignments,
-      'activities': _activities,
-      'projects': _projects,
-      'exams': _exams,
-      'quiz_weight': _quizWeight,
-      'assignment_weight': _assignWeight,
-      'activity_weight': _actWeight,
-      'project_weight': _projWeight,
-      'exam_weight': _examWeight,
+      'ww_items': _wwLabels.length,
+      'pt_items': _ptLabels.length,
+      'te_items': _teLabels.length,
+      'ww_labels': jsonEncode(_wwLabels),
+      'pt_labels': jsonEncode(_ptLabels),
+      'te_labels': jsonEncode(_teLabels),
+      'ww_weight': _wwWeight,
+      'pt_weight': _ptWeight,
+      'te_weight': _teWeight,
       'attendance_weight': _attendanceWeight,
       'created_at': DateTime.now().toIso8601String(),
     });
@@ -195,15 +184,15 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
     }
   }
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String get _classLabel {
     if (_selectedClassRecord == null) return 'No class';
-    return '${_selectedClassRecord!['subject_name']} – '
+    return '${_selectedClassRecord!['subject_name']} â€“ '
         '${_selectedClassRecord!['grade_level']} '
         '${_selectedClassRecord!['section_name']}';
   }
 
-  // ─── Build ─────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   @override
   Widget build(BuildContext context) {
     final valid = _totalWeight == 100;
@@ -218,7 +207,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      // ── Dropdowns ─────────────────────────────────────────
+                      // â”€â”€ Dropdowns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                       Row(
                         children: [
                           Expanded(
@@ -227,12 +216,12 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                               value: _classLabel,
                               items: _assignedClasses
                                   .map((c) =>
-                                      '${c['subject_name']} – ${c['grade_level']} ${c['section_name']}')
+                                      '${c['subject_name']} â€“ ${c['grade_level']} ${c['section_name']}')
                                   .toList(),
                               onChanged: (val) async {
                                 final found = _assignedClasses.firstWhere(
                                   (c) =>
-                                      '${c['subject_name']} – ${c['grade_level']} ${c['section_name']}' ==
+                                      '${c['subject_name']} â€“ ${c['grade_level']} ${c['section_name']}' ==
                                       val,
                                   orElse: () => _assignedClasses.first,
                                 );
@@ -248,10 +237,9 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                               label: 'Grading Period',
                               value: _selectedPeriod,
                               items: const [
-                                '1st Quarter',
-                                '2nd Quarter',
-                                '3rd Quarter',
-                                '4th Quarter'
+                                '1st Term',
+                                '2nd Term',
+                                '3rd Term'
                               ],
                               onChanged: (val) async {
                                 setState(() => _selectedPeriod = val!);
@@ -263,7 +251,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // ── Grade Components Card ─────────────────────────────
+                      // â”€â”€ Grade Components Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                       _buildCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,44 +288,25 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                             const SizedBox(height: 12),
 
                             _buildComponentRow(
-                                'Quizzes',
+                                'Written Works',
                                 Icons.assignment_outlined,
                                 const Color(0xFF0D6EFD),
-                                _quizzes,
-                                _quizWeightCtrl,
-                                (v) => setState(() => _quizzes = v)),
+                                _wwLabels,
+                                _wwWeightCtrl),
                             _divider(),
                             _buildComponentRow(
-                                'Assignments',
-                                Icons.edit_note,
-                                const Color(0xFF198754),
-                                _assignments,
-                                _assignWeightCtrl,
-                                (v) => setState(() => _assignments = v)),
-                            _divider(),
-                            _buildComponentRow(
-                                'Activities',
+                                'Performance Tasks',
                                 Icons.groups_outlined,
-                                const Color(0xFF6F42C1),
-                                _activities,
-                                _actWeightCtrl,
-                                (v) => setState(() => _activities = v)),
+                                const Color(0xFF198754),
+                                _ptLabels,
+                                _ptWeightCtrl),
                             _divider(),
                             _buildComponentRow(
-                                'Projects',
-                                Icons.folder_outlined,
-                                const Color(0xFFE67E22),
-                                _projects,
-                                _projWeightCtrl,
-                                (v) => setState(() => _projects = v)),
-                            _divider(),
-                            _buildComponentRow(
-                                'Exams',
+                                'Term Exams',
                                 Icons.school_outlined,
                                 const Color(0xFFDC3545),
-                                _exams,
-                                _examWeightCtrl,
-                                (v) => setState(() => _exams = v)),
+                                _teLabels,
+                                _teWeightCtrl),
                             _divider(),
                             _buildWeightOnlyRow(
                                 'Attendance',
@@ -417,7 +386,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // ── Generated Items Preview ────────────────────────────
+                      // â”€â”€ Generated Items Preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                       _buildCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -428,33 +397,22 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                                     fontWeight: FontWeight.bold,
                                     color: Colors.black87)),
                             const SizedBox(height: 14),
-                            if (_quizzes > 0)
-                              _buildGeneratedRow('Quizzes',
+                            if (_wwLabels.isNotEmpty)
+                              _buildGeneratedRow('Written Works',
                                   Icons.assignment_outlined,
-                                  const Color(0xFF0D6EFD), _quizzes, 'Quiz'),
-                            if (_assignments > 0)
-                              _buildGeneratedRow('Assignments', Icons.edit_note,
-                                  const Color(0xFF198754), _assignments,
-                                  'Assignment'),
-                            if (_activities > 0)
-                              _buildGeneratedRow('Activities',
-                                  Icons.groups_outlined,
-                                  const Color(0xFF6F42C1), _activities,
-                                  'Activity'),
-                            if (_projects > 0)
-                              _buildGeneratedRow('Projects',
-                                  Icons.folder_outlined,
-                                  const Color(0xFFE67E22), _projects,
-                                  'Project'),
-                            if (_exams > 0)
-                              _buildGeneratedRow('Exams', Icons.school_outlined,
-                                  const Color(0xFFDC3545), _exams, 'Exam'),
+                                  const Color(0xFF0D6EFD), _wwLabels),
+                            if (_ptLabels.isNotEmpty)
+                              _buildGeneratedRow('Performance Tasks', Icons.groups_outlined,
+                                  const Color(0xFF198754), _ptLabels),
+                            if (_teLabels.isNotEmpty)
+                              _buildGeneratedRow('Term Exams', Icons.school_outlined,
+                                  const Color(0xFFDC3545), _teLabels),
                           ],
                         ),
                       ),
                       const SizedBox(height: 16),
 
-                      // ── Info bar ──────────────────────────────────────────
+                      // â”€â”€ Info bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
@@ -479,7 +437,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // ── Buttons ───────────────────────────────────────────
+                      // â”€â”€ Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                       Row(
                         children: [
                           Expanded(
@@ -513,7 +471,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                                     )
                                   : const Icon(Icons.save_outlined, size: 18),
                               label: Text(
-                                  _isSaving ? 'Saving…' : 'Save Setup',
+                                  _isSaving ? 'Savingâ€¦' : 'Save Setup',
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold)),
                               style: ElevatedButton.styleFrom(
@@ -535,7 +493,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
     );
   }
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildNoClassState() {
     return Center(
@@ -629,119 +587,167 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
     );
   }
 
+  Future<void> _showAddLabelModal(String title, List<String> labels) async {
+    final TextEditingController _labelCtrl = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Add $title Label', style: const TextStyle(fontSize: 16)),
+          content: TextField(
+            controller: _labelCtrl,
+            decoration: const InputDecoration(
+              hintText: 'e.g. Quiz 1, Long Test',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (_labelCtrl.text.trim().isNotEmpty) {
+                  setState(() {
+                    labels.add(_labelCtrl.text.trim());
+                  });
+                }
+                Navigator.pop(context);
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildComponentRow(
     String title,
     IconData icon,
     Color color,
-    int count,
+    List<String> labels,
     TextEditingController weightCtrl,
-    ValueChanged<int> onCountChanged,
   ) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Label
-        Expanded(
-          flex: 4,
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(7),
-                ),
-                child: Icon(icon, color: color, size: 18),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(title,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87),
-                    overflow: TextOverflow.ellipsis),
-              ),
-            ],
-          ),
-        ),
-        // Stepper
-        Expanded(
-          flex: 3,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                InkWell(
-                  onTap: () {
-                    if (count > 0) onCountChanged(count - 1);
-                  },
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    child: Icon(Icons.remove, size: 15, color: Colors.blue),
-                  ),
-                ),
-                Text('$count',
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w600)),
-                InkWell(
-                  onTap: () {
-                    if (count < 20) onCountChanged(count + 1);
-                  },
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    child: Icon(Icons.add, size: 15, color: Colors.blue),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Weight
-        Expanded(
-          flex: 2,
-          child: Container(
-            margin: const EdgeInsets.only(left: 4),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: weightCtrl,
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w500),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+        Row(
+          children: [
+            // Label
+            Expanded(
+              flex: 5,
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(7),
                     ),
+                    child: Icon(icon, color: color, size: 18),
                   ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(title,
+                        style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87),
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
+            ),
+            // Add Button
+            Expanded(
+              flex: 2,
+              child: InkWell(
+                onTap: () => _showAddLabelModal(title, labels),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text('+ Add', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12)),
                 ),
-                const Padding(
-                  padding: EdgeInsets.only(right: 6),
-                  child: Text('%',
-                      style:
-                          TextStyle(fontSize: 12, color: Colors.black54)),
+              ),
+            ),
+            // Weight
+            Expanded(
+              flex: 2,
+              child: Container(
+                margin: const EdgeInsets.only(left: 4),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-              ],
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: weightCtrl,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w500),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.only(right: 8.0),
+                      child: Text('%',
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.black54,
+                              fontWeight: FontWeight.w500)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (labels.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 10.0, left: 35.0),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: labels.asMap().entries.map((entry) {
+                int idx = entry.key;
+                String label = entry.value;
+                return InputChip(
+                  label: Text(label, style: const TextStyle(fontSize: 11)),
+                  backgroundColor: color.withOpacity(0.05),
+                  deleteIconColor: Colors.black45,
+                  onDeleted: () {
+                    setState(() {
+                      labels.removeAt(idx);
+                    });
+                  },
+                );
+              }).toList(),
             ),
           ),
-        ),
       ],
     );
   }
 
   Widget _buildGeneratedRow(
-      String title, IconData icon, Color color, int count, String prefix) {
+      String title, IconData icon, Color color, List<String> labels) {
+    if (labels.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -768,22 +774,21 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
             child: Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: List.generate(
-                count,
-                (i) => Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text('$prefix ${i + 1}',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: color,
-                          fontWeight: FontWeight.w500)),
-                ),
-              ),
+              children: labels
+                  .map((label) => Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(label,
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: color,
+                                fontWeight: FontWeight.w500)),
+                      ))
+                  .toList(),
             ),
           ),
         ],
@@ -885,4 +890,6 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
     );
   }
 }
+
+
 

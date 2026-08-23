@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import 'student_detail_screen.dart';
 import 'student_grades_screen.dart';
@@ -115,7 +115,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     List<Map<String, dynamic>> studentsWithStats = [];
 
     // Default grading period (could be improved with a selector)
-    const String period = '1st Quarter';
+    const String period = '1st Term';
 
     for (var s in filtered) {
       final studentId = s['student_id']?.toString() ?? '';
@@ -830,3 +830,4 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     );
   }
 }
+
