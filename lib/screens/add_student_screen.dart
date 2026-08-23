@@ -12,7 +12,6 @@ class AddStudentScreen extends StatefulWidget {
 }
 
 class _AddStudentScreenState extends State<AddStudentScreen> {
-  bool _createParentAccount = true;
   bool _sendCredentials = true;
   bool _isLoading = false;
 
@@ -20,16 +19,13 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _parentEmailController = TextEditingController();
-  final TextEditingController _contactNumberController = TextEditingController();
+  
   final TextEditingController _parentNameController = TextEditingController();
   final TextEditingController _parentContactController = TextEditingController();
-  final TextEditingController _homeAddressController = TextEditingController();
+  final TextEditingController _parentEmailController = TextEditingController();
 
-  String? _selectedGender;
   String? _selectedGradeLevel;
   String? _selectedSection;
-  DateTime? _birthdate;
 
   @override
   void initState() {
@@ -47,15 +43,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       }
       
       _emailController.text = s['email'] ?? '';
-      _parentEmailController.text = s['parent_email'] ?? '';
-      _contactNumberController.text = s['contact_number'] ?? '';
-      _parentNameController.text = s['parent_name'] ?? '';
-      _parentContactController.text = s['parent_contact'] ?? '';
-      _homeAddressController.text = s['address'] ?? '';
       
-      if (['Male', 'Female', 'Other'].contains(s['gender'])) {
-        _selectedGender = s['gender'];
-      }
       if (['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'].contains(s['grade_level'])) {
         _selectedGradeLevel = s['grade_level'];
       }
@@ -63,40 +51,9 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         _selectedSection = s['section'];
       }
       
-      if (s['birthdate'] != null && s['birthdate'].toString().isNotEmpty) {
-        try {
-          final parts = s['birthdate'].toString().split('/');
-          if (parts.length == 3) {
-            _birthdate = DateTime(int.parse(parts[2]), int.parse(parts[0]), int.parse(parts[1]));
-          }
-        } catch (e) {
-          // ignore
-        }
-      }
-    }
-  }
-
-  Future<void> _selectDate() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF0F52BA),
-              onPrimary: Colors.white,
-              onSurface: Color(0xFF1E293B),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) {
-      setState(() => _birthdate = picked);
+      _parentNameController.text = s['parent_name'] ?? '';
+      _parentContactController.text = s['parent_contact'] ?? '';
+      _parentEmailController.text = s['parent_email'] ?? '';
     }
   }
 
@@ -133,18 +90,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       final existingUser = await DatabaseHelper().getUserByUsername(emailToCheck);
       if (existingUser != null && (widget.existingStudent == null || widget.existingStudent!['email'] != emailToCheck)) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email already exists! Please use a different email.')));
-        return;
-      }
-    }
-
-    final parentEmailToCheck = _parentEmailController.text.trim();
-    if (parentEmailToCheck.isNotEmpty) {
-      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(parentEmailToCheck)) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid parent email address.')));
-        return;
-      }
-      if (!parentEmailToCheck.endsWith('.com') && !parentEmailToCheck.endsWith('.ph')) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Parent email must end with .com or .ph')));
         return;
       }
     }
@@ -195,13 +140,9 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         gradeLevel: _selectedGradeLevel ?? 'N/A',
         section: _selectedSection ?? 'N/A',
         email: _emailController.text,
-        parentEmail: _parentEmailController.text,
-        gender: _selectedGender,
-        birthdate: _birthdate != null ? '${_birthdate!.month}/${_birthdate!.day}/${_birthdate!.year}' : null,
-        contactNumber: _contactNumberController.text,
-        parentName: _parentNameController.text,
-        parentContact: _parentContactController.text,
-        address: _homeAddressController.text,
+        parentName: _parentNameController.text.isNotEmpty ? _parentNameController.text : null,
+        parentContact: _parentContactController.text.isNotEmpty ? _parentContactController.text : null,
+        parentEmail: _parentEmailController.text.isNotEmpty ? _parentEmailController.text : null,
       );
     } else {
       await DatabaseHelper().addStudent(
@@ -210,13 +151,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         gradeLevel: _selectedGradeLevel ?? 'N/A',
         section: _selectedSection ?? 'N/A',
         email: _emailController.text,
-        parentEmail: _parentEmailController.text,
-        gender: _selectedGender,
-        birthdate: _birthdate != null ? '${_birthdate!.month}/${_birthdate!.day}/${_birthdate!.year}' : null,
-        contactNumber: _contactNumberController.text,
-        parentName: _parentNameController.text,
-        parentContact: _parentContactController.text,
-        address: _homeAddressController.text,
+        parentEmail: '',
       );
 
       // Send Welcome Email to Student
@@ -226,15 +161,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           subject: 'Welcome to the Academic System!',
           messageText: 'Hello $fullName,<br><br>Your student account has been created successfully.<br><br><b>Username/Email:</b> ${_emailController.text}<br><b>Temporary Password:</b> student123<br><br>Please log in to your account and change your password immediately.',
         );
-        
-        // Send Welcome Email to Parent
-        if (_parentEmailController.text.isNotEmpty) {
-          await EmailService.sendEmail(
-            toEmail: _parentEmailController.text,
-            subject: 'Parent Portal - Academic System',
-            messageText: 'Hello Parent of $fullName,<br><br>Your parent account has been created successfully. You can now monitor your child\'s academic progress.<br><br><b>Username/Email:</b> ${_parentEmailController.text}<br><b>Temporary Password:</b> parent123<br><br>Please log in to your account to get started.',
-          );
-        }
       }
     }
 
@@ -446,32 +372,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                       children: [
                         Expanded(
                           child: _buildDropdown(
-                            label: 'Gender',
-                            hint: 'Select gender',
-                            isRequired: true,
-                            value: _selectedGender,
-                            items: const ['Male', 'Female', 'Other'],
-                            onChanged: (val) => setState(() => _selectedGender = val),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildDatePicker(
-                            label: 'Birthdate',
-                            hint: _birthdate != null
-                                ? '${_birthdate!.month}/${_birthdate!.day}/${_birthdate!.year}'
-                                : 'Select birthdate',
-                            isRequired: true,
-                            onTap: _selectDate,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildDropdown(
                             label: 'Grade Level',
                             hint: 'Select grade level',
                             isRequired: true,
@@ -503,57 +403,70 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                         TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toLowerCase())),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      label: 'Contact Number',
-                      hint: 'Enter contact number',
-                      isRequired: true,
-                      controller: _contactNumberController,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            label: 'Parent/Guardian Name',
-                            hint: 'Enter parent/guardian name',
-                            isRequired: true,
-                            controller: _parentNameController,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildTextField(
-                            label: 'Parent Contact Number',
-                            hint: 'Enter parent contact number',
-                            isRequired: true,
-                            controller: _parentContactController,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      label: 'Parent Email Address',
-                      hint: 'Enter parent email address',
-                      controller: _parentEmailController,
-                      keyboardType: TextInputType.emailAddress,
-                      inputFormatters: [
-                        TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toLowerCase())),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      label: 'Home Address',
-                      hint: 'Enter complete home address',
-                      isRequired: true,
-                      maxLines: 3,
-                      controller: _homeAddressController,
-                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
+
+              if (widget.existingStudent != null) ...[
+                _buildSectionContainer(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: const [
+                          Icon(Icons.family_restroom, color: Color(0xFF0F52BA), size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Guardian Information',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Updates to guardian info provided by the student.',
+                        style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTextField(
+                              label: 'Guardian Name',
+                              hint: 'Enter guardian name',
+                              controller: _parentNameController,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildTextField(
+                              label: 'Guardian Contact',
+                              hint: 'Enter contact number',
+                              controller: _parentContactController,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        label: 'Guardian Email',
+                        hint: 'Enter guardian email',
+                        controller: _parentEmailController,
+                        keyboardType: TextInputType.emailAddress,
+                        inputFormatters: [
+                          TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toLowerCase())),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
 
               // Account Setup Section
               Column(
@@ -669,29 +582,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Switch(
-                        value: _createParentAccount,
-                        onChanged: (value) => setState(() => _createParentAccount = value),
-                        activeColor: const Color(0xFF0F52BA),
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Create parent account automatically',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF1E293B),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.info_outline, color: Color(0xFF94A3B8), size: 18),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
                   Row(
                     children: [
                       Switch(

@@ -9,6 +9,7 @@ import 'admin_dashboard.dart';
 import 'teacher_dashboard_screen.dart';
 import 'student_dashboard_screen.dart';
 import 'parent_dashboard_screen.dart';
+import 'student_profile_setup_screen.dart';
 import '../main.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -67,10 +68,23 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (context) => TeacherDashboardScreen(username: user['username'])),
       );
     } else if (user['role'] == 'student') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => StudentDashboardScreen(username: user['username'])),
-      );
+      // Check if profile is complete
+      final studentData = await DatabaseHelper().getStudentByEmail(user['username']);
+      final isProfileIncomplete = studentData != null && 
+                                 (studentData['address'] == null || 
+                                  studentData['address'].toString().trim().isEmpty);
+      
+      if (isProfileIncomplete) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => StudentProfileSetupScreen(studentData: studentData!)),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => StudentDashboardScreen(username: user['username'])),
+        );
+      }
     } else if (user['role'] == 'parent') {
       Navigator.pushReplacement(
         context,

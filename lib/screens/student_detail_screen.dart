@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../services/email_service.dart';
 import 'login_screen.dart';
 
 class StudentDetailScreen extends StatefulWidget {
@@ -90,6 +91,72 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
               }
             },
             child: const Text('Reset', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _generateParentAccount(BuildContext context) async {
+    final parentEmail = widget.student['parent_email']?.toString() ?? '';
+    if (parentEmail.isEmpty || parentEmail == 'Not provided') {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No parent email available.')));
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Generate Parent Account'),
+        content: Text('This will create an account for $parentEmail and send them their login credentials. Continue?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F52BA)),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              
+              // Show loading overlay
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (c) => const Center(child: CircularProgressIndicator()),
+              );
+
+              try {
+                final studentName = widget.student['name'] ?? 'your child';
+                final parentName = widget.student['parent_name'] ?? 'Parent/Guardian';
+                
+                await DatabaseHelper().generateParentAccount(parentEmail, parentName, studentName);
+                
+                await EmailService.sendEmail(
+                  toEmail: parentEmail,
+                  subject: 'Parent Portal - Academic System',
+                  messageText: 'Hello $parentName,<br><br>Your parent account for the Academic System has been created successfully. You can now monitor $studentName\'s academic progress.<br><br><b>Username/Email:</b> $parentEmail<br><b>Temporary Password:</b> parent123<br><br>Please log in to your account to get started and change your password.',
+                );
+                
+                if (mounted) {
+                  Navigator.pop(context); // close loading
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Parent account generated and credentials sent!'),
+                    backgroundColor: Colors.green,
+                  ));
+                }
+              } catch (e) {
+                if (mounted) {
+                  Navigator.pop(context); // close loading
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(e.toString().replaceAll('Exception: ', '')),
+                    backgroundColor: Colors.red,
+                  ));
+                }
+              }
+            },
+            child: const Text('Generate & Send', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -238,6 +305,25 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                     _buildInfoRow(Icons.phone, 'Contact Number', student['parent_contact'] ?? 'Not specified'),
                     const Divider(height: 1),
                     _buildInfoRow(Icons.email, 'Parent Email', student['parent_email'] ?? 'Not provided'),
+                    if ((student['parent_email'] ?? '').toString().isNotEmpty && student['parent_email'] != 'Not provided') ...[
+                      const Divider(height: 1),
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () => _generateParentAccount(context),
+                            icon: const Icon(Icons.person_add_alt_1, size: 20),
+                            label: const Text('Generate Parent Account & Send Credentials'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF0F52BA),
+                              side: const BorderSide(color: Color(0xFF0F52BA)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ]),
 
                   const SizedBox(height: 24),

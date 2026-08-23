@@ -18,6 +18,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
   // --- State ---
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isEncodingLocked = false;  // true when outside grading deadline
 
   String? _teacherName;
   List<Map<String, dynamic>> _assignedClasses = [];
@@ -63,6 +64,12 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     super.initState();
     _totalScoreController.addListener(_onTotalScoreChanged);
     _loadData();
+    _checkEncodingDeadline();
+  }
+
+  Future<void> _checkEncodingDeadline() async {
+    final allowed = await DatabaseHelper().isEncodingAllowed(_selectedPeriod);
+    if (mounted) setState(() => _isEncodingLocked = !allowed);
   }
 
   void _showErrorDialog(String title, String message) {
@@ -504,6 +511,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     if (!_currentItems.contains(_selectedItem)) {
       _selectedItem = _currentItems.first;
     }
+    _checkEncodingDeadline(); // Re-check deadline when quarter changes
     _loadStudentsAndScores();
   }
 
@@ -552,6 +560,33 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
+          // ── Encoding Locked Banner ────────────────────────────────────────
+          if (_isEncodingLocked)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.lock, color: Colors.red.shade700, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Encoding for $_selectedPeriod is currently closed. Contact your Admin to extend the deadline.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.red.shade800,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // ── Filters Card ─────────────────────────────────────────────────
           _buildCard(
             child: Column(
@@ -1057,7 +1092,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
               Expanded(
                 flex: 2,
                 child: ElevatedButton.icon(
-                  onPressed: _isSaving ? null : _saveScores,
+                  onPressed: (_isSaving || _isEncodingLocked) ? null : _saveScores,
                   icon: _isSaving
                       ? const SizedBox(
                           width: 18,
@@ -1065,16 +1100,19 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                           child: CircularProgressIndicator(
                               color: Colors.white, strokeWidth: 2),
                         )
-                      : const Icon(Icons.save, size: 18),
-                  label: Text(_isSaving ? 'Saving…' : 'Save Scores',
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                      : Icon(_isEncodingLocked ? Icons.lock : Icons.save, size: 18),
+                  label: Text(
+                    _isSaving ? 'Saving…' : _isEncodingLocked ? 'Encoding Locked' : 'Save Scores',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0D6EFD),
+                    backgroundColor: _isEncodingLocked ? Colors.grey : const Color(0xFF0D6EFD),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8)),
                   ),
+
                 ),
               ),
             ],

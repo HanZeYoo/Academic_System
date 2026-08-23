@@ -140,7 +140,217 @@ class DatabaseHelper {
     }
   }
 
+  // Complete student profile on first login
+  Future<void> completeStudentProfile(
+    String studentEmail, {
+    required String name,
+    required String gender,
+    required String birthdate,
+    required String contactNumber,
+    required String parentName,
+    required String parentContact,
+    required String parentEmail,
+    required String address,
+  }) async {
+    // 1. Update the student record
+    await Supabase.instance.client.from('students').update({
+      'name': name,
+      'gender': gender,
+      'birthdate': birthdate,
+      'contact_number': contactNumber,
+      'parent_name': parentName,
+      'parent_contact': parentContact,
+      'parent_email': parentEmail,
+      'address': address,
+    }).eq('email', studentEmail);
+  }
+
+  // Generate parent account manually
+  Future<void> generateParentAccount(String parentEmail, String parentName, String studentName) async {
+    if (parentEmail.isEmpty) return;
+    
+    // Check if user already exists
+    final existing = await Supabase.instance.client.from('users').select().eq('username', parentEmail).maybeSingle();
+    if (existing != null) {
+      throw Exception('Parent account already exists for this email.');
+    }
+
+    try {
+      await Supabase.instance.client.auth.signUp(
+        email: parentEmail,
+        password: 'parent123',
+      );
+    } catch (e) {
+      print('Supabase SignUp Error (Parent): $e');
+      throw Exception('Failed to create authentication record: $e');
+    }
+    
+    try {
+      await Supabase.instance.client.from('users').insert({
+        'username': parentEmail,
+        'password': _hashPassword('parent123'),
+        'role': 'parent',
+      });
+    } catch (e) {
+      print('Database Error (Parent users table): $e');
+      throw Exception('Failed to create database record: $e');
+    }
+  }
+
+  // Get all users (for user management)
+  Future<List<Map<String, dynamic>>> getAllUsers() async {
+    final results = await Supabase.instance.client
+        .from('users')
+        .select('id, username, role')
+        .order('role', ascending: true);
+    return List<Map<String, dynamic>>.from(results);
+  }
+
+  // Create a new admin account
+  Future<void> createAdminAccount(String email, String password) async {
+    final existing = await Supabase.instance.client
+        .from('users')
+        .select()
+        .eq('username', email)
+        .maybeSingle();
+    if (existing != null) {
+      throw Exception('An account with this email already exists.');
+    }
+
+    try {
+      await Supabase.instance.client.auth.signUp(
+        email: email,
+        password: password,
+      );
+    } catch (e) {
+      print('Supabase SignUp Error (Admin): $e');
+      throw Exception('Failed to create authentication record: $e');
+    }
+
+    try {
+      await Supabase.instance.client.from('users').insert({
+        'username': email,
+        'password': _hashPassword(password),
+        'role': 'admin',
+      });
+    } catch (e) {
+      print('Database Error (Admin users table): $e');
+      throw Exception('Failed to create database record: $e');
+    }
+  }
+
+  // Delete a user account from the users table
+  Future<void> deleteUser(String username) async {
+    await Supabase.instance.client
+        .from('users')
+        .delete()
+        .eq('username', username);
+  }
+
+  // ── Grading Deadlines ─────────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getGradingDeadlines() async {
+    final activeYear = await getActiveSchoolYear();
+    try {
+      final results = await Supabase.instance.client
+          .from('grading_deadlines')
+          .select()
+          .eq('school_year', activeYear)
+          .order('id', ascending: true);
+      return List<Map<String, dynamic>>.from(results);
+    } catch (e) {
+      print('Error getting grading deadlines: $e');
+      return [];
+    }
+  }
+
+  Future<void> saveGradingDeadline({
+    required String quarter,
+    required String startDate,
+    required String endDate,
+    String? extendedUntil,
+  }) async {
+    final activeYear = await getActiveSchoolYear();
+    final existing = await Supabase.instance.client
+        .from('grading_deadlines')
+        .select()
+        .eq('quarter', quarter)
+        .eq('school_year', activeYear)
+        .maybeSingle();
+
+    final data = {
+      'quarter': quarter,
+      'start_date': startDate,
+      'end_date': endDate,
+      'school_year': activeYear,
+      'is_extended': extendedUntil != null,
+      'extended_until': extendedUntil,
+    };
+
+    if (existing != null) {
+      await Supabase.instance.client
+          .from('grading_deadlines')
+          .update(data)
+          .eq('id', existing['id']);
+    } else {
+      await Supabase.instance.client
+          .from('grading_deadlines')
+          .insert(data);
+    }
+  }
+
+  /// Returns true if encoding is currently allowed for the given quarter.
+  /// Encoding is allowed if today is between start_date and end_date (inclusive),
+  /// or if an extension is active and today <= extended_until.
+  Future<bool> isEncodingAllowed(String quarter) async {
+    final activeYear = await getActiveSchoolYear();
+    try {
+      final result = await Supabase.instance.client
+          .from('grading_deadlines')
+          .select()
+          .eq('quarter', quarter)
+          .eq('school_year', activeYear)
+          .maybeSingle();
+
+      if (result == null) return true; // No deadline set = allow by default
+
+      final today = DateTime.now();
+      final start = DateTime.tryParse(result['start_date'] ?? '');
+      final end = DateTime.tryParse(result['end_date'] ?? '');
+      final extendedUntil = result['is_extended'] == true
+          ? DateTime.tryParse(result['extended_until'] ?? '')
+          : null;
+
+      if (start == null || end == null) return true;
+
+      // Normalize to date only (no time component)
+      final todayDate = DateTime(today.year, today.month, today.day);
+      final startDate = DateTime(start.year, start.month, start.day);
+      final endDate = DateTime(end.year, end.month, end.day);
+
+      // Check if within normal range
+      if (todayDate.isAfter(startDate.subtract(const Duration(days: 1))) &&
+          todayDate.isBefore(endDate.add(const Duration(days: 1)))) {
+        return true;
+      }
+
+      // Check if within extension
+      if (extendedUntil != null) {
+        final extDate = DateTime(extendedUntil.year, extendedUntil.month, extendedUntil.day);
+        if (todayDate.isBefore(extDate.add(const Duration(days: 1)))) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch (e) {
+      print('Error checking encoding allowed: $e');
+      return true; // Fail open — allow encoding if DB error
+    }
+  }
+
   // Get all active students
+
   Future<List<Map<String, dynamic>>> getStudents() async {
     final results = await Supabase.instance.client.from('students').select().eq('is_active', 1).order('id', ascending: true);
     return List<Map<String, dynamic>>.from(results);
@@ -203,6 +413,7 @@ class DatabaseHelper {
           .eq('grade_level', gradeLevel)
           .eq('section', section)
           .eq('school_year', year)
+          .eq('enrollment_status', 'Enrolled')
           .order('name', ascending: true);
       return List<Map<String, dynamic>>.from(results);
     } catch (e) {
@@ -210,6 +421,7 @@ class DatabaseHelper {
           .select()
           .eq('grade_level', gradeLevel)
           .eq('section', section)
+          .eq('enrollment_status', 'Enrolled')
           .order('name', ascending: true);
       return List<Map<String, dynamic>>.from(results);
     }
@@ -1119,20 +1331,178 @@ class DatabaseHelper {
     await Supabase.instance.client.from('school_years').update({'is_active': true}).eq('year_label', yearLabel);
   }
 
-  // --- MASS PROMOTION (End of School Year) ---
-  Future<void> massPromoteStudents(String currentGradeLevel, String currentSection, String newGradeLevel) async {
+  // --- ENROLLMENT & YEAR-END ROLLOVER ---
+
+  // JHS Grade Level progression map
+  static const Map<String, String> _jhsNextGrade = {
+    'Grade 7': 'Grade 8',
+    'Grade 8': 'Grade 9',
+    'Grade 9': 'Grade 10',
+    'Grade 10': 'Grade 10', // Will be Graduated
+  };
+
+  /// Determine promotion status from average final grade across all subjects.
+  /// Returns: 'Promoted', 'Retained', 'Conditional', 'Graduated'
+  String _computePromotionStatus(String gradeLevel, double avgGrade, int failedSubjects) {
+    if (gradeLevel == 'Grade 10') {
+      // JHS Graduation
+      if (failedSubjects == 0) return 'Graduated';
+      if (failedSubjects <= 2) return 'Conditional';
+      return 'Retained';
+    }
+    if (failedSubjects == 0) return 'Promoted';
+    if (failedSubjects <= 2) return 'Conditional';
+    return 'Retained';
+  }
+
+  /// Preview rollover — returns a list of student promotion previews
+  /// without actually making any changes.
+  Future<List<Map<String, dynamic>>> previewRollover() async {
     final activeYear = await getActiveSchoolYear();
-    await Supabase.instance.client.from('students')
-        .update({
-          'grade_level': newGradeLevel,
-          'section': '', // Clear section so they can be assigned later
-          'school_year': activeYear,
-        })
-        .eq('grade_level', currentGradeLevel)
-        .eq('section', currentSection);
+    final students = await Supabase.instance.client
+        .from('students')
+        .select()
+        .eq('is_active', 1)
+        .inFilter('enrollment_status', ['Enrolled', 'Not Enrolled'])
+        .order('grade_level', ascending: true);
+
+    final List<Map<String, dynamic>> previews = [];
+
+    for (final student in students) {
+      final studentId = student['student_id']?.toString() ?? '';
+      final gradeLevel = student['grade_level']?.toString() ?? '';
+
+      // Get all scores for this student in active year
+      final scores = await Supabase.instance.client
+          .from('scores')
+          .select()
+          .eq('student_id', studentId)
+          .eq('school_year', activeYear);
+
+      // Group by subject
+      final Map<String, List<Map<String, dynamic>>> bySubject = {};
+      for (final s in scores) {
+        final subj = s['subject_code']?.toString() ?? '';
+        bySubject.putIfAbsent(subj, () => []);
+        bySubject[subj]!.add(s);
+      }
+
+      double totalAvg = 0;
+      int subjectCount = 0;
+      int failedSubjects = 0;
+
+      for (final subjectScores in bySubject.values) {
+        if (subjectScores.isEmpty) continue;
+        double totalScore = 0, maxScore = 0;
+        for (final s in subjectScores) {
+          totalScore += (s['score'] as num?)?.toDouble() ?? 0;
+          maxScore += (s['total_score'] as num?)?.toDouble() ?? 0;
+        }
+        final pct = maxScore > 0 ? (totalScore / maxScore) * 100 : 0.0;
+        final transmuted = transmuteGrade(pct);
+        if (transmuted < 75) failedSubjects++;
+        totalAvg += transmuted;
+        subjectCount++;
+      }
+
+      final avg = subjectCount > 0 ? totalAvg / subjectCount : 0.0;
+      final promotionStatus = _computePromotionStatus(gradeLevel, avg, failedSubjects);
+      final nextGrade = (promotionStatus == 'Retained')
+          ? gradeLevel
+          : _jhsNextGrade[gradeLevel] ?? gradeLevel;
+
+      previews.add({
+        'student_id': studentId,
+        'name': student['name'],
+        'grade_level': gradeLevel,
+        'section': student['section'],
+        'average_grade': avg,
+        'failed_subjects': failedSubjects,
+        'promotion_status': promotionStatus,
+        'next_grade_level': nextGrade,
+        'has_scores': subjectCount > 0,
+      });
+    }
+
+    return previews;
+  }
+
+  /// Perform the actual End of School Year rollover.
+  /// Creates new school year, updates grade levels, sets enrollment to Not Enrolled.
+  Future<void> performYearEndRollover({
+    required String newSchoolYear,
+    required List<Map<String, dynamic>> previewData,
+  }) async {
+    // 1. Create and activate the new school year
+    await addSchoolYear(newSchoolYear);
+    await setActiveSchoolYear(newSchoolYear);
+
+    // 2. Process each student
+    for (final preview in previewData) {
+      final studentId = preview['student_id'];
+      final promotionStatus = preview['promotion_status'];
+      final nextGrade = preview['next_grade_level'];
+
+      final updateData = <String, dynamic>{
+        'promotion_status': promotionStatus,
+        'section': '', // Clear section for all
+      };
+
+      if (promotionStatus == 'Graduated') {
+        updateData['enrollment_status'] = 'Graduated';
+      } else {
+        updateData['grade_level'] = nextGrade;
+        updateData['enrollment_status'] = 'Not Enrolled';
+      }
+
+      await Supabase.instance.client
+          .from('students')
+          .update(updateData)
+          .eq('student_id', studentId);
+    }
+  }
+
+  /// Enroll a student (set enrollment_status = 'Enrolled')
+  Future<void> enrollStudent(String studentId, {String? section}) async {
+    final updateData = <String, dynamic>{'enrollment_status': 'Enrolled'};
+    if (section != null && section.isNotEmpty) {
+      updateData['section'] = section;
+    }
+    await Supabase.instance.client
+        .from('students')
+        .update(updateData)
+        .eq('student_id', studentId);
+  }
+
+  /// Update enrollment status (Enrolled / Not Enrolled / Transferred Out / Dropped)
+  Future<void> updateEnrollmentStatus(String studentId, String status) async {
+    await Supabase.instance.client
+        .from('students')
+        .update({'enrollment_status': status})
+        .eq('student_id', studentId);
+  }
+
+  /// Get students filtered by enrollment status
+  Future<List<Map<String, dynamic>>> getStudentsByEnrollmentStatus(String status) async {
+    if (status == 'All') {
+      final results = await Supabase.instance.client
+          .from('students')
+          .select()
+          .eq('is_active', 1)
+          .order('name', ascending: true);
+      return List<Map<String, dynamic>>.from(results);
+    }
+    final results = await Supabase.instance.client
+        .from('students')
+        .select()
+        .eq('is_active', 1)
+        .eq('enrollment_status', status)
+        .order('name', ascending: true);
+    return List<Map<String, dynamic>>.from(results);
   }
 
   // --- GRADING SYSTEM (New DepEd DO 015 s. 2026 Transmutation) ---
+
   // Base-70 Transmutation: Raw score of 70 = 75.
   double transmuteGrade(double initialGrade) {
     if (initialGrade >= 100) return 100.0;

@@ -12,6 +12,8 @@ import 'shared_profile_screen.dart';
 import 'settings_screen.dart';
 import 'login_screen.dart';
 import 'admin_archive_screen.dart';
+import 'user_management_screen.dart';
+import 'enrollment_management_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   final String username;
@@ -131,6 +133,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     _buildMenuItem(7, Icons.pie_chart, 'Reports Generation', hoveredColor, isDesktop),
                     _buildMenuItem(8, Icons.campaign, 'Announcements', hoveredColor, isDesktop),
                     _buildMenuItem(11, Icons.archive, 'Archive & Bin', hoveredColor, isDesktop),
+                    _buildMenuItem(12, Icons.manage_accounts, 'User Management', hoveredColor, isDesktop),
+                    _buildMenuItem(13, Icons.how_to_reg, 'Enrollment', hoveredColor, isDesktop),
                     _buildMenuItem(10, Icons.settings, 'Settings', hoveredColor, isDesktop),
                   ],
                 ),
@@ -247,6 +251,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
         return SettingsScreen(username: widget.username);
       case 11:
         return const AdminArchiveScreen();
+      case 12:
+        return const UserManagementScreen();
+      case 13:
+        return const EnrollmentManagementScreen();
       default:
         return const Center(child: Text('Placeholder Screen'));
     }
