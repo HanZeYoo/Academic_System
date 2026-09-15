@@ -860,7 +860,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Student Scores â€” $_selectedItem ($_selectedPeriod)',
+                              'Student Scores - $_selectedItem ($_selectedPeriod)',
                               style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,

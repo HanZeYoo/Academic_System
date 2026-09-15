@@ -1722,4 +1722,55 @@ class DatabaseHelper {
       'rawScores': validScores,
     };
   }
+
+  // Update student NFC UID
+  Future<void> updateStudentNfcUid(String studentId, String uid) async {
+    await Supabase.instance.client
+        .from('students')
+        .update({'nfc_uid': uid})
+        .eq('student_id', studentId);
+  }
+
+  // Send push notification for attendance
+  Future<void> sendAttendanceNotification(String studentId, String studentName, String className, String status) async {
+    try {
+      // 1. Get student to find parent email
+      final studentRes = await Supabase.instance.client.from('students').select('parent_email').eq('student_id', studentId).maybeSingle();
+      if (studentRes == null || studentRes['parent_email'] == null) return;
+      final parentEmail = studentRes['parent_email'].toString();
+
+      // 2. Get parent FCM token
+      final userRes = await Supabase.instance.client.from('users').select('fcm_token').eq('username', parentEmail).maybeSingle();
+      if (userRes == null || userRes['fcm_token'] == null) return;
+      final fcmToken = userRes['fcm_token'].toString();
+
+      // 3. Send Notification via Edge Function
+      String message = status == 'Absent' 
+          ? "Si $studentName ay namarkahang Absent sa klase ng $className ngayong araw."
+          : "Si $studentName ay pumasok sa klase ($className) at namarkahang $status ngayong araw.";
+          
+      if (fcmToken.isNotEmpty) {
+        await Supabase.instance.client.functions.invoke('send-fcm', body: {
+          'token': fcmToken,
+          'title': 'Attendance Update',
+          'body': message,
+          'data': {'route': 'notifications'}
+        });
+      }
+      
+      // Also save to notifications table so they see it in-app
+      await insertNotification({
+        'sender_username': 'System',
+        'receiver_username': parentEmail,
+        'student_id': int.parse(studentId),
+        'title': 'Attendance Update',
+        'message': message,
+        'date': "${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}",
+        'status': 'Sent'
+      });
+      
+    } catch (e) {
+      print('Error sending attendance notification: $e');
+    }
+  }
 }

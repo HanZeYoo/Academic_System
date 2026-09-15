@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:nfc_manager/nfc_manager.dart';
+import 'dart:async';
 import '../database_helper.dart';
 
 class TeacherAttendanceScreen extends StatefulWidget {
@@ -22,6 +24,13 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
   String _searchQuery = '';
   Set<DateTime> _markedDates = {};
   List<Map<String, dynamic>> _assignedClassesFull = [];
+  Timer? _endClassTimer;
+
+  @override
+  void dispose() {
+    _endClassTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -107,7 +116,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
     for (int i = 0; i < rawStudents.length; i++) {
       final student = rawStudents[i];
       final sid = student['student_id'].toString();
-      final status = attendanceMap[sid] ?? 'Present'; // Default to Present
+      final status = attendanceMap[sid] ?? 'Absent'; // Default to Absent
       final baseColor = colors[i % colors.length];
       
       uiStudents.add({
@@ -124,6 +133,84 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
       _students = uiStudents;
       _isLoading = false;
     });
+
+    _setupAutoSweep();
+  }
+
+  void _setupAutoSweep() {
+    _endClassTimer?.cancel();
+    if (_selectedClass == null || _assignedClassesFull.isEmpty) return;
+    
+    // Only sweep if the selected date is today
+    final now = DateTime.now();
+    if (_selectedDate.year != now.year || _selectedDate.month != now.month || _selectedDate.day != now.day) {
+      return;
+    }
+
+    final classRecord = _assignedClassesFull.firstWhere(
+      (c) => '${c['subject_code']} - ${c['grade_level']} - ${c['section_name']}' == _selectedClass,
+      orElse: () => {},
+    );
+    final timeStr = classRecord['time']?.toString() ?? '';
+    if (timeStr.isEmpty) return;
+
+    final timeParts = timeStr.split(' - ');
+    if (timeParts.length < 2) return;
+    
+    final endTimeStr = timeParts[1];
+    final match = RegExp(r'(\d+):(\d+)\s*(AM|PM)', caseSensitive: false).firstMatch(endTimeStr.trim());
+    if (match != null) {
+      int h = int.parse(match.group(1)!);
+      int m = int.parse(match.group(2)!);
+      String ampm = match.group(3)!.toUpperCase();
+      if (ampm == 'PM' && h < 12) h += 12;
+      if (ampm == 'AM' && h == 12) h = 0;
+      
+      final endDateTime = DateTime(now.year, now.month, now.day, h, m);
+      
+      if (now.isAfter(endDateTime)) {
+        bool hasUnsavedAbsents = _students.any((s) => s['status'] == 'Absent');
+        if (hasUnsavedAbsents) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showAutoSweepDialog();
+          });
+        }
+      } else {
+        // Class will end later today. Set up a timer.
+        final duration = endDateTime.difference(now);
+        _endClassTimer = Timer(duration, () {
+          if (mounted) {
+            _saveAttendance(isAutoSweep: true);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Class ended. Remaining students auto-saved as Absent.')),
+            );
+          }
+        });
+      }
+    }
+  }
+
+  void _showAutoSweepDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Class Ended'),
+        content: const Text('The time for this class has already ended. Do you want to automatically save the remaining unmarked students as Absent?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Not Now'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _saveAttendance(isAutoSweep: true);
+            },
+            child: const Text('Auto-Save Absents'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showErrorDialog(String title, String message) {
@@ -188,9 +275,9 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
     );
   }
 
-  Future<void> _saveAttendance() async {
+  Future<void> _saveAttendance({bool isAutoSweep = false}) async {
     if (_selectedClass == null || _students.isEmpty) {
-      _showErrorDialog('Warning', 'No students to save.');
+      if (!isAutoSweep) _showErrorDialog('Warning', 'No students to save.');
       return;
     }
 
@@ -205,16 +292,18 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
     final today = DateTime(now.year, now.month, now.day);
     final selectedDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
 
-    if (selectedDay.isBefore(today)) {
-      _showErrorDialog('Action Blocked', 'Cannot edit attendance for past dates.\n\nClass time is already over.');
-      return;
-    }
-    if (selectedDay.isAfter(today)) {
-      _showErrorDialog('Action Blocked', 'Cannot take attendance for future dates.');
-      return;
+    if (!isAutoSweep) {
+      if (selectedDay.isBefore(today)) {
+        _showErrorDialog('Action Blocked', 'Cannot edit attendance for past dates.\n\nClass time is already over.');
+        return;
+      }
+      if (selectedDay.isAfter(today)) {
+        _showErrorDialog('Action Blocked', 'Cannot take attendance for future dates.');
+        return;
+      }
     }
 
-    if (timeStr.isNotEmpty) {
+    if (!isAutoSweep && timeStr.isNotEmpty) {
       final timeParts = timeStr.split(' - ');
       if (timeParts.length == 2) {
         final endTimeStr = timeParts[1];
@@ -890,6 +979,24 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
   Widget _buildActionButtons() {
     return Column(
       children: [
+        // Start NFC Scan Button
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: _startNfcScan,
+            icon: const Icon(Icons.nfc, color: Colors.white),
+            label: const Text('Start NFC Scan', style: TextStyle(fontSize: 16, color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F52BA), // Deep blue
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 0,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
           height: 48,
@@ -931,5 +1038,150 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
         ),
       ],
     );
+  }
+
+  void _startNfcScan() async {
+    bool isAvailable = await NfcManager.instance.isAvailable();
+    if (!isAvailable) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('NFC is not available on this device.')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('NFC Attendance Mode'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.nfc, size: 64, color: Color(0xFF0F52BA)),
+            SizedBox(height: 16),
+            Text('Ready to scan. Please tap student IDs.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              NfcManager.instance.stopSession();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Stop Scanning'),
+          ),
+        ],
+      ),
+    );
+
+    NfcManager.instance.startSession(
+      pollingOptions: {
+        NfcPollingOption.iso14443,
+        NfcPollingOption.iso15693,
+        NfcPollingOption.iso18092,
+      },
+      onDiscovered: (NfcTag tag) async {
+      // Extract UID safely
+      debugPrint('NFC Tag Data: ${tag.data}');
+      
+      final Map<String, dynamic> tagData = Map<String, dynamic>.from(tag.data as Map);
+      
+      final Map<String, dynamic>? mifare = tagData['mifareclassic'] != null ? Map<String, dynamic>.from(tagData['mifareclassic'] as Map) : null;
+      final Map<String, dynamic>? nfca = tagData['nfca'] != null ? Map<String, dynamic>.from(tagData['nfca'] as Map) : null;
+      final Map<String, dynamic>? ndef = tagData['ndef'] != null ? Map<String, dynamic>.from(tagData['ndef'] as Map) : null;
+      
+      final dynamic identifier = mifare?['identifier'] ?? nfca?['identifier'] ?? ndef?['identifier'];
+                         
+      if (identifier != null && identifier is List) {
+        final List<int> idBytes = List<int>.from(identifier);
+        final String uid = idBytes.map((e) => e.toRadixString(16).padLeft(2, '0').toUpperCase()).join(':');
+        
+        debugPrint('Extracted UID: $uid');
+        
+        bool found = false;
+        String studentName = "";
+
+        // Find the student in the current list
+        for (int i = 0; i < _students.length; i++) {
+          final s = _students[i];
+          final rawStudent = _assignedClassesFull.isNotEmpty ? null : null; // Need original raw students which we don't store directly. 
+          // Wait, _students only has id, name, class, status, etc.
+          // Let's check Supabase for the uid directly.
+        }
+
+        // Simpler: query db for this uid
+        final res = await Supabase.instance.client.from('students').select('student_id, name').eq('nfc_uid', uid).maybeSingle();
+        if (res != null && mounted) {
+           final matchedStudentId = res['student_id'].toString();
+           // Update local list if they are in this class
+           for (var student in _students) {
+             if (student['id'].toString() == matchedStudentId) {
+               String newStatus = 'Present';
+               // Auto-Late Logic
+               if (_selectedClass != null && _assignedClassesFull.isNotEmpty) {
+                 final classRecord = _assignedClassesFull.firstWhere(
+                   (c) => '${c['subject_code']} - ${c['grade_level']} - ${c['section_name']}' == _selectedClass,
+                   orElse: () => {},
+                 );
+                 final timeStr = classRecord['time']?.toString() ?? '';
+                 if (timeStr.isNotEmpty) {
+                   final timeParts = timeStr.split(' - ');
+                   if (timeParts.isNotEmpty) {
+                     final startTimeStr = timeParts[0];
+                     final match = RegExp(r'(\d+):(\d+)\s*(AM|PM)', caseSensitive: false).firstMatch(startTimeStr.trim());
+                     if (match != null) {
+                       int h = int.parse(match.group(1)!);
+                       int m = int.parse(match.group(2)!);
+                       String ampm = match.group(3)!.toUpperCase();
+                       if (ampm == 'PM' && h < 12) h += 12;
+                       if (ampm == 'AM' && h == 12) h = 0;
+                       
+                       final now = DateTime.now();
+                       final startDateTime = DateTime(now.year, now.month, now.day, h, m);
+                       final lateThreshold = startDateTime.add(const Duration(minutes: 15));
+                       
+                       if (now.isAfter(lateThreshold)) {
+                         newStatus = 'Late';
+                       }
+                     }
+                   }
+                 }
+               }
+
+               setState(() {
+                 student['status'] = newStatus;
+               });
+               found = true;
+               studentName = res['name'];
+               
+               // Auto-save to DB and send notification
+               final dateStr = "${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
+               final dbHelper = DatabaseHelper();
+               dbHelper.saveAttendance({
+                 'student_id': matchedStudentId,
+                 'class_name': _selectedClass!,
+                 'date': dateStr,
+                 'status': newStatus,
+               });
+               dbHelper.sendAttendanceNotification(matchedStudentId, studentName, _selectedClass!, newStatus);
+               break;
+             }
+           }
+        }
+
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+             content: Text(found ? 'Marked $studentName as Present' : 'Unrecognized ID or student not in this class'),
+             backgroundColor: found ? Colors.green : Colors.red,
+             duration: const Duration(milliseconds: 1500),
+           ));
+        }
+
+      }
+    });
   }
 }

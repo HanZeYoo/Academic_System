@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
 import 'login_screen.dart';
+import 'package:nfc_manager/nfc_manager.dart';
+import 'package:nfc_manager/platform_tags.dart';
 
 class StudentDetailScreen extends StatefulWidget {
   final Map<String, dynamic> student;
@@ -163,6 +165,113 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     );
   }
 
+  void _registerNfcId(BuildContext context) async {
+    // Check if NFC is available
+    bool isAvailable = await NfcManager.instance.isAvailable();
+    if (!isAvailable) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('NFC is not available on this device.')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    // Show a dialog while waiting for scan
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Scan NFC ID'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.nfc, size: 64, color: Color(0xFF0F52BA)),
+            SizedBox(height: 16),
+            Text('Please tap the student ID on the back of your phone.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              NfcManager.instance.stopSession();
+              Navigator.pop(ctx);
+            },
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    // Start Session
+    NfcManager.instance.startSession(
+      pollingOptions: {
+        NfcPollingOption.iso14443,
+        NfcPollingOption.iso15693,
+        NfcPollingOption.iso18092,
+      },
+      onDiscovered: (NfcTag tag) async {
+      NfcManager.instance.stopSession();
+      if (!mounted) return;
+      Navigator.pop(context); // Close the scanning dialog
+
+      // Extract UID safely using platform_tags
+      debugPrint('NFC Tag Data: ${tag.data}');
+      
+      List<int>? identifier;
+      
+      final mifare = MifareClassic.from(tag);
+      final nfca = NfcA.from(tag);
+      final ndef = Ndef.from(tag);
+
+      identifier = mifare?.identifier ?? nfca?.identifier ?? ndef?.additionalData['identifier'] as List<int>?;
+                         
+      if (identifier != null && identifier.isNotEmpty) {
+        // Convert to hex string
+        final List<int> idBytes = List<int>.from(identifier);
+        final String uid = idBytes.map((e) => e.toRadixString(16).padLeft(2, '0').toUpperCase()).join(':');
+        
+        debugPrint('Extracted UID: $uid');
+        
+        final studentId = widget.student['student_id']?.toString() ?? '';
+        if (studentId.isNotEmpty) {
+           showDialog(
+             context: context,
+             barrierDismissible: false,
+             builder: (c) => const Center(child: CircularProgressIndicator()),
+           );
+           try {
+             await DatabaseHelper().updateStudentNfcUid(studentId, uid);
+             if (mounted) {
+                setState(() {
+                  widget.student['nfc_uid'] = uid;
+                });
+                Navigator.pop(context); // close loading
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Successfully linked NFC ID: $uid'),
+                  backgroundColor: Colors.green,
+                ));
+             }
+           } catch (e) {
+             if (mounted) {
+                Navigator.pop(context); // close loading
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Failed to link NFC: $e'),
+                  backgroundColor: Colors.red,
+                ));
+             }
+           }
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not read ID from this tag.')),
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final student = widget.student;
@@ -178,6 +287,12 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          if (LoginScreen.loggedInRole == 'admin' || LoginScreen.loggedInRole == 'teacher')
+            IconButton(
+              icon: const Icon(Icons.nfc, color: Colors.white),
+              tooltip: 'Link NFC ID',
+              onPressed: () => _registerNfcId(context),
+            ),
           if (LoginScreen.loggedInRole == 'admin')
             IconButton(
               icon: const Icon(Icons.lock_reset, color: Colors.white),
@@ -242,6 +357,31 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  if (student['nfc_uid'] != null && student['nfc_uid'].toString().isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.greenAccent.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.5)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.nfc, size: 14, color: Colors.greenAccent),
+                          SizedBox(width: 4),
+                          Text(
+                            'NFC Registered',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.greenAccent,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
