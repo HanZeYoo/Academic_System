@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+ 
+# Raw fixture ignore
+test/fixtures/raw_*
+test/fixtures/real_*

@@ -4,6 +4,9 @@ import 'dart:convert';
 enum EcrTargetCategory {
   studentName('Student Name', isNumeric: false),
   lrn('LRN', isNumeric: false),
+  lastName('Last Name', isNumeric: false),
+  firstName('First Name', isNumeric: false),
+  middleInitial('Middle Initial', isNumeric: false),
   ww1('WW1', isNumeric: true, component: 'WW'),
   ww2('WW2', isNumeric: true, component: 'WW'),
   ww3('WW3', isNumeric: true, component: 'WW'),
@@ -25,6 +28,8 @@ enum EcrTargetCategory {
   pt9('PT9', isNumeric: true, component: 'PT'),
   pt10('PT10', isNumeric: true, component: 'PT'),
   qa('QA', isNumeric: true, component: 'QA'),
+  componentTotal('Component Total', isNumeric: true),
+  calculatedIgnore('Calculated Score (PS/WS - Ignore)', isNumeric: false),
   hpsWw('HPS (Written Work)', isNumeric: true, isHps: true, component: 'WW'),
   hpsPt('HPS (Performance Task)', isNumeric: true, isHps: true, component: 'PT'),
   hpsQa('HPS (Quarterly Assessment)', isNumeric: true, isHps: true, component: 'QA'),
@@ -61,6 +66,9 @@ class EcrColumnMapping {
   bool hasTypeMismatch; // True if preview data has non-numeric in numeric column
   bool assumedHps; // True if HPS was not found in sheet and used default
   double? customHps; // Override total HPS for this component column
+  double? detectedRowHps; // HPS extracted directly from horizontal HPS row
+  String? parentBlock; // 'WW', 'PT', 'QA', or null
+  List<String> reasons; // Explainability notes for UI
 
   EcrColumnMapping({
     required this.columnIndex,
@@ -71,7 +79,10 @@ class EcrColumnMapping {
     this.hasTypeMismatch = false,
     this.assumedHps = false,
     this.customHps,
-  });
+    this.detectedRowHps,
+    this.parentBlock,
+    List<String>? reasons,
+  }) : reasons = reasons ?? [];
 
   Map<String, dynamic> toJson() => {
         'columnIndex': columnIndex,
@@ -82,6 +93,9 @@ class EcrColumnMapping {
         'hasTypeMismatch': hasTypeMismatch,
         'assumedHps': assumedHps,
         'customHps': customHps,
+        'detectedRowHps': detectedRowHps,
+        'parentBlock': parentBlock,
+        'reasons': reasons,
       };
 
   factory EcrColumnMapping.fromJson(Map<String, dynamic> json) => EcrColumnMapping(
@@ -93,7 +107,66 @@ class EcrColumnMapping {
         hasTypeMismatch: json['hasTypeMismatch'] ?? false,
         assumedHps: json['assumedHps'] ?? false,
         customHps: (json['customHps'] as num?)?.toDouble(),
+        detectedRowHps: (json['detectedRowHps'] as num?)?.toDouble(),
+        parentBlock: json['parentBlock']?.toString(),
+        reasons: (json['reasons'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
       );
+}
+
+/// Metadata summary of a spreadsheet tab/sheet
+class EcrSheetSummary {
+  final String sheetName;
+  final int rowCount;
+  final int columnCount;
+  final bool isCandidate;
+  final double matchScore;
+  final String? previewSnippet;
+
+  EcrSheetSummary({
+    required this.sheetName,
+    required this.rowCount,
+    required this.columnCount,
+    required this.isCandidate,
+    required this.matchScore,
+    this.previewSnippet,
+  });
+}
+
+/// Information about a non-student row excluded from import
+class EcrExcludedRow {
+  final int rowIndex; // 1-indexed for display
+  final String rawText;
+  final String reason;
+
+  EcrExcludedRow({
+    required this.rowIndex,
+    required this.rawText,
+    required this.reason,
+  });
+}
+
+/// Summary of class roster reconciliation check
+class EcrRosterMatchResult {
+  final int totalSheetStudents;
+  final int matchedCount;
+  final int unmatchedCount;
+  final int duplicateCount;
+  final List<String> unmatchedNames;
+  final List<String> duplicateNames;
+  final double matchRate; // 0.0 to 1.0
+
+  EcrRosterMatchResult({
+    required this.totalSheetStudents,
+    required this.matchedCount,
+    required this.unmatchedCount,
+    required this.duplicateCount,
+    required this.unmatchedNames,
+    required this.duplicateNames,
+    required this.matchRate,
+  });
+
+  bool get isCriticallyLow => totalSheetStudents > 0 && matchRate < 0.40;
+  bool get lowMatchWarning => isCriticallyLow;
 }
 
 /// Represents a validation error/warning on a single data row

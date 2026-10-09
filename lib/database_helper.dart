@@ -1583,17 +1583,136 @@ class DatabaseHelper {
   }
 
   /// Save or update scores in batch
+    /// Save or update scores in batch with in-memory key reconciliation and chunked writes.
+  /// Zero-migration compatible: reconciles existing record IDs and splits into chunked update/insert calls.
   Future<int> batchSaveScores(List<Map<String, dynamic>> scoreList) async {
-    int savedCount = 0;
-    for (final scoreData in scoreList) {
-      try {
-        await saveScore(scoreData);
-        savedCount++;
-      } catch (e) {
-        print('Error saving individual score: $e');
+    if (scoreList.isEmpty) return 0;
+
+    // 1. Identify distinct classes/periods to reconcile existing records
+    final first = scoreList.first;
+    final subjectCode = first['subject_code']?.toString() ?? '';
+    final sectionName = first['section_name']?.toString() ?? '';
+    final gradingPeriod = first['grading_period']?.toString() ?? '';
+    final schoolYear = first['school_year']?.toString();
+
+    // 2. Paginated SELECT of existing scores past PostgREST's 1,000-row default
+    List<Map<String, dynamic>> existingScores = [];
+    int pageSize = 1000;
+    int page = 0;
+    bool hasMore = true;
+
+    try {
+      while (hasMore) {
+        var query = Supabase.instance.client
+            .from('scores')
+            .select('id, student_id, subject_code, category, item_label, grading_period, school_year')
+            .eq('subject_code', subjectCode)
+            .eq('section_name', sectionName)
+            .eq('grading_period', gradingPeriod);
+
+        if (schoolYear != null && schoolYear.isNotEmpty) {
+          query = query.eq('school_year', schoolYear);
+        }
+
+        final pageResults = await query.range(page * pageSize, (page + 1) * pageSize - 1);
+        final list = List<Map<String, dynamic>>.from(pageResults);
+        existingScores.addAll(list);
+
+        if (list.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      }
+    } catch (e) {
+      print('Note: Paginated reconciliation query returned: $e');
+    }
+
+    // 3. Build in-memory lookup index by composite key
+    final Map<String, dynamic> existingKeyMap = {};
+    for (final row in existingScores) {
+      final key = _buildScoreCompositeKey(
+        studentId: row['student_id']?.toString() ?? '',
+        subjectCode: row['subject_code']?.toString() ?? '',
+        category: row['category']?.toString() ?? '',
+        itemLabel: row['item_label']?.toString() ?? '',
+        gradingPeriod: row['grading_period']?.toString() ?? '',
+        schoolYear: row['school_year']?.toString(),
+      );
+      existingKeyMap[key] = row['id'];
+    }
+
+    // 4. Split incoming scores into updates (matching id) and inserts (new records)
+    List<Map<String, dynamic>> toUpdate = [];
+    List<Map<String, dynamic>> toInsert = [];
+
+    for (final score in scoreList) {
+      final key = _buildScoreCompositeKey(
+        studentId: score['student_id']?.toString() ?? '',
+        subjectCode: score['subject_code']?.toString() ?? '',
+        category: score['category']?.toString() ?? '',
+        itemLabel: score['item_label']?.toString() ?? '',
+        gradingPeriod: score['grading_period']?.toString() ?? '',
+        schoolYear: score['school_year']?.toString(),
+      );
+
+      final copy = Map<String, dynamic>.from(score);
+      if (existingKeyMap.containsKey(key)) {
+        copy['id'] = existingKeyMap[key];
+        toUpdate.add(copy);
+      } else {
+        toInsert.add(copy);
       }
     }
+
+    int savedCount = 0;
+    const int chunkSize = 50;
+
+    // 5. Process updates in chunks
+    for (int i = 0; i < toUpdate.length; i += chunkSize) {
+      final chunk = toUpdate.sublist(i, (i + chunkSize > toUpdate.length) ? toUpdate.length : i + chunkSize);
+      try {
+        await Supabase.instance.client.from('scores').upsert(chunk);
+        savedCount += chunk.length;
+      } catch (e) {
+        // Fallback row-by-row on error
+        for (final row in chunk) {
+          try {
+            await Supabase.instance.client.from('scores').update(row).eq('id', row['id']);
+            savedCount++;
+          } catch (_) {}
+        }
+      }
+    }
+
+    // 6. Process inserts in chunks
+    for (int i = 0; i < toInsert.length; i += chunkSize) {
+      final chunk = toInsert.sublist(i, (i + chunkSize > toInsert.length) ? toInsert.length : i + chunkSize);
+      try {
+        await Supabase.instance.client.from('scores').insert(chunk);
+        savedCount += chunk.length;
+      } catch (e) {
+        for (final row in chunk) {
+          try {
+            await Supabase.instance.client.from('scores').insert(row);
+            savedCount++;
+          } catch (_) {}
+        }
+      }
+    }
+
     return savedCount;
+  }
+
+  String _buildScoreCompositeKey({
+    required String studentId,
+    required String subjectCode,
+    required String category,
+    required String itemLabel,
+    required String gradingPeriod,
+    String? schoolYear,
+  }) {
+    return '$studentId|$subjectCode|$category|$itemLabel|$gradingPeriod|${schoolYear ?? ''}';
   }
 
   Future<Map<String, dynamic>> getGradeBreakdown({

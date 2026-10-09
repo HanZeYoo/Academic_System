@@ -1,4 +1,4 @@
-﻿import 'dart:typed_data';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
@@ -35,9 +35,13 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
   final EcrValidator _validator = EcrValidator();
 
   // Parsed File Data
+  Uint8List? _uploadedBytes;
+  String? _uploadedFilename;
+  String? _selectedSheetName;
   EcrParseResult? _parseResult;
   List<EcrColumnMapping> _columnMappings = [];
   EcrValidationSummary? _validationSummary;
+  EcrRosterMatchResult? _rosterMatchResult;
 
   // Configurable Defaults
   double _defaultWwHps = 100.0;
@@ -72,7 +76,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     });
   }
 
-  // â”€â”€ STEP 1: PICK AND PARSE FILE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── STEP 1: PICK AND PARSE FILE ──────────────────────────────────────────
 
   Future<void> _pickAndParseFile() async {
     if (_selectedClassRecord == null) {
@@ -97,61 +101,35 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       final file = result.files.first;
       final bytes = file.bytes;
       if (bytes == null) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not read file data.')),
         );
         return;
       }
 
+      _uploadedBytes = bytes;
+      _uploadedFilename = file.name;
+
       setState(() {
         _isLoading = true;
-        _statusMessage = 'Parsing ECR file and resolving merged cells...';
+        _statusMessage = 'Parsing ECR file and detecting sheets...';
       });
 
-      final parseRes = await _parserService.parseFile(bytes, file.name);
-
-      // Check if saved template exists for this teacher & subject
-      final teacherId = _teacherName ?? widget.username;
-      final subjectId = _selectedClassRecord!['subject_code']?.toString() ?? 'DEFAULT';
-
-      final savedTemplateMap = await DatabaseHelper().getMappingTemplate(
-        teacherId: teacherId,
-        subjectId: subjectId,
+      final parseRes = await _parserService.parseFile(
+        bytes,
+        file.name,
+        gradingPeriod: _selectedPeriod,
       );
+      _selectedSheetName = parseRes.sheetName;
 
-      EcrMappingTemplate? template;
-      if (savedTemplateMap != null) {
-        template = EcrMappingTemplate(
-          teacherId: teacherId,
-          subjectId: subjectId,
-          mappingJson: savedTemplateMap,
-        );
-      }
-
-      // Generate column mappings via heuristic engine
-      _mappingEngine.defaultWwHps = _defaultWwHps;
-      _mappingEngine.defaultPtHps = _defaultPtHps;
-      _mappingEngine.defaultQaHps = _defaultQaHps;
-
-      final previewRows = parseRes.dataRows.take(10).toList();
-      final mappings = _mappingEngine.autoDetectMappings(
-        headers: parseRes.headers,
-        previewRows: previewRows,
-        savedTemplate: template,
-      );
-
-      setState(() {
-        _parseResult = parseRes;
-        _columnMappings = mappings;
-        _currentStep = 1;
-        _isLoading = false;
-        _statusMessage = null;
-      });
+      await _applyMappingsForParseResult(parseRes);
     } catch (e) {
       setState(() {
         _isLoading = false;
         _statusMessage = null;
       });
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Parsing Error: ${e.toString()}'),
@@ -161,7 +139,87 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     }
   }
 
-  // â”€â”€ STEP 2: RE-EVALUATE MAPPINGS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  Future<void> _switchSheet(String newSheetName) async {
+    if (_uploadedBytes == null || _uploadedFilename == null) return;
+
+    try {
+      setState(() {
+        _isLoading = true;
+        _statusMessage = 'Switching to sheet "$newSheetName"...';
+      });
+
+      final parseRes = await _parserService.parseFile(
+        _uploadedBytes!,
+        _uploadedFilename!,
+        targetSheetName: newSheetName,
+        gradingPeriod: _selectedPeriod,
+      );
+      _selectedSheetName = parseRes.sheetName;
+
+      await _applyMappingsForParseResult(parseRes);
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+        _statusMessage = null;
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error switching sheet: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _applyMappingsForParseResult(EcrParseResult parseRes) async {
+    // Check if saved template exists for this teacher & subject
+    final teacherId = _teacherName ?? widget.username;
+    final subjectId = _selectedClassRecord!['subject_code']?.toString() ?? 'DEFAULT';
+
+    final savedTemplateMap = await DatabaseHelper().getMappingTemplate(
+      teacherId: teacherId,
+      subjectId: subjectId,
+    );
+
+    EcrMappingTemplate? template;
+    if (savedTemplateMap != null) {
+      template = EcrMappingTemplate(
+        teacherId: teacherId,
+        subjectId: subjectId,
+        mappingJson: savedTemplateMap,
+      );
+    }
+
+    // Generate column mappings via heuristic engine
+    _mappingEngine.defaultWwHps = _defaultWwHps;
+    _mappingEngine.defaultPtHps = _defaultPtHps;
+    _mappingEngine.defaultQaHps = _defaultQaHps;
+
+    final previewRows = parseRes.dataRows.take(10).toList();
+    final mappings = _mappingEngine.autoDetectMappings(
+      headers: parseRes.headers,
+      previewRows: previewRows,
+      savedTemplate: template,
+    );
+
+    // Propagate detected horizontal row HPS to mappings
+    for (final m in mappings) {
+      if (parseRes.rowHpsMap.containsKey(m.columnIndex)) {
+        m.detectedRowHps = parseRes.rowHpsMap[m.columnIndex];
+      }
+    }
+
+    setState(() {
+      _parseResult = parseRes;
+      _columnMappings = mappings;
+      _currentStep = 1;
+      _isLoading = false;
+      _statusMessage = null;
+    });
+  }
+
+  // ── STEP 2: RE-EVALUATE MAPPINGS ─────────────────────────────────────────
 
   void _reevaluateMappings() {
     if (_parseResult == null) return;
@@ -180,26 +238,85 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     });
   }
 
-  // â”€â”€ STEP 3: RUN FULL VALIDATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── STEP 3: RUN FULL VALIDATION ──────────────────────────────────────────
 
-  void _proceedToValidation() {
+  // ── STEP 3: RUN FULL VALIDATION ──────────────────────────────────────────
+
+  void _proceedToValidation() async {
     if (_parseResult == null) return;
+
+    setState(() {
+      _isLoading = true;
+      _statusMessage = 'Validating dataset and checking section roster...';
+    });
 
     final summary = _validator.validateFullDataset(
       dataRows: _parseResult!.dataRows,
       mappings: _columnMappings,
     );
 
+    // Reconcile with official section roster from database
+    EcrRosterMatchResult? rosterResult;
+    if (_selectedClassRecord != null) {
+      final grade = _selectedClassRecord!['grade_level']?.toString() ?? '';
+      final section = _selectedClassRecord!['section_name']?.toString() ?? '';
+      try {
+        final enrolled = await DatabaseHelper().getStudentsBySection(grade, section);
+        rosterResult = _validator.reconcileWithRoster(
+          dataRows: _parseResult!.dataRows,
+          mappings: _columnMappings,
+          enrolledStudents: enrolled,
+        );
+      } catch (e) {
+        debugPrint('Note: Could not fetch enrolled students for roster check: $e');
+      }
+    }
+
     setState(() {
       _validationSummary = summary;
+      _rosterMatchResult = rosterResult;
+      _isLoading = false;
+      _statusMessage = null;
       _currentStep = 2;
     });
   }
 
-  // â”€â”€ STEP 4: SAVE TO SUPABASE & PERSIST TEMPLATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── STEP 4: SAVE TO SUPABASE & PERSIST TEMPLATE ─────────────────────────
 
   Future<void> _executeSave({bool skipErrors = false}) async {
     if (_parseResult == null || _selectedClassRecord == null) return;
+
+    // If low roster match (< 40%), prompt user with explicit confirmation dialog
+    if (_rosterMatchResult != null && _rosterMatchResult!.lowMatchWarning) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Low Class Roster Match'),
+            ],
+          ),
+          content: Text(
+            'Only ${(_rosterMatchResult!.matchRate * 100).toInt()}% of students in this file match the enrolled roster for ${_selectedClassRecord?['subject_name']} (${_selectedClassRecord?['grade_level']} - ${_selectedClassRecord?['section_name']}).\n\nAre you sure you want to proceed with importing these scores into this section?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white),
+              child: const Text('Import Anyway'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+    }
 
     setState(() {
       _isSaving = true;
@@ -219,8 +336,14 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
     List<Map<String, dynamic>> scoresToInsert = [];
 
-    // Collect mappings for score components
-    final scoreMappings = _columnMappings.where((m) => m.target.isNumeric && !m.target.isHps && m.target != EcrTargetCategory.totalGrade && m.target != EcrTargetCategory.ignore).toList();
+    // Collect mappings for score components (exclude totals, calculated % and ignored)
+    final scoreMappings = _columnMappings.where((m) =>
+        m.target.isNumeric &&
+        !m.target.isHps &&
+        m.target != EcrTargetCategory.totalGrade &&
+        m.target != EcrTargetCategory.componentTotal &&
+        m.target != EcrTargetCategory.calculatedIgnore &&
+        m.target != EcrTargetCategory.ignore).toList();
 
     // Build HPS lookup map per component
     Map<String, double> hpsLookup = {
@@ -273,7 +396,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         final compKey = m.target.component ?? 'WW';
         final totalHps = m.customHps ?? hpsLookup[compKey] ?? 100.0;
 
-        scoresToInsert.add({
+        final record = {
           'student_id': studentId,
           'student_name': studentName,
           'subject_code': subjectCode,
@@ -287,7 +410,12 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
           'total_score': totalHps,
           'teacher_name': teacherId,
           'created_at': now,
-        });
+        };
+        if (_selectedClassRecord?['school_year'] != null) {
+          record['school_year'] = _selectedClassRecord!['school_year'];
+        }
+
+        scoresToInsert.add(record);
       }
     }
 
@@ -331,7 +459,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     return 'Quiz';
   }
 
-  // â”€â”€ BUILD UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── BUILD UI ─────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -373,7 +501,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // â”€â”€ ANIMATED LOADING SCREEN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── ANIMATED LOADING SCREEN ──────────────────────────────────────────────
 
   Widget _buildLoadingScreen() {
     return Center(
@@ -476,7 +604,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // â”€â”€ HEADER CONTEXT CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── HEADER CONTEXT CARD ──────────────────────────────────────────────────
 
   Widget _buildHeaderContextCard() {
     return Card(
@@ -499,7 +627,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<Map<String, dynamic>>(
-                          value: _selectedClassRecord,
+                          initialValue: _selectedClassRecord,
                           decoration: InputDecoration(
                             labelText: 'Class / Subject',
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -517,7 +645,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: _selectedPeriod,
+                          initialValue: _selectedPeriod,
                           decoration: InputDecoration(
                             labelText: 'Grading Period',
                             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -527,6 +655,10 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                             DropdownMenuItem(value: '1st Term', child: Text('1st Term')),
                             DropdownMenuItem(value: '2nd Term', child: Text('2nd Term')),
                             DropdownMenuItem(value: '3rd Term', child: Text('3rd Term')),
+                            DropdownMenuItem(value: '1st Quarter', child: Text('1st Quarter')),
+                            DropdownMenuItem(value: '2nd Quarter', child: Text('2nd Quarter')),
+                            DropdownMenuItem(value: '3rd Quarter', child: Text('3rd Quarter')),
+                            DropdownMenuItem(value: '4th Quarter', child: Text('4th Quarter')),
                           ],
                           onChanged: (val) {
                             if (val != null) setState(() => _selectedPeriod = val);
@@ -544,7 +676,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // â”€â”€ STEP INDICATOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── STEP INDICATOR ───────────────────────────────────────────────────────
 
   Widget _buildStepIndicator() {
     final steps = ['1. Upload File', '2. Confirm Mapping', '3. Validate', '4. Complete'];
@@ -579,7 +711,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // â”€â”€ STEP 1: UPLOAD CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── STEP 1: UPLOAD CARD ──────────────────────────────────────────────────
 
   Widget _buildUploadStep() {
     return Card(
@@ -630,7 +762,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // â”€â”€ STEP 2: MAPPING CONFIRMATION STEP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── STEP 2: MAPPING CONFIRMATION STEP ────────────────────────────────────
 
   Widget _buildMappingStep() {
     if (_parseResult == null) return const SizedBox();
@@ -695,6 +827,106 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
           ),
         ),
 
+        // Sheet Tab Selector (if multiple sheets available)
+        if (_parseResult != null && _parseResult!.availableSheets.length > 1) ...[
+          const SizedBox(height: 10),
+          Card(
+            elevation: 0,
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              side: const BorderSide(color: Color(0xFF93C5FD)),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  const Icon(Icons.tab_rounded, color: Color(0xFF2563EB), size: 20),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Active Sheet Tab:',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                  ),
+                  const SizedBox(width: 12),
+                  DropdownButton<String>(
+                    value: _selectedSheetName,
+                    underline: const SizedBox(),
+                    items: _parseResult!.availableSheets.map((s) {
+                      return DropdownMenuItem<String>(
+                        value: s.sheetName,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              s.sheetName,
+                              style: TextStyle(
+                                fontWeight: s.isCandidate ? FontWeight.bold : FontWeight.normal,
+                                color: s.isCandidate ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                              ),
+                            ),
+                            if (s.isCandidate) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDBEAFE),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'Candidate',
+                                  style: TextStyle(fontSize: 10, color: Color(0xFF1D4ED8), fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (newSheet) {
+                      if (newSheet != null && newSheet != _selectedSheetName) {
+                        _switchSheet(newSheet);
+                      }
+                    },
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${_parseResult!.dataRows.length} students detected',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
+        // Formula-based column informational notice
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.info_outline, size: 18, color: Color(0xFF64748B)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Note: Formula-based columns (such as Final Grade or calculated percentages) cannot be read directly from the spreadsheet file and will be recomputed from item scores.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Dry-Run Ingestion Preview Card
+        _buildDryRunSummaryCard(),
+
         const SizedBox(height: 12),
 
         // Default HPS Config Bar
@@ -757,9 +989,19 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                   cells: List.generate(_columnMappings.length, (colIdx) {
                     final cellVal = colIdx < row.length ? row[colIdx]?.toString() ?? '' : '';
                     return DataCell(
-                      Text(
-                        cellVal,
-                        style: const TextStyle(fontSize: 13),
+                      InkWell(
+                        onTap: () => _showEditCellDialog(rowIdx, colIdx, cellVal),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              cellVal,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.edit, size: 11, color: Colors.grey.shade400),
+                          ],
+                        ),
                       ),
                     );
                   }),
@@ -769,6 +1011,239 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showEditCellDialog(int rowIdx, int colIdx, String currentVal) {
+    final controller = TextEditingController(text: currentVal);
+    final headerName = colIdx < _columnMappings.length ? _columnMappings[colIdx].originalHeader : 'Column';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edit Cell Value ($headerName)'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Row ${rowIdx + 1} preview value:',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newVal = controller.text.trim();
+              setState(() {
+                if (rowIdx < _parseResult!.dataRows.length && colIdx < _parseResult!.dataRows[rowIdx].length) {
+                  _parseResult!.dataRows[rowIdx][colIdx] = newVal;
+                }
+              });
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2563EB), foregroundColor: Colors.white),
+            child: const Text('Save Change'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDryRunSummaryCard() {
+    if (_parseResult == null) return const SizedBox();
+
+    final studentCount = _parseResult!.dataRows.length;
+    final excludedCount = _parseResult!.excludedRows.length;
+    final lowConfidenceCols = _columnMappings.where((m) => m.isLowConfidence && m.target != EcrTargetCategory.ignore).length;
+    final activeCols = _columnMappings.where((m) => m.target != EcrTargetCategory.ignore).length;
+
+    return Card(
+      elevation: 0,
+      color: const Color(0xFFF8FAFC),
+      shape: RoundedRectangleBorder(
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.analytics_outlined, color: Color(0xFF2563EB), size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'Dry-Run Ingestion Preview',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F172A)),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: lowConfidenceCols > 0 ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    lowConfidenceCols > 0 ? '$lowConfidenceCols column(s) need review' : 'All mappings confident',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: lowConfidenceCols > 0 ? const Color(0xFFB45309) : const Color(0xFF15803D),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMetricTile(
+                    icon: Icons.people_alt_outlined,
+                    iconColor: const Color(0xFF2563EB),
+                    title: '$studentCount Students',
+                    subtitle: 'Detected for import',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: InkWell(
+                    onTap: excludedCount > 0 ? _showExcludedRowsDialog : null,
+                    borderRadius: BorderRadius.circular(8),
+                    child: _buildMetricTile(
+                      icon: Icons.playlist_remove_rounded,
+                      iconColor: const Color(0xFF64748B),
+                      title: '$excludedCount Excluded Rows',
+                      subtitle: excludedCount > 0 ? 'Click to inspect skipped' : 'No rows skipped',
+                      showClickable: excludedCount > 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildMetricTile(
+                    icon: Icons.view_column_outlined,
+                    iconColor: const Color(0xFF059669),
+                    title: '$activeCols Mapped Columns',
+                    subtitle: lowConfidenceCols > 0 ? '$lowConfidenceCols flagged' : 'Auto-assigned',
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showExcludedRowsDialog() {
+    if (_parseResult == null || _parseResult!.excludedRows.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.playlist_remove_rounded, color: Color(0xFF64748B)),
+            const SizedBox(width: 8),
+            Text('Excluded Rows (${_parseResult!.excludedRows.length})'),
+          ],
+        ),
+        content: SizedBox(
+          width: 550,
+          height: 380,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'These rows were recognized as section headers, gender dividers, or summary totals and are safely skipped from student scoring.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: _parseResult!.excludedRows.length,
+                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  itemBuilder: (ctx, idx) {
+                    final item = _parseResult!.excludedRows[idx];
+                    return ListTile(
+                      dense: true,
+                      leading: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Row ${item.rowIndex}',
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                        ),
+                      ),
+                      title: Text(item.rawText, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text(item.reason, style: TextStyle(color: Colors.grey.shade600, fontSize: 11)),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    bool showClickable = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: showClickable ? const Color(0xFF93C5FD) : const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: iconColor, size: 24),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0F172A))),
+                Text(subtitle, style: TextStyle(fontSize: 11, color: showClickable ? const Color(0xFF2563EB) : const Color(0xFF64748B))),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -794,15 +1269,20 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
   Widget _buildColumnHeaderWidget(EcrColumnMapping mapping) {
     Color badgeColor = Colors.green;
-    String badgeText = 'High Match';
+    String badgeText = 'High Match (${(mapping.confidenceScore * 100).toInt()}%)';
 
-    if (mapping.isLowConfidence) {
-      badgeColor = Colors.amber.shade700;
+    if (mapping.confidenceScore < 0.60) {
+      badgeColor = Colors.red.shade700;
       badgeText = 'Check Mapping';
+    } else if (mapping.confidenceScore < 0.85) {
+      badgeColor = Colors.amber.shade800;
+      badgeText = 'Review (${(mapping.confidenceScore * 100).toInt()}%)';
     }
-    if (mapping.assumedHps) {
-      badgeColor = Colors.orange.shade800;
-      badgeText = 'Assumed HPS (${mapping.customHps?.toInt()})';
+
+    if (mapping.detectedRowHps != null) {
+      badgeText += ' • HPS: ${mapping.detectedRowHps!.toInt()}';
+    } else if (mapping.assumedHps) {
+      badgeText += ' • Default HPS';
     }
 
     return Container(
@@ -820,10 +1300,21 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (mapping.reasons.isNotEmpty)
+                Tooltip(
+                  message: mapping.reasons.join('\n'),
+                  child: const Padding(
+                    padding: EdgeInsets.only(left: 4),
+                    child: Icon(Icons.info_outline, size: 16, color: Color(0xFF64748B)),
+                  ),
+                ),
               if (mapping.hasTypeMismatch)
                 Tooltip(
                   message: 'Non-numeric score string detected in preview data rows!',
-                  child: const Icon(Icons.warning_amber_rounded, size: 18, color: Colors.red),
+                  child: const Padding(
+                    padding: EdgeInsets.only(left: 4),
+                    child: Icon(Icons.warning_amber_rounded, size: 18, color: Colors.red),
+                  ),
                 ),
             ],
           ),
@@ -831,7 +1322,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: badgeColor.withOpacity(0.15),
+              color: badgeColor.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
@@ -844,7 +1335,10 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
             value: mapping.target,
             isExpanded: true,
             isDense: true,
-            underline: Container(height: 2, color: mapping.isLowConfidence ? Colors.amber : Colors.blue),
+            underline: Container(
+              height: 2,
+              color: mapping.confidenceScore < 0.60 ? Colors.red : (mapping.confidenceScore < 0.85 ? Colors.amber : Colors.blue),
+            ),
             items: EcrTargetCategory.values.map((cat) {
               return DropdownMenuItem(
                 value: cat,
@@ -859,7 +1353,9 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
               if (newCat != null) {
                 setState(() {
                   mapping.target = newCat;
+                  mapping.confidenceScore = 1.0;
                   mapping.isLowConfidence = false;
+                  mapping.reasons = ['Manually assigned by teacher'];
                 });
               }
             },
@@ -869,7 +1365,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // â”€â”€ STEP 3: VALIDATION SUMMARY STEP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── STEP 3: VALIDATION SUMMARY STEP ──────────────────────────────────────
 
   Widget _buildValidationStep() {
     if (_validationSummary == null) return const SizedBox();
@@ -920,6 +1416,11 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
             ),
           ),
         ),
+
+        if (_rosterMatchResult != null) ...[
+          const SizedBox(height: 12),
+          _buildRosterReconciliationCard(_rosterMatchResult!),
+        ],
 
         const SizedBox(height: 16),
 
@@ -980,7 +1481,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
             ),
             child: ListView.separated(
               itemCount: summary.errors.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (context, index) => const Divider(height: 1),
               itemBuilder: (ctx, idx) {
                 final err = summary.errors[idx];
                 if (_showOnlyErrorsInValidation && err.isWarning) return const SizedBox();
@@ -1002,7 +1503,81 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  // â”€â”€ STEP 4: SUCCESS STEP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  Widget _buildRosterReconciliationCard(EcrRosterMatchResult roster) {
+    final isLow = roster.lowMatchWarning;
+    final matchPct = (roster.matchRate * 100).toInt();
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: isLow ? Colors.orange.shade300 : const Color(0xFF93C5FD)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      color: isLow ? const Color(0xFFFFFBEB) : const Color(0xFFEFF6FF),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  isLow ? Icons.warning_amber_rounded : Icons.verified_user_outlined,
+                  color: isLow ? Colors.orange.shade800 : const Color(0xFF2563EB),
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    isLow ? 'Class Roster Match Warning ($matchPct%)' : 'Class Roster Reconciled ($matchPct%)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: isLow ? Colors.orange.shade900 : const Color(0xFF1E3A8A),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isLow ? const Color(0xFFFEF3C7) : const Color(0xFFDBEAFE),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${roster.matchedCount} matched / ${roster.unmatchedCount} unmatched',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                      color: isLow ? const Color(0xFFB45309) : const Color(0xFF1D4ED8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isLow
+                  ? 'Only $matchPct% of students in this file match the enrolled roster for the selected section. If you imported the wrong section, click "Back to Mapping" or switch class above.'
+                  : 'Students in this ECR were successfully cross-referenced with active section enrollment by LRN and student name.',
+              style: TextStyle(
+                fontSize: 12,
+                color: isLow ? const Color(0xFF92400E) : const Color(0xFF3B82F6),
+              ),
+            ),
+            if (roster.unmatchedNames.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Unmatched students: ${roster.unmatchedNames.take(3).join(', ')}${roster.unmatchedNames.length > 3 ? ' and ${roster.unmatchedNames.length - 3} more' : ''}',
+                style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Color(0xFF64748B)),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── STEP 4: SUCCESS STEP ─────────────────────────────────────────────────
 
   Widget _buildSuccessStep() {
     return Card(
@@ -1057,5 +1632,3 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 }
-
-
