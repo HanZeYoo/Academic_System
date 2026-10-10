@@ -38,6 +38,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   bool _isGeneratingPlan = false;
   String _interventionPlanText = '';
   bool _isInterventionExpanded = false;
+  
+  // AI Chat State
+  List<Map<String, String>> _chatHistory = [];
+  final TextEditingController _chatController = TextEditingController();
+  bool _isChatLoading = false;
 
   @override
   void initState() {
@@ -251,6 +256,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         'wwAvg': finalWwAvg,
         'ptAvg': finalPtAvg,
         'teAvg': finalTeAvg,
+        'rawScores': subjectScores.map((s) => "${s['item_label']} (${s['category']}): ${s['score']}/${s['total_score']}").toList(),
       });
     }
 
@@ -260,7 +266,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   void _onChildSelected(int index) {
     if (index != _selectedChildIndex) {
-      setState(() => _selectedChildIndex = index);
+      setState(() {
+        _selectedChildIndex = index;
+        _interventionPlanText = '';
+        _isInterventionExpanded = false;
+        _chatHistory.clear();
+        _chatController.clear();
+      });
       _fetchDashboardDataForChild(_children[index]);
     }
   }
@@ -1940,10 +1952,134 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 style: TextStyle(fontSize: 12, color: Colors.grey[500], fontStyle: FontStyle.italic),
               ),
             ),
-          ]
+          ],
+          
+          const SizedBox(height: 30),
+            const Text(
+              'Ask the AI Assistant',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60)),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.withOpacity(0.3)),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_chatHistory.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Text(
+                        'May tanong ba kayo tungkol sa plano? Mag-type sa ibaba.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                  ..._chatHistory.map((msg) {
+                    final isUser = msg['role'] == 'user';
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isUser ? const Color(0xFF3383B3) : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: MarkdownBody(
+                          data: msg['text'] ?? '',
+                          styleSheet: MarkdownStyleSheet(
+                            p: TextStyle(color: isUser ? Colors.white : Colors.black87),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                  if (_isChatLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _chatController,
+                          decoration: InputDecoration(
+                            hintText: 'Type your question...',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                          onSubmitted: (_) => _sendChatMessage(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: _isChatLoading ? null : _sendChatMessage,
+                        icon: const Icon(Icons.send),
+                        color: const Color(0xFF3383B3),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  Future<void> _sendChatMessage() async {
+    final text = _chatController.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _chatHistory.add({'role': 'user', 'text': text});
+      _chatController.clear();
+      _isChatLoading = true;
+    });
+
+    String contextText = _interventionPlanText;
+    final rawScoresContext = _subjectGrades.map((s) {
+      final scoresList = s['rawScores'] as List<dynamic>? ?? [];
+      return "- ${s['subjectName']}: ${s['grade']}\n  Breakdown: ${scoresList.join(', ')}";
+    }).join('\n');
+
+    if (contextText.isEmpty) {
+      contextText = "Student: ${_selectedChild?['name']} (Grade ${_selectedChild?['grade_level']} - ${_selectedChild?['section']})\n"
+          "Overall Average: ${_overallAverage.toStringAsFixed(1)}%\n"
+          "Grades & Scores:\n$rawScoresContext";
+    } else {
+      contextText += "\n\n### Academic Breakdown (For your context only, to answer specific score queries):\n$rawScoresContext";
+    }
+
+    try {
+      final res = await Supabase.instance.client.functions.invoke(
+        'chat-intervention',
+        body: {
+          'planText': contextText,
+          'chatHistory': _chatHistory.sublist(0, _chatHistory.length - 1),
+          'message': text,
+        },
+      );
+
+      if (res.status == 200 && res.data['reply'] != null) {
+        setState(() {
+          _chatHistory.add({'role': 'model', 'text': res.data['reply']});
+        });
+      } else {
+        throw Exception(res.data['error'] ?? 'Failed to get reply');
+      }
+    } catch (e) {
+      _showAiErrorDialog(e);
+    } finally {
+      if (mounted) setState(() => _isChatLoading = false);
+    }
   }
 
   Future<void> _generateInterventionPlan() async {
@@ -1993,9 +2129,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         throw Exception(res.data['error'] ?? 'Failed to generate plan');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error generating plan: $e'), backgroundColor: Colors.red),
-      );
+      _showAiErrorDialog(e);
     } finally {
       if (mounted) {
         setState(() {
@@ -2003,6 +2137,33 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         });
       }
     }
+  }
+
+  void _showAiErrorDialog(Object e) {
+    String message = 'The AI Assistant is currently unreachable. Please check your internet connection or try again later.';
+    if (e.toString().contains('429')) {
+      message = 'The AI Assistant has reached its maximum request limit for now. Please try again later or tomorrow.';
+    }
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.error_outline, color: Colors.red),
+            SizedBox(width: 10),
+            Text('AI Limit Reached'),
+          ],
+        ),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
