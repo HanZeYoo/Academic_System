@@ -38,19 +38,21 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       return;
     }
 
-    final genAveStr = await DatabaseHelper().getStudentGeneralAverage(studentId);
+    final gradesSummary = await DatabaseHelper().getStudentGradesSummary(studentId);
     final attStr = await DatabaseHelper().getStudentAttendancePercentage(studentId);
     
+    final genAveStr = gradesSummary['average'].toString();
+    final double lowestGrade = (gradesSummary['lowest_grade'] as num?)?.toDouble() ?? 100.0;
+
     String risk = 'Low Risk';
     Color rColor = const Color(0xFF10B981); // Green
     
     if (genAveStr != 'N/A') {
-      double ave = double.tryParse(genAveStr) ?? 0;
-      if (ave < 75) {
+      if (lowestGrade < 75) {
         risk = 'High Risk';
         rColor = Colors.red;
-      } else if (ave < 80) {
-        risk = 'At Risk';
+      } else if (lowestGrade < 80) {
+        risk = 'Medium Risk';
         rColor = Colors.orange;
       }
     } else {

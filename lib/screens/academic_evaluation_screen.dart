@@ -162,7 +162,8 @@ class _AcademicEvaluationScreenState
       }
 
       if (totalWeight == 0) return 0.0;
-      return earned / totalWeight;
+      double initialGrade = earned / totalWeight;
+      return DatabaseHelper().transmuteGrade(initialGrade);
     }
 
     final s = _allScores.where((r) => r['student_id'].toString() == studentId).toList();
@@ -173,7 +174,8 @@ class _AcademicEvaluationScreenState
       max   += (r['total_score'] as num?)?.toDouble() ?? 0;
     }
     if (max == 0) return 0.0;
-    return (total / max) * 100;
+    double initialGrade = (total / max) * 100;
+    return DatabaseHelper().transmuteGrade(initialGrade);
   }
 
   double _categoryAvg(String studentId, String category) {

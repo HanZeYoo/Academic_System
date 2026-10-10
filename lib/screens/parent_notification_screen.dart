@@ -63,7 +63,8 @@ class _ParentNotificationScreenState
       List<Map<String, dynamic>> studentsWithAve = [];
       for (var s in allStudents) {
         final sid = s['student_id'].toString();
-        String genAveStr = await db.getStudentGeneralAverage(sid);
+        final summary = await db.getStudentGradesSummary(sid);
+        String genAveStr = summary['average'].toString();
         Map<String, dynamic> studentData = Map<String, dynamic>.from(s);
         studentData['general_average'] = genAveStr;
         studentsWithAve.add(studentData);
@@ -93,8 +94,8 @@ class _ParentNotificationScreenState
           for (var s in studentsInClass) {
             final sid = s['student_id'].toString();
             if (!seenIds.contains(sid)) {
-              // Fetch general average
-              String genAveStr = await db.getStudentGeneralAverage(sid);
+              final summary = await db.getStudentGradesSummary(sid);
+              String genAveStr = summary['average'].toString();
               Map<String, dynamic> studentData = Map<String, dynamic>.from(s);
               studentData['general_average'] = genAveStr;
               allMyStudents.add(studentData);

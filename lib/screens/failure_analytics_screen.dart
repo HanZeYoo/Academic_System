@@ -608,7 +608,8 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
       }
 
       if (totalWeight == 0) return 0.0;
-      return earned / totalWeight;
+      double initialGrade = earned / totalWeight;
+      return DatabaseHelper().transmuteGrade(initialGrade);
     }
 
     final s = allScores
@@ -621,7 +622,8 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
       max += (r['total_score'] as num?)?.toDouble() ?? 0;
     }
     if (max == 0) return 0.0;
-    return (total / max) * 100;
+    double initialGrade = (total / max) * 100;
+    return DatabaseHelper().transmuteGrade(initialGrade);
   }
 
   double _categoryAvg(

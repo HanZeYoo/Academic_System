@@ -64,7 +64,8 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
       }
 
       if (totalWeight == 0) return 0.0;
-      return earned / totalWeight;
+      double initialGrade = earned / totalWeight;
+      return DatabaseHelper().transmuteGrade(initialGrade);
     }
 
     double total = 0, max = 0;
@@ -73,7 +74,8 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
       max   += (r['total_score'] as num?)?.toDouble() ?? 0;
     }
     if (max == 0) return 0.0;
-    return (total / max) * 100;
+    double initialGrade = (total / max) * 100;
+    return DatabaseHelper().transmuteGrade(initialGrade);
   }
 
   @override

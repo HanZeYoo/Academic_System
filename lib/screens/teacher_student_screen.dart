@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import 'student_detail_screen.dart';
 import 'student_grades_screen.dart';
@@ -172,7 +172,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
         }
       }
 
-      String status = 'Passed';
+      String status = 'Low Risk';
       String statusDesc = 'Good Standing';
       bool isGood = true;
 
@@ -180,11 +180,11 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
         status = 'No Data';
         statusDesc = 'No scores recorded';
       } else if (hasFailing) {
-        status = 'At-Risk';
+        status = 'High Risk';
         statusDesc = 'Failing in one or more subjects';
         isGood = false;
       } else if (lowestGrade < 80) {
-        status = 'Needs Attention';
+        status = 'Medium Risk';
         statusDesc = 'Borderline grades';
         isGood = false;
       }
@@ -211,33 +211,32 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     double attendancePct,
   ) {
     if (setup != null) {
-      final wQuiz = (setup['quiz_weight'] as num?)?.toDouble() ?? 20;
-      final wAssignment = (setup['assignment_weight'] as num?)?.toDouble() ?? 15;
-      final wActivity = (setup['activity_weight'] as num?)?.toDouble() ?? 20;
-      final wProject = (setup['project_weight'] as num?)?.toDouble() ?? 15;
-      final wExam = (setup['exam_weight'] as num?)?.toDouble() ?? 30;
+      final wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 30;
+      final wPT = (setup['pt_weight'] as num?)?.toDouble() ?? 50;
+      final wTE = (setup['te_weight'] as num?)?.toDouble() ?? 20;
       final wAttendance = (setup['attendance_weight'] as num?)?.toDouble() ?? 0;
 
-      final qAvg = _categoryAvg(studentId, 'Quiz', allScores, setup);
-      final asgAvg = _categoryAvg(studentId, 'Assignment', allScores, setup);
-      final actAvg = _categoryAvg(studentId, 'Activity', allScores, setup);
-      final prjAvg = _categoryAvg(studentId, 'Project', allScores, setup);
-      final exmAvg = _categoryAvg(studentId, 'Exam', allScores, setup);
+      final wwAvg = _categoryAvg(studentId, 'Written Works', allScores, setup);
+      final ptAvg = _categoryAvg(studentId, 'Performance Tasks', allScores, setup);
+      final teAvg = _categoryAvg(studentId, 'Term Exams', allScores, setup);
+
+      if (wwAvg == 0 && ptAvg == 0 && teAvg == 0) {
+        if (allScores
+            .where((r) => r['student_id'].toString() == studentId)
+            .isEmpty)
+          return 0.0;
+      }
 
       double totalWeight = 0;
       double earned = 0;
+      
+      bool hasWW = allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'written works');
+      bool hasPT = allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'performance tasks');
+      bool hasTE = allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'term exams');
 
-      bool hasQuiz = allScores.any((r) => r['category'].toString().toLowerCase() == 'quiz');
-      bool hasAsg = allScores.any((r) => r['category'].toString().toLowerCase() == 'assignment');
-      bool hasAct = allScores.any((r) => r['category'].toString().toLowerCase() == 'activity');
-      bool hasPrj = allScores.any((r) => r['category'].toString().toLowerCase() == 'project');
-      bool hasExm = allScores.any((r) => r['category'].toString().toLowerCase() == 'exam');
-
-      if (hasQuiz) { earned += qAvg * (wQuiz / 100); totalWeight += (wQuiz / 100); }
-      if (hasAsg) { earned += asgAvg * (wAssignment / 100); totalWeight += (wAssignment / 100); }
-      if (hasAct) { earned += actAvg * (wActivity / 100); totalWeight += (wActivity / 100); }
-      if (hasPrj) { earned += prjAvg * (wProject / 100); totalWeight += (wProject / 100); }
-      if (hasExm) { earned += exmAvg * (wExam / 100); totalWeight += (wExam / 100); }
+      if (hasWW) { earned += wwAvg * (wWW / 100); totalWeight += (wWW / 100); }
+      if (hasPT) { earned += ptAvg * (wPT / 100); totalWeight += (wPT / 100); }
+      if (hasTE) { earned += teAvg * (wTE / 100); totalWeight += (wTE / 100); }
       
       if (wAttendance > 0) {
         earned += attendancePct * (wAttendance / 100);
@@ -252,8 +251,10 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     if (allScores.isEmpty) return 0.0;
     double total = 0, max = 0;
     for (final r in allScores) {
-      total += (r['score'] as num?)?.toDouble() ?? 0;
-      max += (r['total_score'] as num?)?.toDouble() ?? 0;
+      if (r['student_id'].toString() == studentId) {
+        total += (r['score'] as num?)?.toDouble() ?? 0;
+        max += (r['total_score'] as num?)?.toDouble() ?? 0;
+      }
     }
     if (max == 0) return 0.0;
     final initialGrade = (total / max) * 100;
@@ -268,14 +269,13 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
   ) {
     int maxItems = 999;
     if (setup != null) {
-      if (category.toLowerCase() == 'quiz') maxItems = (setup['quizzes'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'assignment') maxItems = (setup['assignments'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'activity') maxItems = (setup['activities'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'project') maxItems = (setup['projects'] as num?)?.toInt() ?? 999;
-      else if (category.toLowerCase() == 'exam') maxItems = (setup['exams'] as num?)?.toInt() ?? 999;
+      if (category.toLowerCase() == 'written works') maxItems = (setup['written_works'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'performance tasks') maxItems = (setup['performance_tasks'] as num?)?.toInt() ?? 999;
+      else if (category.toLowerCase() == 'term exams') maxItems = (setup['term_exams'] as num?)?.toInt() ?? 999;
     }
 
     final s = allScores.where((r) {
+      if (r['student_id'].toString() != studentId) return false;
       if (r['category'].toString().toLowerCase() != category.toLowerCase()) return false;
       
       final itemLabel = r['item_label'].toString();
@@ -631,7 +631,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
   }
 
   Widget _buildStudentCard(Map<String, dynamic> student) {
-    bool isPassed = student['status'] == 'Passed';
+    bool isPassed = student['status'] == 'Low Risk';
     bool isNoData = student['status'] == 'No Data';
 
     Color statusBgColor = isPassed
@@ -639,7 +639,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
         : (isNoData ? Colors.grey.shade100 : const Color(0xFFFEF2E8));
     Color statusTextColor = isPassed
         ? const Color(0xFF198754)
-        : (isNoData ? Colors.grey.shade600 : const Color(0xFFE67E22));
+        : (isNoData ? Colors.grey.shade600 : const Color(0xFFE74C3C));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),

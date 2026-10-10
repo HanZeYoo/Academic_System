@@ -528,16 +528,17 @@ class DatabaseHelper {
   }
 
   // Calculate General Average for a student (Using Official K-12 Formula)
-  Future<String> getStudentGeneralAverage(String studentId) async {
+  Future<Map<String, dynamic>> getStudentGradesSummary(String studentId) async {
+    double lowestGrade = 100.0;
     final rawScores = await getScoresByStudentId(studentId);
-    if (rawScores.isEmpty) return 'N/A';
+    if (rawScores.isEmpty) return {'average': 'N/A', 'lowest_grade': 100.0};
 
     final studentQuery = await Supabase.instance.client.from('students')
         .select()
         .eq('student_id', studentId)
         .limit(1);
     
-    if (studentQuery.isEmpty) return 'N/A';
+    if (studentQuery.isEmpty) return {'average': 'N/A', 'lowest_grade': 100.0};
     final gradeLevel = studentQuery[0]['grade_level'].toString();
     final section = studentQuery[0]['section'].toString();
     final className = '$gradeLevel - $section';
@@ -553,7 +554,7 @@ class DatabaseHelper {
       groupedScores[subj]![period]!.add(r);
     }
 
-    if (groupedScores.isEmpty) return 'N/A';
+    if (groupedScores.isEmpty) return {'average': 'N/A', 'lowest_grade': 100.0};
 
     double sumFinals = 0;
     int countFinals = 0;
@@ -636,7 +637,7 @@ class DatabaseHelper {
 
           if (totalWeight > 0) {
             double initialGrade = earned / totalWeight;
-            sumQ += initialGrade; // Zero-based grading
+            sumQ += transmuteGrade(initialGrade);
             countQ++;
           }
         } else {
@@ -648,20 +649,25 @@ class DatabaseHelper {
           }
           if (m > 0) {
             double initialGrade = (t / m) * 100;
-            sumQ += initialGrade; // Zero-based grading
+            sumQ += transmuteGrade(initialGrade);
             countQ++;
           }
         }
       }
 
       if (countQ > 0) {
-        sumFinals += sumQ / countQ;
+        double subjectGrade = sumQ / countQ;
+        if (subjectGrade < lowestGrade) lowestGrade = subjectGrade;
+        sumFinals += subjectGrade;
         countFinals++;
       }
     }
 
-    if (countFinals == 0) return 'N/A';
-    return (sumFinals / countFinals).toStringAsFixed(1);
+    if (countFinals == 0) return {'average': 'N/A', 'lowest_grade': 100.0};
+    return {
+      'average': (sumFinals / countFinals).toStringAsFixed(1),
+      'lowest_grade': lowestGrade,
+    };
   }
 
 

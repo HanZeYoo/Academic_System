@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
 import 'announcement_management_screen.dart';
@@ -112,20 +112,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         if (setup != null) {
           double earned = 0.0;
           double totalWeight = 0.0;
-          final wQuiz = (setup['quiz_weight'] as num?)?.toDouble() ?? 20;
-          final wAssignment = (setup['assignment_weight'] as num?)?.toDouble() ?? 15;
-          final wActivity = (setup['activity_weight'] as num?)?.toDouble() ?? 20;
-          final wProject = (setup['project_weight'] as num?)?.toDouble() ?? 15;
-          final wExam = (setup['exam_weight'] as num?)?.toDouble() ?? 30;
+          final wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 30;
+          final wPT = (setup['pt_weight'] as num?)?.toDouble() ?? 50;
+          final wTE = (setup['te_weight'] as num?)?.toDouble() ?? 20;
           final wAttendance = (setup['attendance_weight'] as num?)?.toDouble() ?? 0;
 
           double categoryAvg(String cat) {
             int maxItems = 999;
-            if (cat.toLowerCase() == 'quiz') maxItems = (setup['quizzes'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'assignment') maxItems = (setup['assignments'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'activity') maxItems = (setup['activities'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'project') maxItems = (setup['projects'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'exam') maxItems = (setup['exams'] as num?)?.toInt() ?? 999;
+            if (cat.toLowerCase() == 'written works') maxItems = (setup['ww_items'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'performance tasks') maxItems = (setup['pt_items'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'term exams') maxItems = (setup['te_items'] as num?)?.toInt() ?? 999;
 
             var filtered = subjectScores.where((r) {
               final itemCat = r['category']?.toString() ?? '';
@@ -146,16 +142,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             return (t / m) * 100;
           }
 
-          final qAvg = categoryAvg('Quiz');
-          if (qAvg >= 0 && wQuiz > 0) { earned += qAvg * (wQuiz / 100); totalWeight += (wQuiz / 100); }
-          final asgAvg = categoryAvg('Assignment');
-          if (asgAvg >= 0 && wAssignment > 0) { earned += asgAvg * (wAssignment / 100); totalWeight += (wAssignment / 100); }
-          final actAvg = categoryAvg('Activity');
-          if (actAvg >= 0 && wActivity > 0) { earned += actAvg * (wActivity / 100); totalWeight += (wActivity / 100); }
-          final prjAvg = categoryAvg('Project');
-          if (prjAvg >= 0 && wProject > 0) { earned += prjAvg * (wProject / 100); totalWeight += (wProject / 100); }
-          final exmAvg = categoryAvg('Exam');
-          if (exmAvg >= 0 && wExam > 0) { earned += exmAvg * (wExam / 100); totalWeight += (wExam / 100); }
+          final wwAvg = categoryAvg('Written Works');
+          if (wwAvg >= 0 && wWW > 0) { earned += wwAvg * (wWW / 100); totalWeight += (wWW / 100); }
+          final ptAvg = categoryAvg('Performance Tasks');
+          if (ptAvg >= 0 && wPT > 0) { earned += ptAvg * (wPT / 100); totalWeight += (wPT / 100); }
+          final teAvg = categoryAvg('Term Exams');
+          if (teAvg >= 0 && wTE > 0) { earned += teAvg * (wTE / 100); totalWeight += (wTE / 100); }
           
           if (wAttendance > 0) { earned += classAttendancePct * (wAttendance / 100); totalWeight += (wAttendance / 100); }
 

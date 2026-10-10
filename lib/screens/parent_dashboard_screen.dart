@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
 import 'announcement_management_screen.dart';
@@ -31,6 +33,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   String? _selectedSchoolYear;
   List<String> _schoolYears = [];
+
+  // Intervention Plan state
+  bool _isGeneratingPlan = false;
+  String _interventionPlanText = '';
+  bool _isInterventionExpanded = false;
 
   @override
   void initState() {
@@ -135,6 +142,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               s['grading_period'] == gradingPeriod)
           .toList();
       double grade = 0.0;
+      double? finalWwAvg;
+      double? finalPtAvg;
+      double? finalTeAvg;
 
       if (subjectScores.isNotEmpty) {
         final setup = await dbHelper.getAssessmentSetup(
@@ -147,20 +157,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         if (setup != null) {
           double earned = 0.0;
           double totalWeight = 0.0;
-          final wQuiz = (setup['quiz_weight'] as num?)?.toDouble() ?? 20;
-          final wAssignment = (setup['assignment_weight'] as num?)?.toDouble() ?? 15;
-          final wActivity = (setup['activity_weight'] as num?)?.toDouble() ?? 20;
-          final wProject = (setup['project_weight'] as num?)?.toDouble() ?? 15;
-          final wExam = (setup['exam_weight'] as num?)?.toDouble() ?? 30;
+          final wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 30;
+          final wPT = (setup['pt_weight'] as num?)?.toDouble() ?? 50;
+          final wTE = (setup['te_weight'] as num?)?.toDouble() ?? 20;
           final wAttendance = (setup['attendance_weight'] as num?)?.toDouble() ?? 0;
 
           double categoryAvg(String cat) {
             int maxItems = 999;
-            if (cat.toLowerCase() == 'quiz') maxItems = (setup['quizzes'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'assignment') maxItems = (setup['assignments'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'activity') maxItems = (setup['activities'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'project') maxItems = (setup['projects'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'exam') maxItems = (setup['exams'] as num?)?.toInt() ?? 999;
+            if (cat.toLowerCase() == 'written works') maxItems = (setup['ww_items'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'performance tasks') maxItems = (setup['pt_items'] as num?)?.toInt() ?? 999;
+            else if (cat.toLowerCase() == 'term exams') maxItems = (setup['te_items'] as num?)?.toInt() ?? 999;
 
             var filtered = subjectScores.where((r) {
               final itemCat = r['category']?.toString() ?? '';
@@ -181,16 +187,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             return (t / m) * 100;
           }
 
-          final qAvg = categoryAvg('Quiz');
-          if (qAvg >= 0 && wQuiz > 0) { earned += qAvg * (wQuiz / 100); totalWeight += (wQuiz / 100); }
-          final asgAvg = categoryAvg('Assignment');
-          if (asgAvg >= 0 && wAssignment > 0) { earned += asgAvg * (wAssignment / 100); totalWeight += (wAssignment / 100); }
-          final actAvg = categoryAvg('Activity');
-          if (actAvg >= 0 && wActivity > 0) { earned += actAvg * (wActivity / 100); totalWeight += (wActivity / 100); }
-          final prjAvg = categoryAvg('Project');
-          if (prjAvg >= 0 && wProject > 0) { earned += prjAvg * (wProject / 100); totalWeight += (wProject / 100); }
-          final exmAvg = categoryAvg('Exam');
-          if (exmAvg >= 0 && wExam > 0) { earned += exmAvg * (wExam / 100); totalWeight += (wExam / 100); }
+          final wwAvg = categoryAvg('Written Works');
+          if (wwAvg >= 0 && wWW > 0) { earned += wwAvg * (wWW / 100); totalWeight += (wWW / 100); finalWwAvg = wwAvg; }
+          final ptAvg = categoryAvg('Performance Tasks');
+          if (ptAvg >= 0 && wPT > 0) { earned += ptAvg * (wPT / 100); totalWeight += (wPT / 100); finalPtAvg = ptAvg; }
+          final teAvg = categoryAvg('Term Exams');
+          if (teAvg >= 0 && wTE > 0) { earned += teAvg * (wTE / 100); totalWeight += (wTE / 100); finalTeAvg = teAvg; }
           
           if (wAttendance > 0) { earned += classAttendancePct * (wAttendance / 100); totalWeight += (wAttendance / 100); }
 
@@ -246,6 +248,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         'schedule': subjectData['schedule'] ?? 'TBA',
         'time': subjectData['time'] ?? 'TBA',
         'remark': remark,
+        'wwAvg': finalWwAvg,
+        'ptAvg': finalPtAvg,
+        'teAvg': finalTeAvg,
       });
     }
 
@@ -783,6 +788,99 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             ),
             const SizedBox(height: 20),
 
+            Builder(
+              builder: (context) {
+                bool isHighRisk = _subjectGrades.any((g) => (g['grade'] as double) < 75) || (_overallAverage > 0 && _overallAverage < 75);
+                bool isMediumRisk = !isHighRisk && (_subjectGrades.any((g) => (g['grade'] as double) < 80) || (_overallAverage > 0 && _overallAverage < 80));
+
+                if (!isHighRisk && !isMediumRisk) return const SizedBox.shrink();
+
+                String bannerTitle = isHighRisk ? 'High Risk - Academic Attention Needed' : 'Medium Risk - Performance Dropping';
+                String bannerDesc = isHighRisk 
+                    ? 'Your child is currently failing in one or more subjects. Please intervene immediately.'
+                    : 'Your child\'s performance is dropping in some subjects. Early intervention is recommended to prevent failure.';
+                Color bannerColor = isHighRisk ? const Color(0xFFC0392B) : const Color(0xFFD35400);
+                Color bannerBgColor = isHighRisk ? const Color(0xFFFDECEE) : const Color(0xFFFDF2E9);
+                
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: bannerBgColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: bannerColor.withOpacity(0.3)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: bannerColor.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: bannerColor.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.warning_amber_rounded, color: bannerColor, size: 28),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              bannerTitle,
+                              style: TextStyle(
+                                color: bannerColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              bannerDesc,
+                              style: TextStyle(
+                                color: bannerColor.withOpacity(0.9),
+                                fontSize: 13,
+                                height: 1.3,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedMenu = 'Intervention Plan';
+                                });
+                              },
+                              child: Row(
+                                children: [
+                                  Text(
+                                    'Generate AI Intervention Plan',
+                                    style: TextStyle(
+                                      color: bannerColor,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.arrow_forward_ios, size: 12, color: bannerColor),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            ),
+
             // Academic Overview
             const Text('Academic Overview',
                 style: TextStyle(
@@ -981,310 +1079,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             const SizedBox(height: 32),
           ],
         ),
-      ),
-    );
-  }
-
-  // â”€â”€â”€ Intervention Plan Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-  Widget _buildInterventionPlanScreen() {
-    // Identify at-risk subjects (grade > 0 && grade < 75)
-    final atRiskSubjects =
-        _subjectGrades.where((s) => s['grade'] > 0 && s['grade'] < 75).toList();
-
-    return RefreshIndicator(
-      onRefresh: () => _fetchParentAndChildrenData(isRefresh: true),
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildChildSelector(),
-
-            // Header
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF3383B3).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.handshake_rounded,
-                      color: Color(0xFF3383B3), size: 28),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Intervention Plan',
-                          style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF224A60))),
-                      Text('Support plan for at-risk subjects',
-                          style: TextStyle(fontSize: 12, color: Colors.grey)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            if (atRiskSubjects.isEmpty) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.green.withOpacity(0.3)),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(Icons.check_circle_rounded,
-                        color: Colors.green, size: 60),
-                    const SizedBox(height: 16),
-                    const Text('All Clear!',
-                        style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green)),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${_selectedChild?['name'] ?? 'Your child'} is not at risk in any subject.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-            ] else ...[
-              // Alert banner
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.red.withOpacity(0.2)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.warning_rounded, color: Colors.red, size: 28),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        '${_selectedChild?['name'] ?? 'Your child'} has ${atRiskSubjects.length} subject(s) below passing grade.',
-                        style: const TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Per-subject intervention cards
-              const Text('Subjects Needing Attention',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF224A60))),
-              const SizedBox(height: 10),
-              ...atRiskSubjects.map((s) => _interventionCard(s)),
-              const SizedBox(height: 20),
-
-              // General guidance
-              const Text('General Recommendations',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF224A60))),
-              const SizedBox(height: 10),
-              _recommendationCard(Icons.home_rounded, Colors.purple,
-                  'Home Support',
-                  'Set a daily study schedule and a quiet study area at home. Be involved in reviewing your child\'s notes and assignments.'),
-              _recommendationCard(Icons.person_rounded, Colors.orange,
-                  'Teacher Consultation',
-                  'Request a one-on-one meeting with the subject teacher to understand your child\'s learning gaps.'),
-              _recommendationCard(Icons.group_rounded, Colors.teal,
-                  'Peer Study Groups',
-                  'Encourage your child to form or join study groups with classmates to strengthen understanding.'),
-              _recommendationCard(Icons.menu_book_rounded, Colors.blue,
-                  'Additional Reading',
-                  'Supplement school learning with supplementary materials, review books, or online resources for the subject.'),
-            ],
-            const SizedBox(height: 32),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _interventionCard(Map<String, dynamic> subject) {
-    final grade = (subject['grade'] as double);
-    final deficit = 75.0 - grade;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.red.withOpacity(0.2)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.grey.withOpacity(0.06),
-              blurRadius: 6,
-              offset: const Offset(0, 3)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.book_rounded,
-                    color: Colors.red, size: 20),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(subject['subjectName'],
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: Color(0xFF224A60))),
-                    Text('Current Grade: ${grade.toStringAsFixed(1)}',
-                        style: const TextStyle(
-                            color: Colors.red, fontSize: 13)),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(20)),
-                child: Text('-${deficit.toStringAsFixed(1)} pts',
-                    style: const TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: grade / 100,
-              backgroundColor: Colors.red.withOpacity(0.1),
-              color: Colors.red,
-              minHeight: 8,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Current: ${grade.toStringAsFixed(1)}%',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
-              const Text('Target: 75.0%',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.green,
-                      fontWeight: FontWeight.w600)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const Text('Recommended Actions:',
-              style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: Color(0xFF224A60))),
-          const SizedBox(height: 6),
-          _actionBullet('Talk to the subject teacher about your child\'s specific weak areas.'),
-          _actionBullet('Review missed or low-scoring assessments at home.'),
-          _actionBullet('Encourage daily review of notes for this subject.'),
-        ],
-      ),
-    );
-  }
-
-  Widget _actionBullet(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('â€¢ ',
-              style: TextStyle(color: Color(0xFF3383B3), fontSize: 14)),
-          Expanded(
-              child: Text(text,
-                  style:
-                      const TextStyle(fontSize: 13, color: Colors.black87))),
-        ],
-      ),
-    );
-  }
-
-  Widget _recommendationCard(
-      IconData icon, Color color, String title, String body) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.grey.withOpacity(0.06),
-              blurRadius: 6,
-              offset: const Offset(0, 3)),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: Color(0xFF224A60))),
-                const SizedBox(height: 4),
-                Text(body,
-                    style:
-                        const TextStyle(fontSize: 13, color: Colors.black54)),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1983,6 +1777,233 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       ),
     );
   }
+
+  // ─── Intervention Plan Screen ──────────────────────────────────────────────
+
+  Widget _buildInterventionPlanScreen() {
+    if (_selectedChild == null) return _buildNoChildView();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildChildSelector(),
+          const SizedBox(height: 20),
+          
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.psychology, color: Color(0xFF3383B3), size: 28),
+                    SizedBox(width: 10),
+                    Text(
+                      'AI Intervention Plan',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF224A60),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Generate a personalized, data-driven action plan based on your child\'s recent academic performance and attendance.',
+                  style: TextStyle(color: Colors.grey, fontSize: 14),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isGeneratingPlan ? null : _generateInterventionPlan,
+                    icon: _isGeneratingPlan 
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.auto_awesome, color: Colors.white),
+                    label: Text(
+                      _isGeneratingPlan ? 'Analyzing Data...' : 'Generate Intervention Plan',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF3383B3),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          if (_interventionPlanText.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFF3383B3).withOpacity(0.3), width: 1),
+                boxShadow: [
+                  BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 10)
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 300),
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: _isInterventionExpanded
+                          ? const BoxConstraints()
+                          : const BoxConstraints(maxHeight: 250),
+                      child: Stack(
+                        children: [
+                          SingleChildScrollView(
+                            physics: const NeverScrollableScrollPhysics(),
+                            child: MarkdownBody(
+                              data: _interventionPlanText,
+                              styleSheet: MarkdownStyleSheet(
+                                p: const TextStyle(fontSize: 15, height: 1.5, color: Colors.black87),
+                                h3: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60)),
+                                listBullet: const TextStyle(color: Color(0xFF3383B3)),
+                              ),
+                              selectable: true,
+                            ),
+                          ),
+                          if (!_isInterventionExpanded)
+                            Positioned(
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              child: Container(
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.white.withOpacity(0.0),
+                                      Colors.white,
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _isInterventionExpanded = !_isInterventionExpanded;
+                        });
+                      },
+                      icon: Icon(
+                        _isInterventionExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                        color: const Color(0xFF3383B3),
+                      ),
+                      label: Text(
+                        _isInterventionExpanded ? 'Show Less' : 'Show More',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF3383B3)),
+                      ),
+                      style: TextButton.styleFrom(
+                        backgroundColor: const Color(0xFF3383B3).withOpacity(0.1),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Center(
+              child: Text(
+                'Disclaimer: This is an AI-generated suggestion to assist parents. Please consult with the teachers for official guidance.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.grey[500], fontStyle: FontStyle.italic),
+              ),
+            ),
+          ]
+        ],
+      ),
+    );
+  }
+
+  Future<void> _generateInterventionPlan() async {
+    setState(() {
+      _isGeneratingPlan = true;
+      _interventionPlanText = '';
+    });
+
+    try {
+      // Determine overall risk
+      String riskLevel = 'Low Risk';
+      if (_overallAverage > 0 && _overallAverage < 75) {
+        riskLevel = 'High Risk';
+      } else if (_overallAverage > 0 && _overallAverage < 80) {
+        riskLevel = 'At Risk';
+      }
+
+      final payload = {
+        'studentName': _selectedChild?['name'] ?? 'Your Child',
+        'gradeLevel': _selectedChild?['grade_level'] ?? '',
+        'section': _selectedChild?['section'] ?? '',
+        'schoolYear': _selectedSchoolYear ?? '',
+        'gradingPeriod': '1st Term',
+        'overallAverage': _overallAverage,
+        'attendancePercentage': _attendancePercentage,
+        'riskLevel': riskLevel,
+        'subjectGrades': _subjectGrades.map((s) => {
+          'subjectName': s['subjectName'],
+          'grade': s['grade'],
+          'status': s['status'],
+          'wwAvg': s['wwAvg'],
+          'ptAvg': s['ptAvg'],
+          'teAvg': s['teAvg'],
+        }).toList(),
+      };
+
+      final res = await Supabase.instance.client.functions.invoke(
+        'generate-intervention',
+        body: payload,
+      );
+
+      if (res.status == 200 && res.data['plan'] != null) {
+        setState(() {
+          _interventionPlanText = res.data['plan'];
+        });
+      } else {
+        throw Exception(res.data['error'] ?? 'Failed to generate plan');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error generating plan: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingPlan = false;
+        });
+      }
+    }
+  }
 }
 
 // â”€â”€â”€ Parent Attendance Widget (separate StatefulWidget for data fetching) â”€â”€â”€â”€â”€
@@ -2269,5 +2290,7 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
       ),
     );
   }
+
+
 }
 

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../database_helper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -145,27 +145,33 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
           double grade = 0.0;
           
           if (setup != null) {
-            final wQuiz = (setup['quiz_weight'] as num?)?.toDouble() ?? 20;
-            final wAssignment = (setup['assignment_weight'] as num?)?.toDouble() ?? 15;
-            final wActivity = (setup['activity_weight'] as num?)?.toDouble() ?? 20;
-            final wProject = (setup['project_weight'] as num?)?.toDouble() ?? 15;
-            final wExam = (setup['exam_weight'] as num?)?.toDouble() ?? 30;
+            final wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 30;
+            final wPT = (setup['pt_weight'] as num?)?.toDouble() ?? 50;
+            final wTE = (setup['te_weight'] as num?)?.toDouble() ?? 20;
 
-            final qAvg = _categoryAvg(studentId, 'Quiz', scores);
-            final asgAvg = _categoryAvg(studentId, 'Assignment', scores);
-            final actAvg = _categoryAvg(studentId, 'Activity', scores);
-            final prjAvg = _categoryAvg(studentId, 'Project', scores);
-            final exmAvg = _categoryAvg(studentId, 'Exam', scores);
+            final wwAvg = _categoryAvg(studentId, 'Written Works', scores);
+            final ptAvg = _categoryAvg(studentId, 'Performance Tasks', scores);
+            final teAvg = _categoryAvg(studentId, 'Term Exams', scores);
 
-            if (qAvg == 0 && asgAvg == 0 && actAvg == 0 && prjAvg == 0 && exmAvg == 0) {
+            if (wwAvg == 0 && ptAvg == 0 && teAvg == 0) {
               if (scores.where((r) => r['student_id'].toString() == studentId).isEmpty) continue;
             }
 
-            grade = (qAvg * (wQuiz / 100)) +
-                (asgAvg * (wAssignment / 100)) +
-                (actAvg * (wActivity / 100)) +
-                (prjAvg * (wProject / 100)) +
-                (exmAvg * (wExam / 100));
+            double totalWeight = 0;
+            double earned = 0;
+            
+            bool hasWW = scores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'written works');
+            bool hasPT = scores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'performance tasks');
+            bool hasTE = scores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'term exams');
+
+            if (hasWW) { earned += wwAvg * (wWW / 100); totalWeight += (wWW / 100); }
+            if (hasPT) { earned += ptAvg * (wPT / 100); totalWeight += (wPT / 100); }
+            if (hasTE) { earned += teAvg * (wTE / 100); totalWeight += (wTE / 100); }
+
+            if (totalWeight > 0) {
+               double initialGrade = earned / totalWeight;
+               grade = DatabaseHelper().transmuteGrade(initialGrade);
+            }
           } else {
              final stScores = scores.where((r) => r['student_id'].toString() == studentId).toList();
              if (stScores.isNotEmpty) {
@@ -174,7 +180,10 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
                   total += (r['score'] as num?)?.toDouble() ?? 0;
                   max += (r['total_score'] as num?)?.toDouble() ?? 0;
                 }
-                if (max > 0) grade = (total / max) * 100;
+                if (max > 0) {
+                   double initialGrade = (total / max) * 100;
+                   grade = DatabaseHelper().transmuteGrade(initialGrade);
+                }
              } else {
                 continue;
              }
