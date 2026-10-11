@@ -215,6 +215,8 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
               contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+              actionsOverflowButtonSpacing: 8,
+              actionsOverflowDirection: VerticalDirection.down,
               title: Row(
                 children: [
                   Container(
@@ -235,8 +237,10 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                 ],
               ),
               content: SizedBox(
-                width: 540,
-                child: SingleChildScrollView(
+                width: double.maxFinite,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 540),
+                  child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -484,6 +488,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                   ),
                 ),
               ),
+            ),
               actions: [
                 TextButton(
                   onPressed: isGenerating ? null : () => Navigator.of(dialogContext).pop(),
@@ -898,33 +903,46 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 700;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Row(
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.drive_folder_upload_rounded, color: Color(0xFF1E293B)),
-            SizedBox(width: 10),
-            Text(
-              'ECR Grade Import',
-              style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+            const Icon(Icons.drive_folder_upload_rounded, color: Color(0xFF1E293B)),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                isMobile ? 'ECR Import' : 'ECR Grade Import',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: ElevatedButton.icon(
-              onPressed: _showCreateEcrTemplateDialog,
-              icon: const Icon(Icons.post_add_rounded, size: 18),
-              label: const Text('Create ECR Template'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF059669),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
+            padding: EdgeInsets.only(right: isMobile ? 8 : 16),
+            child: isMobile
+                ? IconButton(
+                    onPressed: _showCreateEcrTemplateDialog,
+                    icon: const Icon(Icons.post_add_rounded, color: Color(0xFF059669)),
+                    tooltip: 'Create ECR Template',
+                  )
+                : ElevatedButton.icon(
+                    onPressed: _showCreateEcrTemplateDialog,
+                    icon: const Icon(Icons.post_add_rounded, size: 18),
+                    label: const Text('Create ECR Template'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
           ),
         ],
         backgroundColor: Colors.white,
@@ -934,18 +952,18 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       body: (_isLoading || _isSaving)
           ? _buildLoadingScreen()
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(isMobile ? 12 : 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeaderContextCard(),
-                  const SizedBox(height: 20),
-                  _buildStepIndicator(),
-                  const SizedBox(height: 20),
-                  if (_currentStep == 0) _buildUploadStep(),
-                  if (_currentStep == 1) _buildMappingStep(),
-                  if (_currentStep == 2) _buildValidationStep(),
-                  if (_currentStep == 3) _buildSuccessStep(),
+                  _buildHeaderContextCard(isMobile),
+                  const SizedBox(height: 16),
+                  _buildStepIndicator(isMobile),
+                  const SizedBox(height: 16),
+                  if (_currentStep == 0) _buildUploadStep(isMobile),
+                  if (_currentStep == 1) _buildMappingStep(isMobile),
+                  if (_currentStep == 2) _buildValidationStep(isMobile),
+                  if (_currentStep == 3) _buildSuccessStep(isMobile),
                 ],
               ),
             ),
@@ -1011,7 +1029,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
             // Status Message
             Text(
-              _statusMessage ?? 'Please wait while AcadInsight processes your class record...',
+              _statusMessage ?? 'Please wait while NotifyED processes your class record...',
               style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.4),
               textAlign: TextAlign.center,
             ),
@@ -1042,7 +1060,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'AcadInsight automatically resolves merged cells and remembers your column mappings for future uploads.',
+                      'NotifyED automatically resolves merged cells and remembers your column mappings for future uploads.',
                       style: TextStyle(fontSize: 11, color: Color(0xFF475569)),
                     ),
                   ),
@@ -1057,7 +1075,46 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
   // ── HEADER CONTEXT CARD ──────────────────────────────────────────────────
 
-  Widget _buildHeaderContextCard() {
+  Widget _buildHeaderContextCard(bool isMobile) {
+    final classDropdown = DropdownButtonFormField<Map<String, dynamic>>(
+      initialValue: _selectedClassRecord,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: 'Class / Subject',
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      items: _assignedClasses.map((c) {
+        final label = '${c['subject_name']} (${c['grade_level']} - ${c['section_name']})';
+        return DropdownMenuItem(value: c, child: Text(label, overflow: TextOverflow.ellipsis));
+      }).toList(),
+      onChanged: (val) {
+        setState(() => _selectedClassRecord = val);
+      },
+    );
+
+    final periodDropdown = DropdownButtonFormField<String>(
+      initialValue: _selectedPeriod,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: 'Grading Period',
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      items: const [
+        DropdownMenuItem(value: '1st Term', child: Text('1st Term')),
+        DropdownMenuItem(value: '2nd Term', child: Text('2nd Term')),
+        DropdownMenuItem(value: '3rd Term', child: Text('3rd Term')),
+        DropdownMenuItem(value: '1st Quarter', child: Text('1st Quarter')),
+        DropdownMenuItem(value: '2nd Quarter', child: Text('2nd Quarter')),
+        DropdownMenuItem(value: '3rd Quarter', child: Text('3rd Quarter')),
+        DropdownMenuItem(value: '4th Quarter', child: Text('4th Quarter')),
+      ],
+      onChanged: (val) {
+        if (val != null) setState(() => _selectedPeriod = val);
+      },
+    );
+
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -1066,61 +1123,24 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            const Text('Select Target Class & Period', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+            const SizedBox(height: 10),
+            if (isMobile) ...[
+              classDropdown,
+              const SizedBox(height: 12),
+              periodDropdown,
+            ] else ...[
+              Row(
                 children: [
-                  const Text('Select Target Class & Period', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<Map<String, dynamic>>(
-                          initialValue: _selectedClassRecord,
-                          decoration: InputDecoration(
-                            labelText: 'Class / Subject',
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          items: _assignedClasses.map((c) {
-                            final label = '${c['subject_name']} (${c['grade_level']} - ${c['section_name']})';
-                            return DropdownMenuItem(value: c, child: Text(label, overflow: TextOverflow.ellipsis));
-                          }).toList(),
-                          onChanged: (val) {
-                            setState(() => _selectedClassRecord = val);
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: _selectedPeriod,
-                          decoration: InputDecoration(
-                            labelText: 'Grading Period',
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: '1st Term', child: Text('1st Term')),
-                            DropdownMenuItem(value: '2nd Term', child: Text('2nd Term')),
-                            DropdownMenuItem(value: '3rd Term', child: Text('3rd Term')),
-                            DropdownMenuItem(value: '1st Quarter', child: Text('1st Quarter')),
-                            DropdownMenuItem(value: '2nd Quarter', child: Text('2nd Quarter')),
-                            DropdownMenuItem(value: '3rd Quarter', child: Text('3rd Quarter')),
-                            DropdownMenuItem(value: '4th Quarter', child: Text('4th Quarter')),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) setState(() => _selectedPeriod = val);
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
+                  Expanded(child: classDropdown),
+                  const SizedBox(width: 12),
+                  Expanded(child: periodDropdown),
                 ],
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -1129,16 +1149,19 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
   // ── STEP INDICATOR ───────────────────────────────────────────────────────
 
-  Widget _buildStepIndicator() {
-    final steps = ['1. Upload File', '2. Confirm Mapping', '3. Validate', '4. Complete'];
+  Widget _buildStepIndicator(bool isMobile) {
+    final desktopSteps = ['1. Upload File', '2. Confirm Mapping', '3. Validate', '4. Complete'];
+    final mobileSteps = ['1. Upload', '2. Map', '3. Validate', '4. Done'];
+    final steps = isMobile ? mobileSteps : desktopSteps;
+
     return Row(
       children: List.generate(steps.length, (idx) {
         final isActive = idx == _currentStep;
         final isDone = idx < _currentStep;
         return Expanded(
           child: Container(
-            margin: const EdgeInsets.only(right: 6),
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            margin: EdgeInsets.only(right: idx == steps.length - 1 ? 0 : 4),
+            padding: EdgeInsets.symmetric(vertical: 8, horizontal: isMobile ? 2 : 8),
             decoration: BoxDecoration(
               color: isActive
                   ? const Color(0xFF2563EB)
@@ -1150,10 +1173,12 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
             child: Text(
               steps[idx],
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: (isActive || isDone) ? Colors.white : const Color(0xFF64748B),
                 fontWeight: FontWeight.bold,
-                fontSize: 12,
+                fontSize: isMobile ? 10.5 : 12,
               ),
             ),
           ),
@@ -1164,7 +1189,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
   // ── STEP 1: UPLOAD CARD ──────────────────────────────────────────────────
 
-  Widget _buildUploadStep() {
+  Widget _buildUploadStep(bool isMobile) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -1173,42 +1198,43 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       ),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(40),
+        padding: EdgeInsets.all(isMobile ? 20 : 40),
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
+              padding: const EdgeInsets.all(18),
+              decoration: const BoxDecoration(
+                color: Color(0xFFEFF6FF),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.cloud_upload_outlined, size: 48, color: Color(0xFF2563EB)),
+              child: const Icon(Icons.cloud_upload_outlined, size: 44, color: Color(0xFF2563EB)),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Upload Electronic Class Record (ECR)',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+              style: TextStyle(fontSize: isMobile ? 16 : 18, fontWeight: FontWeight.bold, color: const Color(0xFF0F172A)),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             const Text(
               'Supports Excel (.xlsx, .xls) and CSV (.csv) files with merged cells or stacked headers.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF64748B)),
+              style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
             ),
             const SizedBox(height: 24),
             Wrap(
               alignment: WrapAlignment.center,
-              spacing: 16,
-              runSpacing: 12,
+              spacing: 12,
+              runSpacing: 10,
               children: [
                 ElevatedButton.icon(
                   onPressed: _pickAndParseFile,
                   icon: const Icon(Icons.folder_open),
-                  label: const Text('Choose File from Computer'),
+                  label: Text(isMobile ? 'Choose ECR File' : 'Choose File from Computer'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
@@ -1218,15 +1244,15 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                   label: const Text('Create ECR Template', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.bold)),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Color(0xFF059669), width: 1.5),
-                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: const Color(0xFFF0FDF4),
                 borderRadius: BorderRadius.circular(12),
@@ -1235,14 +1261,14 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(8),
                     decoration: const BoxDecoration(
                       color: Color(0xFFDCFCE7),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.auto_awesome, color: Color(0xFF16A34A), size: 22),
+                    child: const Icon(Icons.auto_awesome, color: Color(0xFF16A34A), size: 20),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1253,7 +1279,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'AcadInsight automatically adapts to ANY imported ECR—whether you upload your custom created template, an official DepEd Excel sheet, or a flat CSV with arbitrary activity columns.',
+                          'NotifyED automatically adapts to ANY imported ECR—whether you upload your custom created template, an official DepEd Excel sheet, or a flat CSV with arbitrary activity columns.',
                           style: TextStyle(fontSize: 12, color: Color(0xFF15803D), height: 1.3),
                         ),
                       ],
@@ -1270,7 +1296,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
   // ── STEP 2: MAPPING CONFIRMATION STEP ────────────────────────────────────
 
-  Widget _buildMappingStep() {
+  Widget _buildMappingStep(bool isMobile) {
     if (_parseResult == null) return const SizedBox();
 
     int lowConfidenceCount = _columnMappings.where((m) => m.isLowConfidence && m.target != EcrTargetCategory.ignore).length;
@@ -1286,50 +1312,96 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Padding(
             padding: const EdgeInsets.all(12.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Wrap(
-                    spacing: 12,
-                    runSpacing: 8,
+            child: isMobile
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Chip(
-                        avatar: const Icon(Icons.table_chart_outlined, size: 16),
-                        label: Text('File: ${_parseResult!.filename}'),
-                        backgroundColor: Colors.white,
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          Chip(
+                            avatar: const Icon(Icons.table_chart_outlined, size: 16),
+                            label: Text('File: ${_parseResult!.filename}', style: const TextStyle(fontSize: 12)),
+                            backgroundColor: Colors.white,
+                          ),
+                          Chip(
+                            avatar: Icon(
+                              lowConfidenceCount > 0 ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                              size: 16,
+                              color: lowConfidenceCount > 0 ? Colors.amber[800] : Colors.green[700],
+                            ),
+                            label: Text(
+                              lowConfidenceCount > 0 ? '$lowConfidenceCount Review' : 'All Confident',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            backgroundColor: lowConfidenceCount > 0 ? const Color(0xFFFEF3C7) : const Color(0xFFD1FAE5),
+                          ),
+                          if (typeMismatchCount > 0)
+                            Chip(
+                              avatar: const Icon(Icons.error_outline, size: 16, color: Colors.red),
+                              label: Text('$typeMismatchCount Non-numeric', style: const TextStyle(fontSize: 12)),
+                              backgroundColor: const Color(0xFFFEE2E2),
+                            ),
+                        ],
                       ),
-                      Chip(
-                        avatar: Icon(
-                          lowConfidenceCount > 0 ? Icons.warning_amber_rounded : Icons.check_circle_outline,
-                          size: 16,
-                          color: lowConfidenceCount > 0 ? Colors.amber[800] : Colors.green[700],
+                      const SizedBox(height: 10),
+                      ElevatedButton.icon(
+                        onPressed: _proceedToValidation,
+                        icon: const Icon(Icons.arrow_forward),
+                        label: const Text('Validate & Proceed'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         ),
-                        label: Text(
-                          lowConfidenceCount > 0 ? '$lowConfidenceCount Low-Confidence Mapping(s)' : 'All Mappings Confident',
-                        ),
-                        backgroundColor: lowConfidenceCount > 0 ? const Color(0xFFFEF3C7) : const Color(0xFFD1FAE5),
                       ),
-                      if (typeMismatchCount > 0)
-                        Chip(
-                          avatar: const Icon(Icons.error_outline, size: 16, color: Colors.red),
-                          label: Text('$typeMismatchCount Non-numeric Preview Alert(s)'),
-                          backgroundColor: const Color(0xFFFEE2E2),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: [
+                            Chip(
+                              avatar: const Icon(Icons.table_chart_outlined, size: 16),
+                              label: Text('File: ${_parseResult!.filename}'),
+                              backgroundColor: Colors.white,
+                            ),
+                            Chip(
+                              avatar: Icon(
+                                lowConfidenceCount > 0 ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                                size: 16,
+                                color: lowConfidenceCount > 0 ? Colors.amber[800] : Colors.green[700],
+                              ),
+                              label: Text(
+                                lowConfidenceCount > 0 ? '$lowConfidenceCount Low-Confidence Mapping(s)' : 'All Mappings Confident',
+                              ),
+                              backgroundColor: lowConfidenceCount > 0 ? const Color(0xFFFEF3C7) : const Color(0xFFD1FAE5),
+                            ),
+                            if (typeMismatchCount > 0)
+                              Chip(
+                                avatar: const Icon(Icons.error_outline, size: 16, color: Colors.red),
+                                label: Text('$typeMismatchCount Non-numeric Preview Alert(s)'),
+                                backgroundColor: const Color(0xFFFEE2E2),
+                              ),
+                          ],
                         ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _proceedToValidation,
+                        icon: const Icon(Icons.arrow_forward),
+                        label: const Text('Validate & Proceed'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        ),
+                      ),
                     ],
                   ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: _proceedToValidation,
-                  icon: const Icon(Icons.arrow_forward),
-                  label: const Text('Validate & Proceed'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
 
@@ -1345,62 +1417,103 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                children: [
-                  const Icon(Icons.tab_rounded, color: Color(0xFF2563EB), size: 20),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Active Sheet Tab:',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                  ),
-                  const SizedBox(width: 12),
-                  DropdownButton<String>(
-                    value: _selectedSheetName,
-                    underline: const SizedBox(),
-                    items: _parseResult!.availableSheets.map((s) {
-                      return DropdownMenuItem<String>(
-                        value: s.sheetName,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+              child: isMobile
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Text(
-                              s.sheetName,
-                              style: TextStyle(
-                                fontWeight: s.isCandidate ? FontWeight.bold : FontWeight.normal,
-                                color: s.isCandidate ? const Color(0xFF0F172A) : const Color(0xFF64748B),
-                              ),
+                            const Icon(Icons.tab_rounded, color: Color(0xFF2563EB), size: 20),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Active Sheet Tab:',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
                             ),
-                            if (s.isCandidate) ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFDBEAFE),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text(
-                                  'Candidate',
-                                  style: TextStyle(fontSize: 10, color: Color(0xFF1D4ED8), fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
+                            const Spacer(),
+                            Text(
+                              '${_parseResult!.dataRows.length} students',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                            ),
                           ],
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (newSheet) {
-                      if (newSheet != null && newSheet != _selectedSheetName) {
-                        _switchSheet(newSheet);
-                      }
-                    },
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${_parseResult!.dataRows.length} students detected',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                  ),
-                ],
-              ),
+                        const SizedBox(height: 6),
+                        DropdownButton<String>(
+                          value: _selectedSheetName,
+                          isExpanded: true,
+                          underline: const SizedBox(),
+                          items: _parseResult!.availableSheets.map((s) {
+                            return DropdownMenuItem<String>(
+                              value: s.sheetName,
+                              child: Text(
+                                s.isCandidate ? '${s.sheetName} (Candidate)' : s.sheetName,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (newSheet) {
+                            if (newSheet != null && newSheet != _selectedSheetName) {
+                              _switchSheet(newSheet);
+                            }
+                          },
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        const Icon(Icons.tab_rounded, color: Color(0xFF2563EB), size: 20),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Active Sheet Tab:',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                        ),
+                        const SizedBox(width: 12),
+                        DropdownButton<String>(
+                          value: _selectedSheetName,
+                          underline: const SizedBox(),
+                          items: _parseResult!.availableSheets.map((s) {
+                            return DropdownMenuItem<String>(
+                              value: s.sheetName,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    s.sheetName,
+                                    style: TextStyle(
+                                      fontWeight: s.isCandidate ? FontWeight.bold : FontWeight.normal,
+                                      color: s.isCandidate ? const Color(0xFF0F172A) : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                  if (s.isCandidate) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFDBEAFE),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: const Text(
+                                        'Candidate',
+                                        style: TextStyle(fontSize: 10, color: Color(0xFF1D4ED8), fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (newSheet) {
+                            if (newSheet != null && newSheet != _selectedSheetName) {
+                              _switchSheet(newSheet);
+                            }
+                          },
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${_parseResult!.dataRows.length} students detected',
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ],
@@ -1431,7 +1544,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         const SizedBox(height: 12),
 
         // Dry-Run Ingestion Preview Card
-        _buildDryRunSummaryCard(),
+        _buildDryRunSummaryCard(isMobile),
 
         const SizedBox(height: 12),
 
@@ -1441,25 +1554,59 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
           shape: RoundedRectangleBorder(side: const BorderSide(color: Color(0xFFE2E8F0)), borderRadius: BorderRadius.circular(12)),
           child: Padding(
             padding: const EdgeInsets.all(12.0),
-            child: Row(
-              children: [
-                const Icon(Icons.tune, color: Color(0xFF64748B)),
-                const SizedBox(width: 8),
-                const Text('Default Component HPS Fallbacks:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(width: 16),
-                _buildHpsInput('WW HPS', _defaultWwHps, (v) => setState(() => _defaultWwHps = v)),
-                const SizedBox(width: 12),
-                _buildHpsInput('PT HPS', _defaultPtHps, (v) => setState(() => _defaultPtHps = v)),
-                const SizedBox(width: 12),
-                _buildHpsInput('QA HPS', _defaultQaHps, (v) => setState(() => _defaultQaHps = v)),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: _reevaluateMappings,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Re-apply Heuristics'),
-                ),
-              ],
-            ),
+            child: isMobile
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.tune, color: Color(0xFF64748B), size: 18),
+                              SizedBox(width: 6),
+                              Text('HPS Fallbacks:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            ],
+                          ),
+                          TextButton.icon(
+                            onPressed: _reevaluateMappings,
+                            icon: const Icon(Icons.refresh, size: 16),
+                            label: const Text('Re-apply', style: TextStyle(fontSize: 12)),
+                            style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildHpsInput('WW HPS', _defaultWwHps, (v) => setState(() => _defaultWwHps = v)),
+                          _buildHpsInput('PT HPS', _defaultPtHps, (v) => setState(() => _defaultPtHps = v)),
+                          _buildHpsInput('QA HPS', _defaultQaHps, (v) => setState(() => _defaultQaHps = v)),
+                        ],
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      const Icon(Icons.tune, color: Color(0xFF64748B)),
+                      const SizedBox(width: 8),
+                      const Text('Default Component HPS Fallbacks:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 16),
+                      _buildHpsInput('WW HPS', _defaultWwHps, (v) => setState(() => _defaultWwHps = v)),
+                      const SizedBox(width: 12),
+                      _buildHpsInput('PT HPS', _defaultPtHps, (v) => setState(() => _defaultPtHps = v)),
+                      const SizedBox(width: 12),
+                      _buildHpsInput('QA HPS', _defaultQaHps, (v) => setState(() => _defaultQaHps = v)),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: _reevaluateMappings,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Re-apply Heuristics'),
+                      ),
+                    ],
+                  ),
           ),
         ),
 
@@ -1570,13 +1717,39 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  Widget _buildDryRunSummaryCard() {
+  Widget _buildDryRunSummaryCard(bool isMobile) {
     if (_parseResult == null) return const SizedBox();
 
     final studentCount = _parseResult!.dataRows.length;
     final excludedCount = _parseResult!.excludedRows.length;
     final lowConfidenceCols = _columnMappings.where((m) => m.isLowConfidence && m.target != EcrTargetCategory.ignore).length;
     final activeCols = _columnMappings.where((m) => m.target != EcrTargetCategory.ignore).length;
+
+    final studentTile = _buildMetricTile(
+      icon: Icons.people_alt_outlined,
+      iconColor: const Color(0xFF2563EB),
+      title: '$studentCount Students',
+      subtitle: 'Detected for import',
+    );
+
+    final excludedTile = InkWell(
+      onTap: excludedCount > 0 ? _showExcludedRowsDialog : null,
+      borderRadius: BorderRadius.circular(8),
+      child: _buildMetricTile(
+        icon: Icons.playlist_remove_rounded,
+        iconColor: const Color(0xFF64748B),
+        title: '$excludedCount Excluded Rows',
+        subtitle: excludedCount > 0 ? 'Click to inspect skipped' : 'No rows skipped',
+        showClickable: excludedCount > 0,
+      ),
+    );
+
+    final mappedTile = _buildMetricTile(
+      icon: Icons.view_column_outlined,
+      iconColor: const Color(0xFF059669),
+      title: '$activeCols Mapped Columns',
+      subtitle: lowConfidenceCols > 0 ? '$lowConfidenceCols flagged' : 'Auto-assigned',
+    );
 
     return Card(
       elevation: 0,
@@ -1594,11 +1767,13 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
               children: [
                 const Icon(Icons.analytics_outlined, color: Color(0xFF2563EB), size: 20),
                 const SizedBox(width: 8),
-                const Text(
-                  'Dry-Run Ingestion Preview',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F172A)),
+                const Expanded(
+                  child: Text(
+                    'Dry-Run Ingestion Preview',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F172A)),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
@@ -1606,7 +1781,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    lowConfidenceCols > 0 ? '$lowConfidenceCols column(s) need review' : 'All mappings confident',
+                    lowConfidenceCols > 0 ? '$lowConfidenceCols review' : 'Confident',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
@@ -1617,41 +1792,27 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMetricTile(
-                    icon: Icons.people_alt_outlined,
-                    iconColor: const Color(0xFF2563EB),
-                    title: '$studentCount Students',
-                    subtitle: 'Detected for import',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: InkWell(
-                    onTap: excludedCount > 0 ? _showExcludedRowsDialog : null,
-                    borderRadius: BorderRadius.circular(8),
-                    child: _buildMetricTile(
-                      icon: Icons.playlist_remove_rounded,
-                      iconColor: const Color(0xFF64748B),
-                      title: '$excludedCount Excluded Rows',
-                      subtitle: excludedCount > 0 ? 'Click to inspect skipped' : 'No rows skipped',
-                      showClickable: excludedCount > 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildMetricTile(
-                    icon: Icons.view_column_outlined,
-                    iconColor: const Color(0xFF059669),
-                    title: '$activeCols Mapped Columns',
-                    subtitle: lowConfidenceCols > 0 ? '$lowConfidenceCols flagged' : 'Auto-assigned',
-                  ),
-                ),
-              ],
-            ),
+            if (isMobile) ...[
+              Column(
+                children: [
+                  studentTile,
+                  const SizedBox(height: 8),
+                  excludedTile,
+                  const SizedBox(height: 8),
+                  mappedTile,
+                ],
+              ),
+            ] else ...[
+              Row(
+                children: [
+                  Expanded(child: studentTile),
+                  const SizedBox(width: 12),
+                  Expanded(child: excludedTile),
+                  const SizedBox(width: 12),
+                  Expanded(child: mappedTile),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -1672,42 +1833,45 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
           ],
         ),
         content: SizedBox(
-          width: 550,
+          width: double.maxFinite,
           height: 380,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'These rows were recognized as section headers, gender dividers, or summary totals and are safely skipped from student scoring.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: _parseResult!.excludedRows.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
-                  itemBuilder: (ctx, idx) {
-                    final item = _parseResult!.excludedRows[idx];
-                    return ListTile(
-                      dense: true,
-                      leading: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'Row ${item.rowIndex}',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
-                        ),
-                      ),
-                      title: Text(item.rawText, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(item.reason, style: TextStyle(color: Colors.grey.shade600, fontSize: 11)),
-                    );
-                  },
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 550),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'These rows were recognized as section headers, gender dividers, or summary totals and are safely skipped from student scoring.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _parseResult!.excludedRows.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    itemBuilder: (ctx, idx) {
+                      final item = _parseResult!.excludedRows[idx];
+                      return ListTile(
+                        dense: true,
+                        leading: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'Row ${item.rowIndex}',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                          ),
+                        ),
+                        title: Text(item.rawText, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: Text(item.reason, style: TextStyle(color: Colors.grey.shade600, fontSize: 11)),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -1873,7 +2037,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
   // ── STEP 3: VALIDATION SUMMARY STEP ──────────────────────────────────────
 
-  Widget _buildValidationStep() {
+  Widget _buildValidationStep(bool isMobile) {
     if (_validationSummary == null) return const SizedBox();
 
     final summary = _validationSummary!;
@@ -1889,7 +2053,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
           ),
           color: summary.hasErrors ? const Color(0xFFFEF2F2) : const Color(0xFFECFDF5),
           child: Padding(
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.all(16.0),
             child: Row(
               children: [
                 Icon(
@@ -1897,7 +2061,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                   size: 36,
                   color: summary.hasErrors ? Colors.red : Colors.green,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1905,15 +2069,15 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                       Text(
                         summary.hasErrors ? 'Validation Issues Found' : 'Full Dataset Validated Successfully!',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: isMobile ? 16 : 18,
                           fontWeight: FontWeight.bold,
                           color: summary.hasErrors ? Colors.red.shade900 : Colors.green.shade900,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Total Rows: ${summary.totalRows}  |  Ready: ${summary.validRows}  |  Errors: ${summary.errorRows}',
-                        style: TextStyle(color: Colors.grey.shade800),
+                        'Total: ${summary.totalRows}  |  Ready: ${summary.validRows}  |  Errors: ${summary.errorRows}',
+                        style: TextStyle(color: Colors.grey.shade800, fontSize: 13),
                       ),
                     ],
                   ),
@@ -1925,50 +2089,91 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
         if (_rosterMatchResult != null) ...[
           const SizedBox(height: 12),
-          _buildRosterReconciliationCard(_rosterMatchResult!),
+          _buildRosterReconciliationCard(_rosterMatchResult!, isMobile),
         ],
 
         const SizedBox(height: 16),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            TextButton.icon(
-              onPressed: () => setState(() => _currentStep = 1),
-              icon: const Icon(Icons.arrow_back),
-              label: const Text('Back to Mapping'),
-            ),
-            Row(
-              children: [
-                if (summary.hasErrors) ...[
-                  OutlinedButton.icon(
-                    onPressed: _isSaving ? null : () => _executeSave(skipErrors: true),
-                    icon: const Icon(Icons.filter_alt_off),
-                    label: Text('Skip Error Rows (${summary.validRows} OK) & Import'),
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.orange.shade900),
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                ElevatedButton.icon(
-                  onPressed: summary.hasErrors || _isSaving ? null : () => _executeSave(skipErrors: false),
-                  icon: const Icon(Icons.save_alt),
-                  label: const Text('Confirm & Save All to Supabase'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        if (isMobile) ...[
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (summary.hasErrors) ...[
+                OutlinedButton.icon(
+                  onPressed: _isSaving ? null : () => _executeSave(skipErrors: true),
+                  icon: const Icon(Icons.filter_alt_off),
+                  label: Text('Skip Errors (${summary.validRows} OK) & Import'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.orange.shade900,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
+                const SizedBox(height: 8),
               ],
-            ),
-          ],
-        ),
+              ElevatedButton.icon(
+                onPressed: summary.hasErrors || _isSaving ? null : () => _executeSave(skipErrors: false),
+                icon: const Icon(Icons.save_alt),
+                label: const Text('Confirm & Save to Supabase'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () => setState(() => _currentStep = 1),
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Back to Mapping'),
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextButton.icon(
+                onPressed: () => setState(() => _currentStep = 1),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Back to Mapping'),
+              ),
+              Row(
+                children: [
+                  if (summary.hasErrors) ...[
+                    OutlinedButton.icon(
+                      onPressed: _isSaving ? null : () => _executeSave(skipErrors: true),
+                      icon: const Icon(Icons.filter_alt_off),
+                      label: Text('Skip Error Rows (${summary.validRows} OK) & Import'),
+                      style: OutlinedButton.styleFrom(foregroundColor: Colors.orange.shade900),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  ElevatedButton.icon(
+                    onPressed: summary.hasErrors || _isSaving ? null : () => _executeSave(skipErrors: false),
+                    icon: const Icon(Icons.save_alt),
+                    label: const Text('Confirm & Save All to Supabase'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF10B981),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
 
         const SizedBox(height: 20),
 
         if (summary.errors.isNotEmpty) ...[
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
               const Text('Detailed Issue Log', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               FilterChip(
@@ -2009,9 +2214,25 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  Widget _buildRosterReconciliationCard(EcrRosterMatchResult roster) {
+  Widget _buildRosterReconciliationCard(EcrRosterMatchResult roster, bool isMobile) {
     final isLow = roster.lowMatchWarning;
     final matchPct = (roster.matchRate * 100).toInt();
+
+    final badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isLow ? const Color(0xFFFEF3C7) : const Color(0xFFDBEAFE),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '${roster.matchedCount} matched / ${roster.unmatchedCount} unmatched',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 11,
+          color: isLow ? const Color(0xFFB45309) : const Color(0xFF1D4ED8),
+        ),
+      ),
+    );
 
     return Card(
       elevation: 0,
@@ -2025,41 +2246,52 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(
-                  isLow ? Icons.warning_amber_rounded : Icons.verified_user_outlined,
-                  color: isLow ? Colors.orange.shade800 : const Color(0xFF2563EB),
-                  size: 22,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    isLow ? 'Class Roster Match Warning ($matchPct%)' : 'Class Roster Reconciled ($matchPct%)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: isLow ? Colors.orange.shade900 : const Color(0xFF1E3A8A),
+            if (isMobile) ...[
+              Row(
+                children: [
+                  Icon(
+                    isLow ? Icons.warning_amber_rounded : Icons.verified_user_outlined,
+                    color: isLow ? Colors.orange.shade800 : const Color(0xFF2563EB),
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      isLow ? 'Roster Match Warning ($matchPct%)' : 'Roster Reconciled ($matchPct%)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: isLow ? Colors.orange.shade900 : const Color(0xFF1E3A8A),
+                      ),
                     ),
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isLow ? const Color(0xFFFEF3C7) : const Color(0xFFDBEAFE),
-                    borderRadius: BorderRadius.circular(8),
+                ],
+              ),
+              const SizedBox(height: 6),
+              badge,
+            ] else ...[
+              Row(
+                children: [
+                  Icon(
+                    isLow ? Icons.warning_amber_rounded : Icons.verified_user_outlined,
+                    color: isLow ? Colors.orange.shade800 : const Color(0xFF2563EB),
+                    size: 22,
                   ),
-                  child: Text(
-                    '${roster.matchedCount} matched / ${roster.unmatchedCount} unmatched',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                      color: isLow ? const Color(0xFFB45309) : const Color(0xFF1D4ED8),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      isLow ? 'Class Roster Match Warning ($matchPct%)' : 'Class Roster Reconciled ($matchPct%)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: isLow ? Colors.orange.shade900 : const Color(0xFF1E3A8A),
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
+                  badge,
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
             Text(
               isLow
@@ -2085,21 +2317,22 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
   // ── STEP 4: SUCCESS STEP ─────────────────────────────────────────────────
 
-  Widget _buildSuccessStep() {
+  Widget _buildSuccessStep(bool isMobile) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: const Color(0xFFF0FDF4),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(40),
+        padding: EdgeInsets.all(isMobile ? 24 : 40),
         child: Column(
           children: [
             const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'ECR Grades Successfully Saved!',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF065F46)),
+              style: TextStyle(fontSize: isMobile ? 18 : 22, fontWeight: FontWeight.bold, color: const Color(0xFF065F46)),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             const Text(
@@ -2108,8 +2341,10 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
               style: TextStyle(color: Color(0xFF047857)),
             ),
             const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
               children: [
                 OutlinedButton.icon(
                   onPressed: () {
@@ -2123,7 +2358,6 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                   icon: const Icon(Icons.refresh),
                   label: const Text('Import Another ECR File'),
                 ),
-                const SizedBox(width: 16),
                 ElevatedButton.icon(
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.arrow_back),

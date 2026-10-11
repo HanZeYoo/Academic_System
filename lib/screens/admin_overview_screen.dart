@@ -4,6 +4,7 @@ import '../database_helper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'reports_generation_screen.dart';
 import 'failure_analytics_screen.dart';
+import '../utils/dialog_utils.dart';
 class AdminOverviewScreen extends StatefulWidget {
   const AdminOverviewScreen({super.key});
 
@@ -238,6 +239,9 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
 
     } catch (e) {
       debugPrint("Error loading dashboard data: $e");
+      if (mounted && AestheticDialogs.isNetworkError(e)) {
+        AestheticDialogs.showNoInternetSnackBar(context);
+      }
     }
 
     setState(() {

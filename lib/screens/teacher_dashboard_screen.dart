@@ -14,6 +14,7 @@ import 'teacher_attendance_screen.dart';
 import 'reports_generation_screen.dart';
 import 'announcement_management_screen.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   final String username;
@@ -48,7 +49,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     if (!isRefresh) {
       setState(() => _isLoading = true);
     }
-    final db = DatabaseHelper();
+    try {
+      final db = DatabaseHelper();
     
     // Load school years
     final years = await db.getAllSchoolYears();
@@ -81,16 +83,24 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     // Get Avg Attendance
     final avgAtt = await db.getAverageAttendanceForTeacher(tName);
 
-    if (mounted) {
-      setState(() {
-        _schoolYears = years.isNotEmpty ? years : [activeYear];
-        _teacherName = tName;
-        _totalClasses = classes.length;
-        _totalStudents = studentCount;
-        _avgAttendance = avgAtt;
-        _recentAnnouncements = announcements.take(3).toList();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _schoolYears = years.isNotEmpty ? years : [activeYear];
+          _teacherName = tName;
+          _totalClasses = classes.length;
+          _totalStudents = studentCount;
+          _avgAttendance = avgAtt;
+          _recentAnnouncements = announcements.take(3).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        if (AestheticDialogs.isNetworkError(e)) {
+          AestheticDialogs.showNoInternetSnackBar(context);
+        }
+      }
     }
   }
 

@@ -37,7 +37,11 @@ void main() async {
 
   // Request Permissions and Get Token (Mobile only)
   if (!kIsWeb) {
-    await PushNotificationService().initialize();
+    try {
+      await PushNotificationService().initialize();
+    } catch (e) {
+      debugPrint('Failed to initialize push notifications: $e');
+    }
   }
 
   runApp(const MyApp());

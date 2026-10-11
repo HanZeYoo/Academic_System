@@ -51,10 +51,16 @@ class PushNotificationService {
     }
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      // Get the token
-      String? token = await _fcm.getToken();
-      if (kDebugMode) {
-        print('FCM Token: $token');
+      try {
+        // Get the token
+        String? token = await _fcm.getToken();
+        if (kDebugMode) {
+          print('FCM Token: $token');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('Could not retrieve FCM token: $e');
+        }
       }
       
       // TODO: Save token to Supabase or your preferred database here

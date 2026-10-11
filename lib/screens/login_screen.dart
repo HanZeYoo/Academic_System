@@ -120,7 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
         password: password,
       );
       
-      // 2. If Firebase succeeds, fetch user role from local SQLite
+      // 2. Fetch user profile from database
       final user = await dbHelper.getUserByUsername(username);
       setState(() => _isLoading = false);
       
@@ -135,9 +135,22 @@ class _LoginScreenState extends State<LoginScreen> {
         }
         _routeUser(user);
       } else {
-        _showError('User profile not found in local database.');
+        _showError('User profile not found in database.');
       }
     } on AuthException catch (e) {
+      // Check if it's a network error
+      if (AestheticDialogs.isNetworkError(e.message)) {
+        // Fallback to local offline login if available
+        final localUser = await dbHelper.login(username, password);
+        setState(() => _isLoading = false);
+        if (localUser != null) {
+          _routeUser(localUser);
+          return;
+        }
+        AestheticDialogs.showNoInternetDialog(context, onRetry: _handleLogin);
+        return;
+      }
+
       // 3. Fallback to SQLite (for legacy accounts like 'admin' without valid email format)
       if (e.message.contains('Invalid login credentials') || e.message.contains('Email not confirmed')) {
         final localUser = await dbHelper.login(username, password);
@@ -158,11 +171,21 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         setState(() => _isLoading = false);
-        _showError(e.message ?? 'Authentication error');
+        _showError(AestheticDialogs.getCleanErrorMessage(e.message));
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      _showError('An error occurred. Please try again.');
+      if (AestheticDialogs.isNetworkError(e)) {
+        // Fallback to local offline login if available
+        final localUser = await dbHelper.login(username, password);
+        if (localUser != null) {
+          _routeUser(localUser);
+          return;
+        }
+        AestheticDialogs.showNoInternetDialog(context, onRetry: _handleLogin);
+        return;
+      }
+      _showError(AestheticDialogs.getCleanErrorMessage(e));
     }
   }
 

@@ -8,6 +8,7 @@ import 'student_attendance_view_screen.dart';
 import 'shared_profile_screen.dart';
 
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
   final String username; // The student's email/username
@@ -37,7 +38,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     if (!isRefresh) {
       setState(() => _isLoading = true);
     }
-    final dbHelper = DatabaseHelper();
+    try {
+      final dbHelper = DatabaseHelper();
     
     // Fetch Name & Details
     final student = await dbHelper.getStudentByEmail(widget.username);
@@ -214,6 +216,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       setState(() {
         _isLoading = false;
       });
+    }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (AestheticDialogs.isNetworkError(e)) {
+          AestheticDialogs.showNoInternetSnackBar(context);
+        }
+      }
     }
   }
 

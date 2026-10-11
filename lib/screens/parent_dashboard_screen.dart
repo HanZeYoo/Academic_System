@@ -10,6 +10,7 @@ import 'announcement_management_screen.dart';
 import 'student_grades_view_screen.dart';
 import 'student_attendance_view_screen.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   final String username;
@@ -72,7 +73,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     if (!isRefresh) {
       setState(() => _isLoading = true);
     }
-    final dbHelper = DatabaseHelper();
+    try {
+      final dbHelper = DatabaseHelper();
     
     final years = await dbHelper.getAllSchoolYears();
     final activeYear = await dbHelper.getActiveSchoolYear();
@@ -92,6 +94,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     } else {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        if (AestheticDialogs.isNetworkError(e)) {
+          AestheticDialogs.showNoInternetSnackBar(context);
+        }
       }
     }
   }
