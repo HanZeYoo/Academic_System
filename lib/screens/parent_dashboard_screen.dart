@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'login_screen.dart';
@@ -261,16 +264,109 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     }
 
     _overallAverage = validSubjects > 0 ? sumOfAverages / validSubjects : 0.0;
+    await _loadSavedInterventionAndChatForChild(studentEmail);
     if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _loadSavedInterventionAndChatForChild(String childEmail) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final planKey = 'ai_intervention_plan_${widget.username}_$childEmail';
+      final chatKey = 'ai_chat_history_${widget.username}_$childEmail';
+
+      final savedPlan = prefs.getString(planKey) ?? '';
+      final savedChatJson = prefs.getString(chatKey);
+      List<Map<String, String>> loadedChat = [];
+      if (savedChatJson != null && savedChatJson.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(savedChatJson);
+        loadedChat = decoded.map((item) => {
+          'role': item['role']?.toString() ?? '',
+          'text': item['text']?.toString() ?? '',
+        }).toList();
+      }
+      if (mounted) {
+        setState(() {
+          _interventionPlanText = savedPlan;
+          _chatHistory = loadedChat;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading saved intervention chat: $e');
+    }
+  }
+
+  Future<void> _saveInterventionPlan(String childEmail, String planText) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final planKey = 'ai_intervention_plan_${widget.username}_$childEmail';
+      await prefs.setString(planKey, planText);
+    } catch (e) {
+      debugPrint('Error saving intervention plan: $e');
+    }
+  }
+
+  Future<void> _saveChatHistory(String childEmail) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final chatKey = 'ai_chat_history_${widget.username}_$childEmail';
+      await prefs.setString(chatKey, jsonEncode(_chatHistory));
+    } catch (e) {
+      debugPrint('Error saving chat history: $e');
+    }
+  }
+
+  Future<void> _clearChatHistory() async {
+    final childEmail = _selectedChild?['email'] ?? '';
+    final childName = _selectedChild?['name'] ?? 'your child';
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.refresh_rounded, color: Color(0xFF3383B3)),
+            SizedBox(width: 8),
+            Text('Start New Chat?'),
+          ],
+        ),
+        content: Text('Do you want to clear the conversation history with AI for $childName and start fresh?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3383B3),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('New Chat', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      final prefs = await SharedPreferences.getInstance();
+      final chatKey = 'ai_chat_history_${widget.username}_$childEmail';
+      await prefs.remove(chatKey);
+      if (mounted) {
+        setState(() {
+          _chatHistory.clear();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Conversation history cleared. You can start a new topic!')),
+        );
+      }
+    }
   }
 
   void _onChildSelected(int index) {
     if (index != _selectedChildIndex) {
       setState(() {
         _selectedChildIndex = index;
-        _interventionPlanText = '';
         _isInterventionExpanded = false;
-        _chatHistory.clear();
         _chatController.clear();
       });
       _fetchDashboardDataForChild(_children[index]);
@@ -529,7 +625,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   Widget _buildBody() {
     if (_selectedMenu == 'Settings') {
-      return SettingsScreen(username: widget.username);
+      return SettingsScreen(username: widget.username, role: 'parent');
     }
     if (_selectedMenu == 'Announcements') {
       return AnnouncementManagementScreen(
@@ -1289,7 +1385,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        _overallAverage >= 90 ? 'ðŸ… Excellent' : _overallAverage >= 75 ? 'âœ… Passing' : _overallAverage > 0 ? 'âš ï¸ Needs Improvement' : 'No grades yet',
+                        _overallAverage >= 90 ? '🏆 Excellent' : _overallAverage >= 75 ? '✅ Passing' : _overallAverage > 0 ? '⚠️ Needs Improvement' : 'No grades yet',
                         style: const TextStyle(color: Colors.white70, fontSize: 13),
                       ),
                     ],
@@ -1562,7 +1658,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Expanded(child: Text('â€¢ ${score['item_label']}', style: const TextStyle(fontSize: 12))),
+                                Expanded(child: Text('• ${score['item_label']}', style: const TextStyle(fontSize: 12))),
                                 Text('${score['score']}/${score['total_score']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
                               ],
                             ),
@@ -1659,7 +1755,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                                   fontSize: 14,
                                   color: Color(0xFF224A60))),
                           const SizedBox(height: 2),
-                          Text('${subject['schedule']} â€¢ ${subject['time']}',
+                          Text('${subject['schedule']} • ${subject['time']}',
                               style:
                                   TextStyle(color: Colors.grey[600], fontSize: 11)),
                         ],
@@ -1955,11 +2051,36 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           ],
           
           const SizedBox(height: 30),
-            const Text(
-              'Ask the AI Assistant',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60)),
-            ),
-            const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.forum_outlined, color: Color(0xFF3383B3), size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Ask the AI Assistant',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60)),
+                  ),
+                ],
+              ),
+              if (_chatHistory.isNotEmpty)
+                TextButton.icon(
+                  onPressed: _clearChatHistory,
+                  icon: const Icon(Icons.refresh_rounded, size: 16, color: Color(0xFF3383B3)),
+                  label: const Text(
+                    'New Chat',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF3383B3)),
+                  ),
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFF3383B3).withValues(alpha: 0.1),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -2000,9 +2121,24 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     );
                   }).toList(),
                   if (_isChatLoading)
-                    const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Center(child: CircularProgressIndicator()),
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.auto_awesome, size: 14, color: Color(0xFF3383B3)),
+                            SizedBox(width: 8),
+                            _TypingDotsIndicator(color: Color(0xFF3383B3)),
+                          ],
+                        ),
+                      ),
                     ),
                   const SizedBox(height: 10),
                   Row(
@@ -2043,6 +2179,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       _chatController.clear();
       _isChatLoading = true;
     });
+    await _saveChatHistory(_selectedChild?['email'] ?? '');
 
     String contextText = _interventionPlanText;
     final rawScoresContext = _subjectGrades.map((s) {
@@ -2058,12 +2195,34 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       contextText += "\n\n### Academic Breakdown (For your context only, to answer specific score queries):\n$rawScoresContext";
     }
 
+    // Multi-Child Awareness Context
+    if (_children.isNotEmpty) {
+      final childrenListStr = _children.map((c) {
+        final isCurrent = c['name'] == _selectedChild?['name'];
+        return "- ${c['name']} (Grade ${c['grade_level']} - ${c['section']})${isCurrent ? ' [CURRENTLY ACTIVE IN THIS VIEW]' : ''}";
+      }).join('\n');
+
+      contextText += "\n\n### Parent's Enrolled Children in this School Portal:\n$childrenListStr\n\n"
+          "### IMPORTANT INSTRUCTIONS FOR MULTI-CHILD QUERIES:\n"
+          "1. The parent has the enrolled children listed above. You are fully aware that all of them are legitimate students linked to this parent account.\n"
+          "2. The current active screen and detailed scores shown above belong to '${_selectedChild?['name']}'.\n"
+          "3. If the parent asks about their other child (or asks a general question about their children):\n"
+          "   - Acknowledge and confirm that you see the other child in the system (state their Grade & Section from the list above).\n"
+          "   - Warmly explain that to view that child's complete grade breakdown, attendance, and generate an AI Intervention Plan, the parent can simply tap or click that child's name in the 'Select Child' selector at the top of the screen.\n"
+          "   - Do NOT say that the child has no records or is not in the system. Rather, explain that their records are active in their own dedicated tab.\n"
+          "   - Respond politely in the language used by the parent (Filipino/Tagalog or English).";
+    }
+
     try {
+      final historyToSend = _chatHistory.length > 7
+          ? _chatHistory.sublist(_chatHistory.length - 7, _chatHistory.length - 1)
+          : _chatHistory.sublist(0, _chatHistory.length - 1);
+
       final res = await Supabase.instance.client.functions.invoke(
         'chat-intervention',
         body: {
           'planText': contextText,
-          'chatHistory': _chatHistory.sublist(0, _chatHistory.length - 1),
+          'chatHistory': historyToSend,
           'message': text,
         },
       );
@@ -2072,6 +2231,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         setState(() {
           _chatHistory.add({'role': 'model', 'text': res.data['reply']});
         });
+        await _saveChatHistory(_selectedChild?['email'] ?? '');
       } else {
         throw Exception(res.data['error'] ?? 'Failed to get reply');
       }
@@ -2125,6 +2285,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         setState(() {
           _interventionPlanText = res.data['plan'];
         });
+        await _saveInterventionPlan(_selectedChild?['email'] ?? '', _interventionPlanText);
       } else {
         throw Exception(res.data['error'] ?? 'Failed to generate plan');
       }
@@ -2455,3 +2616,70 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
 
 }
 
+class _TypingDotsIndicator extends StatefulWidget {
+  final Color color;
+  const _TypingDotsIndicator({this.color = const Color(0xFF3383B3)});
+
+  @override
+  State<_TypingDotsIndicator> createState() => _TypingDotsIndicatorState();
+}
+
+class _TypingDotsIndicatorState extends State<_TypingDotsIndicator> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildDot(0),
+            const SizedBox(width: 4),
+            _buildDot(1),
+            const SizedBox(width: 4),
+            _buildDot(2),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDot(int index) {
+    final start = (index * 0.2).clamp(0.0, 1.0);
+    final end = (start + 0.5).clamp(0.0, 1.0);
+    final curve = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(start, end, curve: Curves.easeInOut),
+    );
+    final bounce = math.sin(curve.value * math.pi) * 4.0;
+
+    return Transform.translate(
+      offset: Offset(0, -bounce),
+      child: Container(
+        width: 7,
+        height: 7,
+        decoration: BoxDecoration(
+          color: widget.color.withValues(alpha: 0.35 + (curve.value * 0.65)),
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+}

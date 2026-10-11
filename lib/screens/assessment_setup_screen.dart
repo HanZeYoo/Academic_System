@@ -187,7 +187,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
   // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String get _classLabel {
     if (_selectedClassRecord == null) return 'No class';
-    return '${_selectedClassRecord!['subject_name']} â€“ '
+    return '${_selectedClassRecord!['subject_name']} - '
         '${_selectedClassRecord!['grade_level']} '
         '${_selectedClassRecord!['section_name']}';
   }
@@ -216,12 +216,12 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                               value: _classLabel,
                               items: _assignedClasses
                                   .map((c) =>
-                                      '${c['subject_name']} â€“ ${c['grade_level']} ${c['section_name']}')
+                                      '${c['subject_name']} - ${c['grade_level']} ${c['section_name']}')
                                   .toList(),
                               onChanged: (val) async {
                                 final found = _assignedClasses.firstWhere(
                                   (c) =>
-                                      '${c['subject_name']} â€“ ${c['grade_level']} ${c['section_name']}' ==
+                                      '${c['subject_name']} - ${c['grade_level']} ${c['section_name']}' ==
                                       val,
                                   orElse: () => _assignedClasses.first,
                                 );
@@ -471,7 +471,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                                     )
                                   : const Icon(Icons.save_outlined, size: 18),
                               label: Text(
-                                  _isSaving ? 'Savingâ€¦' : 'Save Setup',
+                                  _isSaving ? 'Saving...' : 'Save Setup',
                                   style: const TextStyle(
                                       fontWeight: FontWeight.bold)),
                               style: ElevatedButton.styleFrom(

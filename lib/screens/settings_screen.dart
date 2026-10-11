@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import 'school_year_rollover_screen.dart';
 
@@ -10,7 +10,8 @@ const List<String> _kQuarters = [
 
 class SettingsScreen extends StatefulWidget {
   final String username;
-  const SettingsScreen({super.key, this.username = 'admin'});
+  final String? role;
+  const SettingsScreen({super.key, this.username = 'admin', this.role});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -33,10 +34,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _newPasswordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
+  String? _userRole;
+
+  bool get _isAdmin {
+    final r = widget.role ?? _userRole;
+    if (r != null) return r.toLowerCase() == 'admin';
+    return widget.username.toLowerCase() == 'admin';
+  }
+
   @override
   void initState() {
     super.initState();
-    _loadDeadlines();
+    _initRoleAndData();
+  }
+
+  Future<void> _initRoleAndData() async {
+    if (widget.role != null) {
+      _userRole = widget.role;
+    } else if (widget.username.toLowerCase() == 'admin') {
+      _userRole = 'admin';
+    } else {
+      final user = await DatabaseHelper().getUserByUsername(widget.username);
+      if (mounted && user != null) {
+        setState(() {
+          _userRole = user['role']?.toString();
+        });
+      }
+    }
+
+    if (_isAdmin) {
+      _loadDeadlines();
+    } else {
+      if (mounted) {
+        setState(() => _deadlinesLoading = false);
+      }
+    }
   }
 
   Future<void> _loadDeadlines() async {
@@ -177,8 +209,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildHeader(),
           const SizedBox(height: 24),
           _buildSecurityCard(),
-          const SizedBox(height: 24),
-          _buildGradingDeadlinesCard(),
+          if (_isAdmin) ...[
+            const SizedBox(height: 24),
+            _buildGradingDeadlinesCard(),
+          ],
           const SizedBox(height: 24),
           _buildExtraSettingsCard(),
         ],
@@ -704,18 +738,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 1),
           ListTile(
-            leading: Icon(Icons.update, color: Colors.orange.shade700),
-            title: const Text('End of School Year Rollover',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: const Text('Promote students & start new school year'),
+            leading: const Icon(Icons.dark_mode, color: Color(0xFF1E66B4)),
+            title: const Text('Theme Options'),
+            subtitle: const Text('Light mode active'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SchoolYearRolloverScreen()),
-              );
-            },
+            onTap: () {},
           ),
+          if (_isAdmin) ...[
+            const Divider(height: 1),
+            ListTile(
+              leading: Icon(Icons.update, color: Colors.orange.shade700),
+              title: const Text('End of School Year Rollover',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Promote students & start new school year'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SchoolYearRolloverScreen()),
+                );
+              },
+            ),
+          ],
         ],
       ),
     );

@@ -189,7 +189,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             const SizedBox(width: 8),
             const Text(
-              'AcadInsight',
+              'NotifyED',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -203,15 +203,18 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           children: [
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: Column(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                    child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 48),
                     const Text(
-                      'AcadInsight',
+                      'NotifyED',
                       style: TextStyle(
                         fontSize: 48,
                         fontWeight: FontWeight.bold,
@@ -410,6 +413,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
+          ),
+        ),
 
             // Footer
             Padding(
@@ -417,7 +422,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 children: [
                   const Text(
-                    '@2026 AcadInsight. A Capstone Project',
+                    '@2026 NotifyED. A Capstone Project',
                     style: TextStyle(fontSize: 12, color: Colors.black87),
                   ),
                   const SizedBox(height: 8),

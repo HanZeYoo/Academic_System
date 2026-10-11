@@ -162,16 +162,20 @@ class EcrMappingEngine {
     }
 
     // Look for component indicators in stacked or standalone headers
-    if (lower.contains('written') || lower.contains('ww') || lower.contains('pagsusulit')) {
+    if (lower.contains('written') || lower.contains('ww') || lower.contains('pagsusulit') ||
+        lower.contains('quiz') || lower.contains('seatwork') || lower.contains('assignment')) {
       return 'WW';
     }
-    if (lower.contains('performance') || lower.contains('pt') || lower.contains('gawain') || lower.contains('task')) {
+    if (lower.contains('performance') || lower.contains('pt') || lower.contains('gawain') ||
+        lower.contains('task') || lower.contains('activity') || lower.contains('project') || lower.contains('output')) {
       return 'PT';
     }
     if (lower.contains('quarterly assessment') ||
         lower.contains('quarter assessment') ||
         lower.contains('qa') ||
         lower.contains('periodical') ||
+        lower.contains('exam') ||
+        lower.contains('markahan') ||
         (lower.contains('quarterly') && !lower.contains('grade')) ||
         (lower.contains('assessment') && !lower.contains('grade'))) {
       return 'QA';
@@ -343,8 +347,53 @@ class EcrMappingEngine {
       }
     }
 
+    // Check Gender / Sex columns
+    if (headerLower == 'gender' || headerLower == 'sex' || headerLower == 'kasarian') {
+      return _RoleResolution(EcrTargetCategory.ignore, 0.90, ['Student Gender metadata column (Ignored for grading)']);
+    }
+
+    // Check Standalone Written Work columns (e.g. "WW1", "Quiz 1", "SW 2", "Seatwork 3", "Pagsusulit 1")
+    final wwMatch = RegExp(r'^(?:ww|quiz|sw|seatwork|pagsusulit|written(?: work)?)\s*[-_:]?\s*(\d+)$').firstMatch(headerLower);
+    if (wwMatch != null) {
+      final num = int.tryParse(wwMatch.group(1)!) ?? 1;
+      if (num >= 1 && num <= 10) {
+        final target = EcrTargetCategory.fromLabel('WW$num');
+        return _RoleResolution(target, 0.92, ['Adaptive match: Standalone Written Work activity item $num']);
+      }
+    }
+    if (headerLower == 'ww' || headerLower == 'quiz' || headerLower == 'seatwork' || headerLower == 'written work') {
+      return _RoleResolution(EcrTargetCategory.ww1, 0.85, ['Adaptive match: Standalone Written Work column']);
+    }
+
+    // Check Standalone Performance Task columns (e.g. "PT1", "Activity 1", "Act 2", "Project 3", "Output 1", "Task 4")
+    final ptMatch = RegExp(r'^(?:pt|act|activity|task|output|project|gawain|performance(?: task)?)\s*[-_:]?\s*(\d+)$').firstMatch(headerLower);
+    if (ptMatch != null) {
+      final num = int.tryParse(ptMatch.group(1)!) ?? 1;
+      if (num >= 1 && num <= 10) {
+        final target = EcrTargetCategory.fromLabel('PT$num');
+        return _RoleResolution(target, 0.92, ['Adaptive match: Standalone Performance Task activity item $num']);
+      }
+    }
+    if (headerLower == 'pt' || headerLower == 'activity' || headerLower == 'act' || headerLower == 'performance task' || headerLower == 'project') {
+      return _RoleResolution(EcrTargetCategory.pt1, 0.85, ['Adaptive match: Standalone Performance Task column']);
+    }
+
+    // Check Standalone Quarterly Assessment / Exam columns
+    if (headerLower == 'qa' ||
+        headerLower == 'exam' ||
+        headerLower == 'quarterly assessment' ||
+        headerLower == 'periodical' ||
+        headerLower == 'periodical exam' ||
+        headerLower == 'quarterly exam' ||
+        headerLower == 'term exam' ||
+        headerLower == 'markahang pagsusulit' ||
+        headerLower.contains('periodical') ||
+        headerLower.contains('quarterly exam')) {
+      return _RoleResolution(EcrTargetCategory.qa, 0.92, ['Adaptive match: Quarterly Assessment / Periodical Exam']);
+    }
+
     // Standalone "Total" outside any component block
-    if (headerLower == 'total' || headerLower == 'grade') {
+    if (headerLower == 'total' || headerLower == 'grade' || headerLower == 'general average') {
       return _RoleResolution(EcrTargetCategory.totalGrade, 0.70, ['Standalone Total outside component block']);
     }
 

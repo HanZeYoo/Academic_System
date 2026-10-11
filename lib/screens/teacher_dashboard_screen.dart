@@ -366,7 +366,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Widget _buildBody() {
     if (_selectedMenu == 'Settings') {
-      return SettingsScreen(username: widget.username);
+      return SettingsScreen(username: widget.username, role: 'teacher');
     }
     if (_selectedMenu == 'My Classes') {
       return MyClassesScreen(username: widget.username);

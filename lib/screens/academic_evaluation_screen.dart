@@ -948,7 +948,7 @@ class _AcademicEvaluationScreenState
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              '$section  â€¢  LRN: $id',
+                              '$section  •  LRN: $id',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey.shade500,
@@ -1033,7 +1033,7 @@ class _AcademicEvaluationScreenState
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '$section  â€¢  LRN: $id',
+                        '$section  •  LRN: $id',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade500,

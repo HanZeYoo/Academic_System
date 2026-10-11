@@ -106,7 +106,7 @@ class _LandingScreenState extends State<LandingScreen> {
             ),
             const SizedBox(width: 10),
             const Text(
-              'AcadInsight',
+              'NotifyED',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 22,
@@ -121,7 +121,7 @@ class _LandingScreenState extends State<LandingScreen> {
           children: [
             const SizedBox(height: 56),
             const Text(
-              'AcadInsight',
+              'NotifyED',
               style: TextStyle(
                 fontSize: 48,
                 fontWeight: FontWeight.w700,
@@ -182,7 +182,7 @@ class _LandingScreenState extends State<LandingScreen> {
                   ),
             const Spacer(),
             const Text(
-              '@2026 AcadInsight. A Capstone Project',
+              '@2026 NotifyED. A Capstone Project',
               style: TextStyle(fontSize: 13, color: Colors.black87),
             ),
             const SizedBox(height: 8),

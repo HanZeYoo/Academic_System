@@ -152,10 +152,13 @@ class _StudentProfileSetupScreenState extends State<StudentProfileSetupScreen> {
         centerTitle: true,
         automaticallyImplyLeading: false, // Prevent going back to login without setting up
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -351,8 +354,10 @@ class _StudentProfileSetupScreenState extends State<StudentProfileSetupScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
   Widget _buildSectionContainer({required Widget child}) {
     return Container(

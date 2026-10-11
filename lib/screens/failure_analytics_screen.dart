@@ -1278,7 +1278,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
                       ),
                     ),
                     const Text(
-                      'â€¢',
+                      '•',
                       style: TextStyle(color: Colors.grey, fontSize: 10),
                     ),
                     Text(
@@ -1303,7 +1303,7 @@ class _FailureAnalyticsScreenState extends State<FailureAnalyticsScreen> {
                       ),
                     ),
                     const Text(
-                      'â€¢',
+                      '•',
                       style: TextStyle(color: Colors.grey, fontSize: 10),
                     ),
                     Text(

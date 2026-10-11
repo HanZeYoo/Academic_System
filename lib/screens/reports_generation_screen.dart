@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database_helper.dart';
@@ -486,7 +486,7 @@ class _ReportsGenerationScreenState extends State<ReportsGenerationScreen> {
                     icon,
                     color,
                     '${report['category']}',
-                    '${report['className']} â€¢ ${report['period']}',
+                    '${report['className']} • ${report['period']}',
                     'Ready',
                     const Color(0xFFD4EED9),
                     const Color(0xFF4DC271),

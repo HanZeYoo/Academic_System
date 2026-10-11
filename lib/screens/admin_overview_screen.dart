@@ -27,8 +27,8 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
   List<Map<String, dynamic>> _failureRates = [];
   bool _showAllFailureRates = false;
 
-  // Trend Data (Q1, Q2, Q3, Q4)
-  List<double> _trendData = [0.0, 0.0, 0.0, 0.0];
+  // Trend Data (1st Term, 2nd Term, 3rd Term)
+  List<double> _trendData = [0.0, 0.0, 0.0];
 
   String _selectedPeriod = '1st Term';
   static const _periods = [
@@ -401,7 +401,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
                 ),
                 child: Row(
                   children: const [
-                    Text('Quarterly', style: TextStyle(fontSize: 12, color: Colors.black87)),
+                    Text('Per Term', style: TextStyle(fontSize: 12, color: Colors.black87)),
                     Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.black87),
                   ],
                 ),
@@ -437,10 +437,9 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
                         const style = TextStyle(color: Colors.black54, fontSize: 12);
                         Widget text;
                         switch (value.toInt()) {
-                          case 0: text = const Text('Q1', style: style); break;
-                          case 1: text = const Text('Q2', style: style); break;
-                          case 2: text = const Text('Q3', style: style); break;
-                          case 3: text = const Text('Q4', style: style); break;
+                          case 0: text = const Text('1st Term', style: style); break;
+                          case 1: text = const Text('2nd Term', style: style); break;
+                          case 2: text = const Text('3rd Term', style: style); break;
                           default: text = const Text('', style: style); break;
                         }
                         return SideTitleWidget(meta: meta, child: text);
@@ -463,17 +462,21 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
                 ),
                 borderData: FlBorderData(show: false),
                 minX: 0,
-                maxX: 3,
+                maxX: _trendData.length > 1 ? (_trendData.length - 1).toDouble() : 2,
                 minY: 0,
                 maxY: 100,
                 lineBarsData: [
                   LineChartBarData(
-                    spots: [
-                      FlSpot(0, _trendData[0]),
-                      FlSpot(1, _trendData[1]),
-                      FlSpot(2, _trendData[2]),
-                      FlSpot(3, _trendData[3]),
-                    ],
+                    spots: _trendData.isNotEmpty
+                        ? [
+                            for (int i = 0; i < _trendData.length; i++)
+                              FlSpot(i.toDouble(), _trendData[i]),
+                          ]
+                        : const [
+                            FlSpot(0, 0),
+                            FlSpot(1, 0),
+                            FlSpot(2, 0),
+                          ],
                     isCurved: true,
                     color: const Color(0xFF1664C5),
                     barWidth: 3,

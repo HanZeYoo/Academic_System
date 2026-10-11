@@ -434,7 +434,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   Widget _buildBody() {
     if (_selectedMenu == 'Settings') {
-      return SettingsScreen(username: widget.username);
+      return SettingsScreen(username: widget.username, role: 'student');
     }
     if (_selectedMenu == 'Profile') {
       return SharedProfileScreen(username: widget.username, role: UserRole.student);

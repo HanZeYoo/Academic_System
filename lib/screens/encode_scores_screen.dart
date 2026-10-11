@@ -407,7 +407,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     final subj = _selectedClassRecord!['subject_name']?.toString() ?? '';
     final grade = _selectedClassRecord!['grade_level']?.toString() ?? '';
     final section = _selectedClassRecord!['section_name']?.toString() ?? '';
-    return '$subj â€“ $grade $section'.trim();
+    return '$subj - $grade $section'.trim();
   }
 
   int _scoreOf(String studentId) {
@@ -643,12 +643,12 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                   iconColor: const Color(0xFF0D6EFD),
                   items: _assignedClasses
                       .map((c) =>
-                          '${c['subject_name']} â€“ ${c['grade_level']} ${c['section_name']}')
+                          '${c['subject_name']} - ${c['grade_level']} ${c['section_name']}')
                       .toList(),
                   onChanged: (val) async {
                     final found = _assignedClasses.firstWhere(
                       (c) =>
-                          '${c['subject_name']} â€“ ${c['grade_level']} ${c['section_name']}' ==
+                          '${c['subject_name']} - ${c['grade_level']} ${c['section_name']}' ==
                           val,
                       orElse: () => _assignedClasses.first,
                     );
@@ -1120,7 +1120,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                         )
                       : Icon(_isEncodingLocked ? Icons.lock : Icons.save, size: 18),
                   label: Text(
-                    _isSaving ? 'Savingâ€¦' : _isEncodingLocked ? 'Encoding Locked' : 'Save Scores',
+                    _isSaving ? 'Saving...' : _isEncodingLocked ? 'Encoding Locked' : 'Save Scores',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(

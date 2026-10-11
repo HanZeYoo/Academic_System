@@ -248,7 +248,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       case 9:
         return SharedProfileScreen(username: widget.username, role: UserRole.admin);
       case 10:
-        return SettingsScreen(username: widget.username);
+        return SettingsScreen(username: widget.username, role: 'admin');
       case 11:
         return const AdminArchiveScreen();
       case 12:
