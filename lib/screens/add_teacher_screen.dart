@@ -250,8 +250,8 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Teacher'),
-        content: Text('Are you sure you want to delete ${widget.teacherToEdit!['name']}? This record will be hidden from the active lists.'),
+        title: const Text('Move to Archive'),
+        content: Text('Are you sure you want to delete ${widget.teacherToEdit!['name']}? This record will be moved to Archive and will be permanently deleted after 30 days.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -265,7 +265,7 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                 Navigator.pop(context, true);
               }
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: const Text('Move to Archive', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

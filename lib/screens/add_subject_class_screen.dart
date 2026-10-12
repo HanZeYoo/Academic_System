@@ -168,8 +168,8 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Subject & Class'),
-        content: Text('Are you sure you want to delete ${widget.subjectClassToEdit!['subject_name']}? This record will be hidden from the active lists.'),
+        title: const Text('Move to Archive'),
+        content: Text('Are you sure you want to delete ${widget.subjectClassToEdit!['subject_name']}? This record will be moved to Archive and will be permanently deleted after 30 days.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -183,7 +183,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                 Navigator.pop(context, true);
               }
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: const Text('Move to Archive', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

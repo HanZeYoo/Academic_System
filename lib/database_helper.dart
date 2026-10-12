@@ -362,14 +362,25 @@ class DatabaseHelper {
     return List<Map<String, dynamic>>.from(results);
   }
 
-  // Soft delete a student
+  // Soft delete a student (with retention timestamp)
   Future<void> softDeleteStudent(int id) async {
-    await Supabase.instance.client.from('students').update({'is_active': 0}).eq('id', id);
+    await Supabase.instance.client.from('students').update({
+      'is_active': 0,
+      'deleted_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', id);
   }
 
   // Restore a student
   Future<void> restoreStudent(int id) async {
-    await Supabase.instance.client.from('students').update({'is_active': 1}).eq('id', id);
+    await Supabase.instance.client.from('students').update({
+      'is_active': 1,
+      'deleted_at': null,
+    }).eq('id', id);
+  }
+
+  // Permanently delete a student from the database
+  Future<void> permanentlyDeleteStudent(int id) async {
+    await Supabase.instance.client.from('students').delete().eq('id', id);
   }
 
   // Get a single student by email
@@ -763,14 +774,25 @@ class DatabaseHelper {
     return List<Map<String, dynamic>>.from(results);
   }
 
-  // Soft delete Subject / Class
+  // Soft delete Subject / Class (with retention timestamp)
   Future<void> softDeleteSubjectClass(int id) async {
-    await Supabase.instance.client.from('subjects_classes').update({'is_active': 0}).eq('id', id);
+    await Supabase.instance.client.from('subjects_classes').update({
+      'is_active': 0,
+      'deleted_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', id);
   }
 
   // Restore Subject / Class
   Future<void> restoreSubjectClass(int id) async {
-    await Supabase.instance.client.from('subjects_classes').update({'is_active': 1}).eq('id', id);
+    await Supabase.instance.client.from('subjects_classes').update({
+      'is_active': 1,
+      'deleted_at': null,
+    }).eq('id', id);
+  }
+
+  // Permanently delete Subject / Class
+  Future<void> permanentlyDeleteSubjectClass(int id) async {
+    await deleteSubjectClass(id);
   }
 
   // Get classes assigned to a specific teacher (by name)
@@ -959,14 +981,100 @@ class DatabaseHelper {
     return List<Map<String, dynamic>>.from(results);
   }
 
-  // Soft delete a teacher
+  // Soft delete a teacher (with retention timestamp)
   Future<void> softDeleteTeacher(int id) async {
-    await Supabase.instance.client.from('teachers').update({'is_active': 0}).eq('id', id);
+    await Supabase.instance.client.from('teachers').update({
+      'is_active': 0,
+      'deleted_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', id);
   }
 
   // Restore a teacher
   Future<void> restoreTeacher(int id) async {
-    await Supabase.instance.client.from('teachers').update({'is_active': 1}).eq('id', id);
+    await Supabase.instance.client.from('teachers').update({
+      'is_active': 1,
+      'deleted_at': null,
+    }).eq('id', id);
+  }
+
+  // Permanently delete a teacher
+  Future<void> permanentlyDeleteTeacher(int id) async {
+    await deleteTeacher(id);
+  }
+
+  // ── Retention Policy & Permanent Auto-Purge ──────────────────────────────
+
+  /// Purges (permanently hard-deletes) soft-deleted records that have exceeded the retention time limit (default: 30 days).
+  /// Returns a map of counts of purged records.
+  Future<Map<String, int>> purgeExpiredArchivedRecords({int retentionDays = 30}) async {
+    final cutoff = DateTime.now().toUtc().subtract(Duration(days: retentionDays));
+    final cutoffIso = cutoff.toIso8601String();
+
+    int purgedStudents = 0;
+    int purgedTeachers = 0;
+    int purgedSubjects = 0;
+
+    try {
+      // 1. Expired students
+      final expStudents = await Supabase.instance.client
+          .from('students')
+          .select('id')
+          .eq('is_active', 0)
+          .not('deleted_at', 'is', null)
+          .lte('deleted_at', cutoffIso);
+      for (final item in expStudents) {
+        try {
+          await Supabase.instance.client.from('students').delete().eq('id', item['id']);
+          purgedStudents++;
+        } catch (e) {
+          print('Error deleting expired student ${item['id']}: $e');
+        }
+      }
+
+      // 2. Expired teachers
+      final expTeachers = await Supabase.instance.client
+          .from('teachers')
+          .select('id')
+          .eq('is_active', 0)
+          .not('deleted_at', 'is', null)
+          .lte('deleted_at', cutoffIso);
+      for (final item in expTeachers) {
+        try {
+          await Supabase.instance.client.from('teachers').delete().eq('id', item['id']);
+          purgedTeachers++;
+        } catch (e) {
+          print('Error deleting expired teacher ${item['id']}: $e');
+        }
+      }
+
+      // 3. Expired subjects
+      final expSubjects = await Supabase.instance.client
+          .from('subjects_classes')
+          .select('id')
+          .eq('is_active', 0)
+          .not('deleted_at', 'is', null)
+          .lte('deleted_at', cutoffIso);
+      for (final item in expSubjects) {
+        try {
+          await Supabase.instance.client.from('subjects_classes').delete().eq('id', item['id']);
+          purgedSubjects++;
+        } catch (e) {
+          print('Error deleting expired subject ${item['id']}: $e');
+        }
+      }
+
+      if (purgedStudents > 0 || purgedTeachers > 0 || purgedSubjects > 0) {
+        print('Retention purge completed: $purgedStudents students, $purgedTeachers teachers, $purgedSubjects subjects deleted permanently.');
+      }
+    } catch (e) {
+      print('Error during purgeExpiredArchivedRecords: $e');
+    }
+
+    return {
+      'students': purgedStudents,
+      'teachers': purgedTeachers,
+      'subjects': purgedSubjects,
+    };
   }
 
   // Old SQLite authentication method (fallback or initial load)
