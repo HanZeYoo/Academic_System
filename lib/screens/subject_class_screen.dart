@@ -12,6 +12,27 @@ class SubjectClassScreen extends StatefulWidget {
 class _SubjectClassScreenState extends State<SubjectClassScreen> {
   List<Map<String, dynamic>> _subjectClasses = [];
   bool _isLoading = true;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> get _filteredSubjectClasses {
+    if (_searchQuery.trim().isEmpty) return _subjectClasses;
+    final q = _searchQuery.toLowerCase().trim();
+    return _subjectClasses.where((item) {
+      final name = (item['subject_name'] ?? '').toString().toLowerCase();
+      final code = (item['subject_code'] ?? '').toString().toLowerCase();
+      final section = (item['section_name'] ?? '').toString().toLowerCase();
+      final teacher = (item['assigned_teacher'] ?? '').toString().toLowerCase();
+      final grade = (item['grade_level'] ?? '').toString().toLowerCase();
+      return name.contains(q) || code.contains(q) || section.contains(q) || teacher.contains(q) || grade.contains(q);
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -37,16 +58,33 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
         children: [
           // Search bar
           TextField(
+            controller: _searchController,
+            onChanged: (val) {
+              setState(() {
+                _searchQuery = val;
+              });
+            },
             decoration: InputDecoration(
-              hintText: 'Search',
+              hintText: 'Search by subject, code, section, or teacher...',
               prefixIcon: const Icon(Icons.search, color: Colors.black87),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 20, color: Colors.black54),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _searchQuery = '';
+                        });
+                      },
+                    )
+                  : null,
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(30),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
             ),
           ),
           const SizedBox(height: 20),
@@ -91,31 +129,40 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
           const SizedBox(height: 16),
           
           // Add button
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AddSubjectClassScreen()),
-                );
-                if (result == true) {
-                  _loadSubjectClasses();
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1664C5),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWeb = constraints.maxWidth >= 600;
+              return Align(
+                alignment: isWeb ? Alignment.centerLeft : Alignment.center,
+                child: SizedBox(
+                  width: isWeb ? 240 : double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const AddSubjectClassScreen()),
+                      );
+                      if (result == true) {
+                        _loadSubjectClasses();
+                      }
+                    },
+                    icon: const Icon(Icons.add, size: 18),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1664C5),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    label: const Text(
+                      'Add Subject / Class',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.normal),
+                    ),
+                  ),
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-              child: const Text(
-                'Add Subject / Class',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.normal),
-              ),
-            ),
+              );
+            },
           ),
           const SizedBox(height: 16),
           
@@ -135,17 +182,41 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
                           ],
                         ),
                       )
-                    : RefreshIndicator(
-                        onRefresh: _loadSubjectClasses,
-                        child: ListView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          itemCount: _subjectClasses.length,
-                          itemBuilder: (context, index) {
-                            final item = _subjectClasses[index];
-                            return _buildSubjectClassCard(item);
-                          },
-                        ),
-                      ),
+                    : _filteredSubjectClasses.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.search_off, size: 64, color: Colors.black26),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No subjects or classes matching "$_searchQuery"',
+                                  style: const TextStyle(color: Colors.black54, fontSize: 15),
+                                ),
+                                const SizedBox(height: 8),
+                                TextButton(
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _searchQuery = '';
+                                    });
+                                  },
+                                  child: const Text('Clear search'),
+                                ),
+                              ],
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _loadSubjectClasses,
+                            child: ListView.builder(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              itemCount: _filteredSubjectClasses.length,
+                              itemBuilder: (context, index) {
+                                final item = _filteredSubjectClasses[index];
+                                return _buildSubjectClassCard(item);
+                              },
+                            ),
+                          ),
           ),
         ],
       ),

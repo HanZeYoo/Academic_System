@@ -206,8 +206,8 @@ class DatabaseHelper {
     return List<Map<String, dynamic>>.from(results);
   }
 
-  // Create a new admin account
-  Future<void> createAdminAccount(String email, String password) async {
+  // Create a new admin or staff account
+  Future<void> createAdminAccount(String email, String password, {String role = 'admin'}) async {
     final existing = await Supabase.instance.client
         .from('users')
         .select()
@@ -231,7 +231,7 @@ class DatabaseHelper {
       await Supabase.instance.client.from('users').insert({
         'username': email,
         'password': _hashPassword(password),
-        'role': 'admin',
+        'role': role,
       });
     } catch (e) {
       print('Database Error (Admin users table): $e');

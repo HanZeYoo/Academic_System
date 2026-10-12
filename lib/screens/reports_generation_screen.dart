@@ -600,26 +600,36 @@ class _ReportsGenerationScreenState extends State<ReportsGenerationScreen> {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _buildExportButton(
-                  Icons.picture_as_pdf,
-                  const Color(0xFFE53935),
-                  'PDF',
-                  () => _exportReport('pdf'),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWeb = constraints.maxWidth >= 600;
+              return ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: isWeb ? 360 : double.infinity,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildExportButton(
-                  Icons.table_chart,
-                  const Color(0xFF4DC271),
-                  'Excel / CSV',
-                  () => _exportReport('csv'),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _buildExportButton(
+                        Icons.picture_as_pdf,
+                        const Color(0xFFE53935),
+                        'PDF',
+                        () => _exportReport('pdf'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildExportButton(
+                        Icons.table_chart,
+                        const Color(0xFF4DC271),
+                        'Excel / CSV',
+                        () => _exportReport('csv'),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+              );
+            },
           ),
         ],
       ),
