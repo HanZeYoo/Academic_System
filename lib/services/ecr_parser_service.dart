@@ -652,7 +652,7 @@ class EcrParserService {
         } else if (val != null && val is DoubleCellValue) {
           val = val.value;
         } else if (val != null && val is FormulaCellValue) {
-          val = val.formula;
+          val = _resolveFormulaReference(excel, val.formula);
         } else if (val != null && val is DateCellValue) {
           val = '${val.year}-${val.month}-${val.day}';
         } else if (val != null) {
@@ -704,7 +704,57 @@ class EcrParserService {
     return _ParsedExcelData(grid: rawGrid, sheetName: chosenSheet, sheets: summaries);
   }
 
-  Map<String, int>? _cellAddressToColRow(String addr) {
+  static dynamic _resolveFormulaReference(Excel excel, String formula, {int depth = 0}) {
+    if (depth > 4) return formula;
+    final trimmed = formula.trim();
+
+    // Cross-sheet reference pattern: e.g. 'INPUT DATA'!B13 or ='INPUT DATA'!B13 or 'INPUT DATA'!$B$13 or INPUT DATA!B13
+    if (trimmed.contains('!')) {
+      final bangIdx = trimmed.indexOf('!');
+      String targetSheetName = trimmed.substring(0, bangIdx).trim();
+      String cellAddr = trimmed.substring(bangIdx + 1).trim();
+
+      if (targetSheetName.startsWith('=')) {
+        targetSheetName = targetSheetName.substring(1).trim();
+      }
+      targetSheetName = targetSheetName.replaceAll("'", '').replaceAll('"', '').trim();
+      cellAddr = cellAddr.replaceAll(r'$', '').trim();
+
+      Sheet? targetSheet = excel.tables[targetSheetName];
+      if (targetSheet == null) {
+        for (final k in excel.tables.keys) {
+          if (k.trim().toLowerCase() == targetSheetName.toLowerCase()) {
+            targetSheet = excel.tables[k];
+            break;
+          }
+        }
+      }
+
+      if (targetSheet != null) {
+        final coords = _cellAddressToColRow(cellAddr);
+        if (coords != null && coords['row']! < targetSheet.maxRows && coords['col']! < targetSheet.maxColumns) {
+          final targetCell = targetSheet.cell(
+            CellIndex.indexByColumnRow(columnIndex: coords['col']!, rowIndex: coords['row']!),
+          );
+          final rawVal = targetCell.value;
+          if (rawVal != null) {
+            if (rawVal is TextCellValue) return rawVal.value.toString().trim();
+            if (rawVal is SharedString) return rawVal.toString().trim();
+            if (rawVal is IntCellValue) return rawVal.value;
+            if (rawVal is DoubleCellValue) return rawVal.value;
+            if (rawVal is FormulaCellValue) {
+              return _resolveFormulaReference(excel, rawVal.formula, depth: depth + 1);
+            }
+            return rawVal.toString().trim();
+          }
+        }
+      }
+    }
+
+    return trimmed;
+  }
+
+  static Map<String, int>? _cellAddressToColRow(String addr) {
     final match = RegExp(r'^([A-Z]+)([0-9]+)$', caseSensitive: false).firstMatch(addr.trim());
     if (match == null) return null;
 

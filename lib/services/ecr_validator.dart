@@ -37,6 +37,8 @@ class EcrValidator {
     final numericMappings = mappings.where((m) =>
         m.target.isNumeric &&
         !m.target.isHps &&
+        m.target != EcrTargetCategory.componentTotal &&
+        m.target != EcrTargetCategory.totalGrade &&
         m.target != EcrTargetCategory.ignore &&
         m.target != EcrTargetCategory.calculatedIgnore).toList();
 
@@ -121,8 +123,12 @@ class EcrValidator {
         final valStr = row[m.columnIndex]?.toString().trim() ?? '';
         if (valStr.isEmpty) continue; // Blank score is allowed (unsubmitted / zero)
 
-        // Formulas cannot be read directly in excel 4.0.6 (handled gracefully)
-        if (valStr.startsWith('=')) continue;
+        // Formulas cannot be calculated directly in excel 4.0.6 (handled gracefully)
+        if (valStr.startsWith('=') ||
+            RegExp(r'^(?:IF|SUM|COUNT|AVERAGE|ROUND|VLOOKUP)\b', caseSensitive: false).hasMatch(valStr) ||
+            valStr.contains(r'$')) {
+          continue;
+        }
 
         final parsed = double.tryParse(valStr);
         if (parsed == null) {

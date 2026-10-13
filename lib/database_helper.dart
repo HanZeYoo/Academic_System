@@ -508,6 +508,34 @@ class DatabaseHelper {
         .eq('school_year', year);
   }
 
+  // Clear scores for class before batch import to prevent duplicates on re-import
+  Future<void> clearScoresForClassPeriod({
+    required String subjectCode,
+    required String sectionName,
+    required String gradeLevel,
+    required String gradingPeriod,
+    String? schoolYear,
+  }) async {
+    final year = schoolYear ?? await getActiveSchoolYear();
+    try {
+      await Supabase.instance.client.from('scores')
+          .delete()
+          .eq('subject_code', subjectCode)
+          .eq('section_name', sectionName)
+          .eq('grade_level', gradeLevel)
+          .eq('grading_period', gradingPeriod)
+          .eq('school_year', year);
+    } catch (e) {
+      // Fallback without school_year filter
+      await Supabase.instance.client.from('scores')
+          .delete()
+          .eq('subject_code', subjectCode)
+          .eq('section_name', sectionName)
+          .eq('grade_level', gradeLevel)
+          .eq('grading_period', gradingPeriod);
+    }
+  }
+
   // Get all scores for a student by email
   Future<List<Map<String, dynamic>>> getStudentAllScores(String email, [String? schoolYear]) async {
     final s = await getStudentByEmail(email);

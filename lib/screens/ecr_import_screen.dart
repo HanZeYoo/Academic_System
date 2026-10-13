@@ -759,9 +759,62 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     final teacherId = _teacherName ?? widget.username;
     final now = DateTime.now().toIso8601String();
 
+    // 1. Fetch active class assessment setup labels to align with Encode Scores Screen
+    final savedSetup = await DatabaseHelper().getAssessmentSetup(
+      subjectCode: subjectCode,
+      sectionName: section,
+      gradeLevel: grade,
+      gradingPeriod: _selectedPeriod,
+    );
+
+    List<String> parseLabels(dynamic data, int fallbackCount, String prefix) {
+      if (data != null && data is String) {
+        try {
+          final decoded = jsonDecode(data);
+          if (decoded is List && decoded.isNotEmpty) {
+            return decoded.map((e) => e.toString()).toList();
+          }
+        } catch (_) {}
+      } else if (data is List && data.isNotEmpty) {
+        return data.map((e) => e.toString()).toList();
+      }
+      return fallbackCount > 0 ? List.generate(fallbackCount, (i) => '$prefix ${i + 1}') : ['$prefix 1'];
+    }
+
+    int wwCount = (savedSetup?['ww_items'] as int?) ?? 10;
+    int ptCount = (savedSetup?['pt_items'] as int?) ?? 10;
+    int teCount = (savedSetup?['te_items'] as int?) ?? 1;
+
+    final wwLabels = parseLabels(savedSetup?['ww_labels'], wwCount, 'Written Works');
+    final ptLabels = parseLabels(savedSetup?['pt_labels'], ptCount, 'Performance Tasks');
+    final teLabels = parseLabels(savedSetup?['te_labels'], teCount, 'Term Exams');
+
+    // 2. Fetch enrolled section roster to link each row directly to the official enrolled student_id
+    List<Map<String, dynamic>> enrolledStudents = [];
+    try {
+      enrolledStudents = await DatabaseHelper().getStudentsBySection(grade, section);
+    } catch (_) {}
+
+    final Map<String, String> enrolledByLrn = {};
+    final Map<String, String> enrolledByName = {};
+    for (final s in enrolledStudents) {
+      final sLrn = s['student_id']?.toString().trim();
+      final sName = s['name']?.toString().trim() ?? '';
+      if (sLrn != null && sLrn.isNotEmpty) {
+        enrolledByLrn[sLrn] = sLrn;
+      }
+      if (sName.isNotEmpty) {
+        final norm = EcrValidator.normalizeFuzzyName(sName);
+        enrolledByName[norm] = sLrn ?? sName;
+      }
+    }
+
     // Map column index to target category
     final studentNameCol = _columnMappings.where((m) => m.target == EcrTargetCategory.studentName).firstOrNull?.columnIndex;
     final lrnCol = _columnMappings.where((m) => m.target == EcrTargetCategory.lrn).firstOrNull?.columnIndex;
+    final lastNameCol = _columnMappings.where((m) => m.target == EcrTargetCategory.lastName).firstOrNull?.columnIndex;
+    final firstNameCol = _columnMappings.where((m) => m.target == EcrTargetCategory.firstName).firstOrNull?.columnIndex;
+    final middleInitialCol = _columnMappings.where((m) => m.target == EcrTargetCategory.middleInitial).firstOrNull?.columnIndex;
 
     List<Map<String, dynamic>> scoresToInsert = [];
 
@@ -798,15 +851,35 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
       if (studentNameCol != null && studentNameCol < row.length) {
         studentName = row[studentNameCol]?.toString().trim() ?? '';
+      } else if (lastNameCol != null && lastNameCol < row.length) {
+        studentName = EcrParserService.combineSplitNames(
+          row,
+          lastNameCol: lastNameCol,
+          firstNameCol: firstNameCol,
+          middleInitialCol: middleInitialCol,
+        );
       }
+
       if (lrnCol != null && lrnCol < row.length) {
         studentId = row[lrnCol]?.toString().trim() ?? '';
       }
-      if (studentId.isEmpty && studentName.isNotEmpty) {
-        studentId = studentName;
+
+      // Reconcile with official enrolled roster student_id
+      String officialStudentId = studentId;
+      if (studentId.isNotEmpty && enrolledByLrn.containsKey(studentId)) {
+        officialStudentId = enrolledByLrn[studentId]!;
+      } else if (studentName.isNotEmpty) {
+        final norm = EcrValidator.normalizeFuzzyName(studentName);
+        if (enrolledByName.containsKey(norm)) {
+          officialStudentId = enrolledByName[norm]!;
+        }
       }
 
-      if (studentName.isEmpty && studentId.isEmpty) {
+      if (officialStudentId.isEmpty) {
+        officialStudentId = studentId.isNotEmpty ? studentId : studentName;
+      }
+
+      if (studentName.isEmpty && officialStudentId.isEmpty) {
         if (skipErrors) continue;
       }
 
@@ -815,18 +888,24 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         final rawVal = row[m.columnIndex]?.toString().trim() ?? '';
         if (rawVal.isEmpty) continue;
 
+        // Skip Excel formula strings that couldn't be evaluated
+        if (rawVal.startsWith('=') ||
+            RegExp(r'^(?:IF|SUM|COUNT|AVERAGE|ROUND|VLOOKUP)\b', caseSensitive: false).hasMatch(rawVal)) {
+          continue;
+        }
+
         final scoreNum = double.tryParse(rawVal);
         if (scoreNum == null || scoreNum < 0) {
           if (skipErrors) continue;
         }
 
         final categoryName = _getCategoryName(m.target);
-        final itemLabel = m.target.label;
+        final itemLabel = _getItemLabel(m.target, wwLabels, ptLabels, teLabels);
         final compKey = m.target.component ?? 'WW';
         final totalHps = m.customHps ?? hpsLookup[compKey] ?? 100.0;
 
         final record = {
-          'student_id': studentId,
+          'student_id': officialStudentId,
           'student_name': studentName,
           'subject_code': subjectCode,
           'subject_name': subjectName,
@@ -847,6 +926,15 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         scoresToInsert.add(record);
       }
     }
+
+    // Clear old scores for this subject, section, and period to prevent duplicate scores on re-import
+    await DatabaseHelper().clearScoresForClassPeriod(
+      subjectCode: subjectCode,
+      sectionName: section,
+      gradeLevel: grade,
+      gradingPeriod: _selectedPeriod,
+      schoolYear: _selectedClassRecord?['school_year']?.toString(),
+    );
 
     // Insert scores into Supabase
     final insertedCount = await DatabaseHelper().batchSaveScores(scoresToInsert);
@@ -881,10 +969,34 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
   }
 
   String _getCategoryName(EcrTargetCategory target) {
-    if (target.label.startsWith('WW')) return 'Quiz';
-    if (target.label.startsWith('PT')) return 'Activity';
-    if (target.label == 'QA') return 'Exam';
-    return 'Quiz';
+    if (target.label.startsWith('WW')) return 'Written Works';
+    if (target.label.startsWith('PT')) return 'Performance Tasks';
+    if (target.label == 'QA') return 'Term Exams';
+    return 'Written Works';
+  }
+
+  String _getItemLabel(
+    EcrTargetCategory target,
+    List<String> wwLabels,
+    List<String> ptLabels,
+    List<String> teLabels,
+  ) {
+    if (target.label.startsWith('WW')) {
+      final numStr = target.label.substring(2);
+      final idx = (int.tryParse(numStr) ?? 1) - 1;
+      if (idx >= 0 && idx < wwLabels.length) return wwLabels[idx];
+      return 'Written Works ${idx + 1}';
+    }
+    if (target.label.startsWith('PT')) {
+      final numStr = target.label.substring(2);
+      final idx = (int.tryParse(numStr) ?? 1) - 1;
+      if (idx >= 0 && idx < ptLabels.length) return ptLabels[idx];
+      return 'Performance Tasks ${idx + 1}';
+    }
+    if (target.label == 'QA') {
+      return teLabels.isNotEmpty ? teLabels.first : 'Term Exams 1';
+    }
+    return target.label;
   }
 
   // ── BUILD UI ─────────────────────────────────────────────────────────────
