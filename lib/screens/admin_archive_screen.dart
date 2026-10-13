@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 
 class AdminArchiveScreen extends StatefulWidget {
   const AdminArchiveScreen({super.key});
@@ -79,8 +80,10 @@ class _AdminArchiveScreenState extends State<AdminArchiveScreen> with SingleTick
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$name restored successfully.'), backgroundColor: Colors.green.shade700),
+      await AestheticDialogs.showSuccessDialog(
+        context,
+        title: 'Record Restored',
+        message: '$name restored successfully and returned to active lists.',
       );
       _loadArchives(runPurge: false);
     }

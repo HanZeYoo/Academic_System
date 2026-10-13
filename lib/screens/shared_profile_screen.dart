@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 
 enum UserRole { admin, teacher, student }
 
@@ -332,11 +333,10 @@ class _SharedProfileScreenState extends State<SharedProfileScreen> {
                             if (context.mounted) Navigator.pop(context);
                             await _loadProfileData();
                             if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Profile updated successfully!'),
-                                  backgroundColor: Colors.green,
-                                ),
+                              AestheticDialogs.showSuccessDialog(
+                                context,
+                                title: 'Profile Updated',
+                                message: 'Your profile details have been updated successfully!',
                               );
                             }
                           },

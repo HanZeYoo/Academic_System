@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 
 class AssessmentSetupScreen extends StatefulWidget {
   final String username;
@@ -175,11 +176,10 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
     setState(() => _isSaving = false);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Assessment setup saved successfully!'),
-          backgroundColor: Colors.green,
-        ),
+      AestheticDialogs.showSuccessDialog(
+        context,
+        title: 'Assessment Setup Saved',
+        message: 'Assessment grading setup has been saved successfully!',
       );
     }
   }

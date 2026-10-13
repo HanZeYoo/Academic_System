@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
+import '../utils/dialog_utils.dart';
 import 'add_student_screen.dart';
 import 'student_detail_screen.dart';
 
@@ -158,9 +159,13 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
         if (mounted) {
           String msg = 'Successfully imported $importedCount students!';
           if (duplicateCount > 0) {
-            msg += ' (Skipped $duplicateCount duplicates)';
+            msg += '\n(Skipped $duplicateCount duplicates)';
           }
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.green));
+          AestheticDialogs.showSuccessDialog(
+            context,
+            title: 'Import Successful',
+            message: msg,
+          );
         }
         _loadStudents();
       }

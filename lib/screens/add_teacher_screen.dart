@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
+import '../utils/dialog_utils.dart';
 
 class AddTeacherScreen extends StatefulWidget {
   final Map<String, dynamic>? teacherToEdit;
@@ -241,28 +242,52 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
     setState(() => _isLoading = false);
     
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Teacher saved successfully!'), backgroundColor: Colors.green));
-      Navigator.pop(context, true); // Return true to refresh list
+      await AestheticDialogs.showSuccessDialog(
+        context,
+        title: 'Teacher Saved',
+        message: 'Teacher details have been saved successfully!',
+      );
+      if (mounted) {
+        Navigator.pop(context, true); // Return true to refresh list
+      }
     }
   }
 
   void _confirmDelete() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: const Text('Move to Archive'),
         content: Text('Are you sure you want to delete ${widget.teacherToEdit!['name']}? This record will be moved to Archive and will be permanently deleted after 30 days.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
-              await DatabaseHelper().softDeleteTeacher(widget.teacherToEdit!['id']);
-              if (mounted) {
-                Navigator.pop(context, true);
+              Navigator.pop(dialogCtx);
+              setState(() => _isLoading = true);
+              try {
+                final id = int.tryParse(widget.teacherToEdit!['id']?.toString() ?? '') ?? 0;
+                final teacherId = widget.teacherToEdit!['teacher_id']?.toString();
+                await DatabaseHelper().softDeleteTeacher(id, teacherId: teacherId);
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                  await AestheticDialogs.showSuccessDialog(
+                    context,
+                    title: 'Moved to Archive',
+                    message: 'Teacher record was successfully moved to Archive.',
+                  );
+                  if (mounted) {
+                    Navigator.pop(context, true);
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                  AestheticDialogs.showErrorDialog(context, 'Archive Error', 'Failed to move to archive: $e');
+                }
               }
             },
             child: const Text('Move to Archive', style: TextStyle(color: Colors.red)),

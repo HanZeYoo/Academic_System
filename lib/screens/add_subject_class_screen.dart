@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
 
@@ -154,33 +154,49 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
     setState(() => _isSaving = false);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Subject and Class saved successfully!'),
-          backgroundColor: Colors.green,
-        ),
+      await AestheticDialogs.showSuccessDialog(
+        context,
+        title: 'Class Saved',
+        message: 'Subject and Class saved successfully!',
       );
-      Navigator.pop(context, true); // Return true to indicate success
+      if (mounted) {
+        Navigator.pop(context, true); // Return true to indicate success
+      }
     }
   }
 
   void _confirmDelete() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: const Text('Move to Archive'),
         content: Text('Are you sure you want to delete ${widget.subjectClassToEdit!['subject_name']}? This record will be moved to Archive and will be permanently deleted after 30 days.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
-              await DatabaseHelper().softDeleteSubjectClass(widget.subjectClassToEdit!['id']);
-              if (mounted) {
-                Navigator.pop(context, true);
+              Navigator.pop(dialogCtx);
+              try {
+                final id = int.tryParse(widget.subjectClassToEdit!['id']?.toString() ?? '') ?? 0;
+                final subjectCode = widget.subjectClassToEdit!['subject_code']?.toString();
+                await DatabaseHelper().softDeleteSubjectClass(id, subjectCode: subjectCode);
+                if (mounted) {
+                  await AestheticDialogs.showSuccessDialog(
+                    context,
+                    title: 'Moved to Archive',
+                    message: 'Subject & Class moved to Archive successfully.',
+                  );
+                  if (mounted) {
+                    Navigator.pop(context, true);
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                  AestheticDialogs.showErrorDialog(context, 'Archive Error', 'Failed to move to archive: $e');
+                }
               }
             },
             child: const Text('Move to Archive', style: TextStyle(color: Colors.red)),

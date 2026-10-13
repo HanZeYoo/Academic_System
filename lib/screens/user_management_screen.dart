@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
+import '../utils/dialog_utils.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -270,11 +271,10 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                             Navigator.pop(ctx);
                           }
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('$roleLabel account created and credentials sent!'),
-                                backgroundColor: Colors.green,
-                              ),
+                            AestheticDialogs.showSuccessDialog(
+                              context,
+                              title: 'Account Created',
+                              message: '$roleLabel account created and credentials sent!',
                             );
                             _loadUsers();
                           }

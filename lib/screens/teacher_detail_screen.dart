@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 import 'login_screen.dart';
 
 class TeacherDetailScreen extends StatefulWidget {
@@ -62,7 +63,11 @@ class _TeacherDetailScreenState extends State<TeacherDetailScreen> {
               Navigator.pop(ctx);
               await DatabaseHelper().updatePassword(email, 'teacher123');
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset successfully to "teacher123".')));
+                AestheticDialogs.showSuccessDialog(
+                  context,
+                  title: 'Password Reset',
+                  message: 'Password for $email has been reset successfully to "teacher123".',
+                );
               }
             },
             child: const Text('Reset', style: TextStyle(color: Colors.white)),

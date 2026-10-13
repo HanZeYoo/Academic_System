@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 import 'dart:async';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 
 class TeacherAttendanceScreen extends StatefulWidget {
   final String username;
@@ -458,8 +459,10 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
       _markedDates.add(DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day));
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Attendance Saved Successfully'), backgroundColor: Colors.green),
+    AestheticDialogs.showSuccessDialog(
+      context,
+      title: 'Attendance Saved',
+      message: 'Attendance records have been saved successfully!',
     );
   }
 

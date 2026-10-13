@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 import 'class_evaluation_report_screen.dart';
 import 'student_evaluation_detail_screen.dart';
 
@@ -872,8 +873,10 @@ class _AcademicEvaluationScreenState
                 await db.saveStudentRemark(studentId, subjectCode, _selectedPeriod, remarkController.text);
                 if (mounted) {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Remarks saved successfully!')),
+                  AestheticDialogs.showSuccessDialog(
+                    context,
+                    title: 'Remarks Saved',
+                    message: 'Student evaluation remarks saved successfully!',
                   );
                 }
               },

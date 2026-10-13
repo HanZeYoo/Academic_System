@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 import 'school_year_rollover_screen.dart';
 
 const List<String> _kQuarters = [
@@ -180,8 +181,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _isLoading = false);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password updated successfully!'), backgroundColor: Colors.green),
+      AestheticDialogs.showSuccessDialog(
+        context,
+        title: 'Password Updated',
+        message: 'Your password has been updated successfully!',
       );
       
       // Clear fields

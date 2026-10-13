@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 
 class EnrollmentManagementScreen extends StatefulWidget {
   const EnrollmentManagementScreen({super.key});
@@ -114,8 +115,11 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
       await DatabaseHelper().enrollStudent(student['student_id'].toString(), section: sectionController.text.trim());
       await _loadStudents();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(' enrolled successfully!'), backgroundColor: Colors.green),
+        final studentName = student['name'] ?? 'Student';
+        AestheticDialogs.showSuccessDialog(
+          context,
+          title: 'Enrollment Confirmed',
+          message: '$studentName has been enrolled successfully in ${sectionController.text.trim()}!',
         );
       }
     }
