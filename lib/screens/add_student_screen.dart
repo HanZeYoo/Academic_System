@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
+import '../utils/dialog_utils.dart';
 
 class AddStudentScreen extends StatefulWidget {
   final Map<String, dynamic>? existingStudent;
@@ -167,36 +168,55 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     setState(() => _isLoading = false);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Student saved successfully!'),
-          backgroundColor: Colors.green,
-        ),
+      await AestheticDialogs.showSuccessDialog(
+        context,
+        title: 'Student Saved',
+        message: 'Student details have been saved successfully!',
       );
-      Navigator.pop(context, true);
+      if (mounted) {
+        Navigator.pop(context, true);
+      }
     }
   }
 
   void _confirmDelete() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Student'),
-        content: Text('Are you sure you want to delete ${widget.existingStudent!['name']}? This record will be hidden from the active lists.'),
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Move to Archive'),
+        content: Text('Are you sure you want to delete ${widget.existingStudent!['name']}? This record will be moved to Archive and will be permanently deleted after 30 days.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogCtx),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
-              await DatabaseHelper().softDeleteStudent(widget.existingStudent!['id']);
-              if (mounted) {
-                Navigator.pop(context, true);
+              Navigator.pop(dialogCtx);
+              setState(() => _isLoading = true);
+              try {
+                final id = int.tryParse(widget.existingStudent!['id']?.toString() ?? '') ?? 0;
+                final studentId = widget.existingStudent!['student_id']?.toString();
+                await DatabaseHelper().softDeleteStudent(id, studentId: studentId);
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                  await AestheticDialogs.showSuccessDialog(
+                    context,
+                    title: 'Moved to Archive',
+                    message: 'Student record was successfully moved to Archive.',
+                  );
+                  if (mounted) {
+                    Navigator.pop(context, true);
+                  }
+                }
+              } catch (e) {
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                  AestheticDialogs.showErrorDialog(context, 'Archive Error', 'Failed to move to archive: $e');
+                }
               }
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: const Text('Move to Archive', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

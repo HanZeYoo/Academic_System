@@ -399,23 +399,31 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
   }
 
   Widget _buildPostButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: () => _showPostDialog(),
-        icon: const Icon(Icons.add_alert, color: Colors.white),
-        label: const Text(
-          'Post New Announcement',
-          style: TextStyle(color: Colors.white, fontSize: 16),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1E66B4),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWeb = constraints.maxWidth >= 600;
+        return Align(
+          alignment: isWeb ? Alignment.centerLeft : Alignment.center,
+          child: SizedBox(
+            width: isWeb ? 260 : double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _showPostDialog(),
+              icon: const Icon(Icons.add_alert, color: Colors.white),
+              label: const Text(
+                'Post New Announcement',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E66B4),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

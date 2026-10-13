@@ -66,7 +66,15 @@ class _LandingScreenState extends State<LandingScreen> {
             )));
             return;
           } else {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => AdminDashboard(username: user['username'])));
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AdminDashboard(
+                  username: user['username'],
+                  adminRole: user['role'] ?? 'admin',
+                ),
+              ),
+            );
             return;
           }
         }

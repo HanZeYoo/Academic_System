@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
+import '../utils/dialog_utils.dart';
 import 'login_screen.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 import 'package:nfc_manager/platform_tags.dart';
@@ -91,7 +92,11 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
               Navigator.pop(ctx);
               await DatabaseHelper().updatePassword(email, 'student123');
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset successfully to "student123".')));
+                AestheticDialogs.showSuccessDialog(
+                  context,
+                  title: 'Password Reset',
+                  message: 'Password for $email has been reset successfully to "student123".',
+                );
               }
             },
             child: const Text('Reset', style: TextStyle(color: Colors.white)),
@@ -251,10 +256,11 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                   widget.student['nfc_uid'] = uid;
                 });
                 Navigator.pop(context); // close loading
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text('Successfully linked NFC ID: $uid'),
-                  backgroundColor: Colors.green,
-                ));
+                AestheticDialogs.showSuccessDialog(
+                  context,
+                  title: 'NFC Linked',
+                  message: 'Successfully linked NFC ID: $uid',
+                );
              }
            } catch (e) {
              if (mounted) {

@@ -8,6 +8,7 @@ import '../services/ecr_mapping_engine.dart';
 import '../services/ecr_parser_service.dart';
 import '../services/ecr_template_service.dart';
 import '../services/ecr_validator.dart';
+import '../utils/dialog_utils.dart';
 
 class EcrImportScreen extends StatefulWidget {
   final String username; // Teacher email or username
@@ -181,24 +182,12 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                   Navigator.of(dialogContext).pop();
                 }
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          const Icon(Icons.check_circle_rounded, color: Colors.white),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              savedPath != null
-                                  ? 'ECR Template downloaded: $fileName. Encode your grades in Excel and import it back anytime!'
-                                  : 'ECR Template generated successfully!',
-                            ),
-                          ),
-                        ],
-                      ),
-                      backgroundColor: const Color(0xFF059669),
-                      duration: const Duration(seconds: 5),
-                    ),
+                  AestheticDialogs.showSuccessDialog(
+                    context,
+                    title: 'Template Ready',
+                    message: savedPath != null
+                        ? 'ECR Template downloaded: $fileName. Encode your grades in Excel and import it back anytime!'
+                        : 'ECR Template generated successfully!',
                   );
                 }
               } catch (e) {
@@ -883,11 +872,10 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     });
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Successfully imported $insertedCount grade records!'),
-          backgroundColor: Colors.green,
-        ),
+      AestheticDialogs.showSuccessDialog(
+        context,
+        title: 'Grades Imported',
+        message: 'Successfully imported $insertedCount grade records into the system!',
       );
     }
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 import 'class_evaluation_report_screen.dart';
 import 'student_evaluation_detail_screen.dart';
 
@@ -384,31 +385,39 @@ class _AcademicEvaluationScreenState
             ),
             const SizedBox(height: 24),
 
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ClassEvaluationReportScreen(
-                        className: '${_selectedClassData!["grade_level"]} - ${_selectedClassData!["section_name"]}',
-                        subjectCode: _selectedClassData!["subject_name"]?.toString() ?? 'Subject',
-                        gradingPeriod: _selectedPeriod,
-                        studentGrades: studentGradesForReport,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isWeb = constraints.maxWidth >= 600;
+                return Align(
+                  alignment: isWeb ? Alignment.centerLeft : Alignment.center,
+                  child: SizedBox(
+                    width: isWeb ? 300 : double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ClassEvaluationReportScreen(
+                              className: '${_selectedClassData!["grade_level"]} - ${_selectedClassData!["section_name"]}',
+                              subjectCode: _selectedClassData!["subject_name"]?.toString() ?? 'Subject',
+                              gradingPeriod: _selectedPeriod,
+                              studentGrades: studentGradesForReport,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.analytics_outlined),
+                      label: const Text('View Detailed Class Report', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F52BA),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
-                  );
-                },
-                icon: const Icon(Icons.analytics_outlined),
-                label: const Text('View Detailed Class Report', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F52BA),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 24),
 
@@ -864,8 +873,10 @@ class _AcademicEvaluationScreenState
                 await db.saveStudentRemark(studentId, subjectCode, _selectedPeriod, remarkController.text);
                 if (mounted) {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Remarks saved successfully!')),
+                  AestheticDialogs.showSuccessDialog(
+                    context,
+                    title: 'Remarks Saved',
+                    message: 'Student evaluation remarks saved successfully!',
                   );
                 }
               },

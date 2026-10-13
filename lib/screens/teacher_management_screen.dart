@@ -14,6 +14,26 @@ class TeacherManagementScreen extends StatefulWidget {
 class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
   List<Map<String, dynamic>> _teachers = [];
   bool _isLoading = true;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> get _filteredTeachers {
+    if (_searchQuery.trim().isEmpty) return _teachers;
+    final q = _searchQuery.toLowerCase().trim();
+    return _teachers.where((t) {
+      final name = (t['name'] ?? '').toString().toLowerCase();
+      final id = (t['teacher_id'] ?? '').toString().toLowerCase();
+      final dept = (t['department'] ?? '').toString().toLowerCase();
+      final email = (t['email'] ?? '').toString().toLowerCase();
+      return name.contains(q) || id.contains(q) || dept.contains(q) || email.contains(q);
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -39,16 +59,33 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
         children: [
           // Search bar
           TextField(
+            controller: _searchController,
+            onChanged: (val) {
+              setState(() {
+                _searchQuery = val;
+              });
+            },
             decoration: InputDecoration(
-              hintText: 'Search',
+              hintText: 'Search by teacher name, ID, department, or email...',
               prefixIcon: const Icon(Icons.search, color: Colors.black87),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 20, color: Colors.black54),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _searchQuery = '';
+                        });
+                      },
+                    )
+                  : null,
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(30),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
             ),
           ),
           const SizedBox(height: 24),
@@ -95,8 +132,8 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
                   icon: Icons.people,
                   iconBgColor: const Color(0xFFCBEAFB),
                   iconColor: const Color(0xFF1664C5),
-                  title: 'Total Teachers',
-                  value: _isLoading ? '-' : _teachers.length.toString(),
+                  title: _searchQuery.isNotEmpty ? 'Matching Teachers' : 'Total Teachers',
+                  value: _isLoading ? '-' : (_searchQuery.isNotEmpty ? _filteredTeachers.length.toString() : _teachers.length.toString()),
                 ),
               ),
               const SizedBox(width: 12),
@@ -118,18 +155,42 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _teachers.isEmpty
-                ? const Center(child: Text('No teachers found.'))
-                : RefreshIndicator(
-                    onRefresh: _loadTeachers,
-                    child: ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      itemCount: _teachers.length,
-                      itemBuilder: (context, index) {
-                        final t = _teachers[index];
-                        return _buildTeacherCard(context, t);
-                      },
-                    ),
-                  ),
+                    ? const Center(child: Text('No teachers found.'))
+                    : _filteredTeachers.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.search_off, size: 64, color: Colors.black26),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No teachers found matching "$_searchQuery"',
+                                  style: const TextStyle(color: Colors.black54, fontSize: 15),
+                                ),
+                                const SizedBox(height: 8),
+                                TextButton(
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _searchQuery = '';
+                                    });
+                                  },
+                                  child: const Text('Clear search'),
+                                ),
+                              ],
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _loadTeachers,
+                            child: ListView.builder(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              itemCount: _filteredTeachers.length,
+                              itemBuilder: (context, index) {
+                                final t = _filteredTeachers[index];
+                                return _buildTeacherCard(context, t);
+                              },
+                            ),
+                          ),
           ),
         ],
       ),

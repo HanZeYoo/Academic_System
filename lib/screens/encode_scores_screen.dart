@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../utils/dialog_utils.dart';
 import 'ecr_import_screen.dart';
 
 class EncodeScoresScreen extends StatefulWidget {
@@ -514,11 +515,10 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     setState(() => _isSaving = false);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Scores saved successfully!'),
-          backgroundColor: Colors.green,
-        ),
+      AestheticDialogs.showSuccessDialog(
+        context,
+        title: 'Scores Saved',
+        message: 'Student scores have been recorded successfully!',
       );
     }
   }

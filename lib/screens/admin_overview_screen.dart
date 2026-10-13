@@ -750,59 +750,75 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
   Widget _buildViewFailureReportButton() {
     if (_failureRates.length <= 5) return const SizedBox.shrink();
 
-    return SizedBox(
-      width: double.infinity,
-      child: TextButton.icon(
-        onPressed: () {
-          setState(() {
-            _showAllFailureRates = !_showAllFailureRates;
-          });
-        },
-        icon: Icon(_showAllFailureRates ? Icons.expand_less : Icons.expand_more, size: 18),
-        label: Text(_showAllFailureRates ? 'Show Less' : 'View All Subjects'),
-        style: TextButton.styleFrom(
-          foregroundColor: const Color(0xFF1664C5),
-          backgroundColor: const Color(0xFFE6F0FA),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWeb = constraints.maxWidth >= 600;
+        return Align(
+          alignment: isWeb ? Alignment.centerLeft : Alignment.center,
+          child: SizedBox(
+            width: isWeb ? 220 : double.infinity,
+            child: TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  _showAllFailureRates = !_showAllFailureRates;
+                });
+              },
+              icon: Icon(_showAllFailureRates ? Icons.expand_less : Icons.expand_more, size: 18),
+              label: Text(_showAllFailureRates ? 'Show Less' : 'View All Subjects'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF1664C5),
+                backgroundColor: const Color(0xFFE6F0FA),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   Widget _buildViewReportButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: TextButton.icon(
-        onPressed: () {
-          Navigator.push(
-            context, 
-            MaterialPageRoute(
-              builder: (context) => Scaffold(
-                backgroundColor: const Color(0xFFF1F5F9), // Match standard app background
-                appBar: AppBar(
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  iconTheme: const IconThemeData(color: Colors.black87),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWeb = constraints.maxWidth >= 600;
+        return Align(
+          alignment: isWeb ? Alignment.centerLeft : Alignment.center,
+          child: SizedBox(
+            width: isWeb ? 220 : double.infinity,
+            child: TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context, 
+                  MaterialPageRoute(
+                    builder: (context) => Scaffold(
+                      backgroundColor: const Color(0xFFF1F5F9), // Match standard app background
+                      appBar: AppBar(
+                        backgroundColor: Colors.transparent,
+                        elevation: 0,
+                        iconTheme: const IconThemeData(color: Colors.black87),
+                      ),
+                      body: const ReportsGenerationScreen(username: 'admin'),
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.bar_chart, size: 18),
+              label: const Text('View Full Report'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF1664C5),
+                backgroundColor: const Color(0xFFE6F0FA),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                body: const ReportsGenerationScreen(username: 'admin'),
               ),
             ),
-          );
-        },
-        icon: const Icon(Icons.bar_chart, size: 18),
-        label: const Text('View Full Report'),
-        style: TextButton.styleFrom(
-          foregroundColor: const Color(0xFF1664C5),
-          backgroundColor: const Color(0xFFE6F0FA),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

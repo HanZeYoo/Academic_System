@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
+import '../utils/dialog_utils.dart';
 import 'add_student_screen.dart';
 import 'student_detail_screen.dart';
 
@@ -18,6 +19,27 @@ class StudentManagementScreen extends StatefulWidget {
 class _StudentManagementScreenState extends State<StudentManagementScreen> {
   List<Map<String, dynamic>> _students = [];
   bool _isLoading = true;
+  String _searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> get _filteredStudents {
+    if (_searchQuery.trim().isEmpty) return _students;
+    final q = _searchQuery.toLowerCase().trim();
+    return _students.where((s) {
+      final name = (s['name'] ?? '').toString().toLowerCase();
+      final id = (s['student_id'] ?? '').toString().toLowerCase();
+      final grade = (s['grade_level'] ?? '').toString().toLowerCase();
+      final section = (s['section'] ?? '').toString().toLowerCase();
+      final gender = (s['gender'] ?? '').toString().toLowerCase();
+      return name.contains(q) || id.contains(q) || grade.contains(q) || section.contains(q) || gender.contains(q);
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -137,9 +159,13 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
         if (mounted) {
           String msg = 'Successfully imported $importedCount students!';
           if (duplicateCount > 0) {
-            msg += ' (Skipped $duplicateCount duplicates)';
+            msg += '\n(Skipped $duplicateCount duplicates)';
           }
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.green));
+          AestheticDialogs.showSuccessDialog(
+            context,
+            title: 'Import Successful',
+            message: msg,
+          );
         }
         _loadStudents();
       }
@@ -160,16 +186,33 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
         children: [
           // Search bar
           TextField(
+            controller: _searchController,
+            onChanged: (val) {
+              setState(() {
+                _searchQuery = val;
+              });
+            },
             decoration: InputDecoration(
-              hintText: 'Search',
+              hintText: 'Search by student name, LRN, grade, or section...',
               prefixIcon: const Icon(Icons.search, color: Colors.black87),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 20, color: Colors.black54),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _searchQuery = '';
+                        });
+                      },
+                    )
+                  : null,
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(30),
                 borderSide: BorderSide.none,
               ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
             ),
           ),
           const SizedBox(height: 24),
@@ -229,8 +272,8 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                   icon: Icons.people,
                   iconBgColor: const Color(0xFFCBEAFB),
                   iconColor: const Color(0xFF1664C5),
-                  title: 'Total Students',
-                  value: _isLoading ? '-' : _students.length.toString(),
+                  title: _searchQuery.isNotEmpty ? 'Matching Students' : 'Total Students',
+                  value: _isLoading ? '-' : (_searchQuery.isNotEmpty ? _filteredStudents.length.toString() : _students.length.toString()),
                 ),
               ),
               const SizedBox(width: 12),
@@ -263,17 +306,41 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                           ],
                         ),
                       )
-                    : RefreshIndicator(
-                        onRefresh: _loadStudents,
-                        child: ListView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          itemCount: _students.length,
-                          itemBuilder: (context, index) {
-                            final s = _students[index];
-                            return _buildStudentCard(context, s);
-                          },
-                        ),
-                      ),
+                    : _filteredStudents.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.search_off, size: 64, color: Colors.black26),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No students found matching "$_searchQuery"',
+                                  style: const TextStyle(color: Colors.black54, fontSize: 15),
+                                ),
+                                const SizedBox(height: 8),
+                                TextButton(
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _searchQuery = '';
+                                    });
+                                  },
+                                  child: const Text('Clear search'),
+                                ),
+                              ],
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _loadStudents,
+                            child: ListView.builder(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              itemCount: _filteredStudents.length,
+                              itemBuilder: (context, index) {
+                                final s = _filteredStudents[index];
+                                return _buildStudentCard(context, s);
+                              },
+                            ),
+                          ),
           ),
         ],
       ),

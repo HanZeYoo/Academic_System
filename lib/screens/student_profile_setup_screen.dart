@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
+import '../utils/dialog_utils.dart';
 import 'student_dashboard_screen.dart';
 
 class StudentProfileSetupScreen extends StatefulWidget {
@@ -112,16 +113,17 @@ class _StudentProfileSetupScreenState extends State<StudentProfileSetupScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile setup complete! Welcome.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pushReplacement(
+        await AestheticDialogs.showSuccessDialog(
           context,
-          MaterialPageRoute(builder: (context) => StudentDashboardScreen(username: studentEmail)),
+          title: 'Welcome!',
+          message: 'Your student profile setup is complete.',
         );
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => StudentDashboardScreen(username: studentEmail)),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

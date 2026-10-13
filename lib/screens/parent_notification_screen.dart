@@ -601,9 +601,14 @@ class _ParentNotificationScreenState
           ),
           const SizedBox(height: 24),
 
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWeb = constraints.maxWidth >= 600;
+              return Align(
+                alignment: isWeb ? Alignment.centerRight : Alignment.center,
+                child: SizedBox(
+                  width: isWeb ? 260 : double.infinity,
+                  child: ElevatedButton.icon(
               onPressed: () async {
                 if (_selectedStudentId == null || _selectedReason == null) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a student and reason.')));
@@ -742,6 +747,9 @@ class _ParentNotificationScreenState
               ),
             ),
           ),
+        );
+      },
+    ),
         ],
       ),
     );

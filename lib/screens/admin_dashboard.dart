@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../database_helper.dart';
 import 'admin_overview_screen.dart';
 import 'student_management_screen.dart';
 import 'teacher_management_screen.dart';
@@ -18,15 +19,69 @@ import 'enrollment_management_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   final String username;
-  const AdminDashboard({super.key, this.username = 'admin'});
+  final String adminRole;
+  const AdminDashboard({super.key, this.username = 'admin', this.adminRole = 'admin'});
 
   @override
   State<AdminDashboard> createState() => _AdminDashboardState();
 }
 
+class _AdminTabItem {
+  final String title;
+  final IconData icon;
+  const _AdminTabItem({required this.title, required this.icon});
+}
+
+class _DashboardMenuItem {
+  final String key;
+  final String title;
+  final String appBarTitle;
+  final IconData icon;
+  final Widget Function() builder;
+
+  const _DashboardMenuItem({
+    required this.key,
+    required this.title,
+    required this.appBarTitle,
+    required this.icon,
+    required this.builder,
+  });
+}
+
 class _AdminDashboardState extends State<AdminDashboard> {
-  // Set to 0 initially to match the Dashboard Overview screen
   int _selectedIndex = 0;
+  bool _isProfileOpen = false;
+  late String _currentRole;
+
+  // Active sub-tab indices for tabbed modules
+  int _studentsSubTab = 0;
+  int _facultySubTab = 0;
+  int _academicsSubTab = 0;
+  int _commsSubTab = 0;
+  int _systemSubTab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentRole = widget.adminRole;
+    if (_currentRole == 'admin' && widget.username != 'admin') {
+      _fetchUserRole();
+    }
+  }
+
+  Future<void> _fetchUserRole() async {
+    try {
+      final u = await DatabaseHelper().getUserByUsername(widget.username);
+      if (u != null && u['role'] != null && mounted) {
+        final r = u['role'].toString();
+        if (r != _currentRole) {
+          setState(() {
+            _currentRole = r;
+          });
+        }
+      }
+    } catch (_) {}
+  }
 
   Future<bool> _showLogoutDialog() async {
     final result = await showDialog<bool>(
@@ -62,6 +117,393 @@ class _AdminDashboardState extends State<AdminDashboard> {
     return result ?? false;
   }
 
+  String _getPortalTitle() {
+    final role = _currentRole.toLowerCase();
+    if (role == 'principal') return 'Principal Portal';
+    if (role == 'registrar') return 'Registrar Portal';
+    return 'Admin Portal';
+  }
+
+  String _getRoleBadgeText() {
+    final role = _currentRole.toLowerCase();
+    if (role == 'principal') return 'PRINCIPAL';
+    if (role == 'registrar') return 'REGISTRAR';
+    return 'SUPER ADMIN';
+  }
+
+  Color _getRoleBadgeColor() {
+    final role = _currentRole.toLowerCase();
+    if (role == 'principal') return const Color(0xFF818CF8); // Indigo 400
+    if (role == 'registrar') return const Color(0xFF2DD4BF); // Teal 400
+    return const Color(0xFFC084FC); // Purple 400
+  }
+
+  String _getAppBarTitle(List<_DashboardMenuItem> menuItems) {
+    if (_isProfileOpen) return 'My Profile';
+    if (_selectedIndex >= 0 && _selectedIndex < menuItems.length) {
+      return menuItems[_selectedIndex].appBarTitle;
+    }
+    return _getPortalTitle();
+  }
+
+  List<_DashboardMenuItem> _getMenuItems() {
+    final role = _currentRole.toLowerCase();
+    if (role == 'principal') {
+      return [
+        _DashboardMenuItem(
+          key: 'dashboard',
+          title: 'Dashboard',
+          appBarTitle: 'Principal Dashboard Overview',
+          icon: Icons.dashboard_rounded,
+          builder: () => const AdminOverviewScreen(),
+        ),
+        _DashboardMenuItem(
+          key: 'faculty',
+          title: 'Faculty & Classes',
+          appBarTitle: 'Faculty & Classes',
+          icon: Icons.co_present_rounded,
+          builder: () => _buildFacultyModule(),
+        ),
+        _DashboardMenuItem(
+          key: 'academics',
+          title: 'Academics & Grades',
+          appBarTitle: 'Academics & Performance Analytics',
+          icon: Icons.assignment_turned_in_rounded,
+          builder: () => _buildAcademicsModule(),
+        ),
+        _DashboardMenuItem(
+          key: 'communications',
+          title: 'Communications',
+          appBarTitle: 'School Communications',
+          icon: Icons.campaign_rounded,
+          builder: () => _buildCommunicationsModule(),
+        ),
+        _DashboardMenuItem(
+          key: 'reports',
+          title: 'Reports',
+          appBarTitle: 'Reports & Academic Analytics',
+          icon: Icons.pie_chart_rounded,
+          builder: () => ReportsGenerationScreen(username: widget.username),
+        ),
+      ];
+    } else if (role == 'registrar') {
+      return [
+        _DashboardMenuItem(
+          key: 'dashboard',
+          title: 'Dashboard',
+          appBarTitle: 'Registrar Dashboard Overview',
+          icon: Icons.dashboard_rounded,
+          builder: () => const AdminOverviewScreen(),
+        ),
+        _DashboardMenuItem(
+          key: 'students',
+          title: 'Students & Enrollment',
+          appBarTitle: 'Student Records & Enrollment',
+          icon: Icons.people_alt_rounded,
+          builder: () => _buildStudentsModule(),
+        ),
+        _DashboardMenuItem(
+          key: 'classes',
+          title: 'Subjects & Classes',
+          appBarTitle: 'Subjects & Class Rosters',
+          icon: Icons.menu_book_outlined,
+          builder: () => const SubjectClassScreen(),
+        ),
+        _DashboardMenuItem(
+          key: 'reports',
+          title: 'Official Reports',
+          appBarTitle: 'Official Reports & Records',
+          icon: Icons.pie_chart_rounded,
+          builder: () => ReportsGenerationScreen(username: widget.username),
+        ),
+        _DashboardMenuItem(
+          key: 'archive',
+          title: 'Records Archive',
+          appBarTitle: 'Student & Records Archive',
+          icon: Icons.archive_outlined,
+          builder: () => const AdminArchiveScreen(),
+        ),
+      ];
+    } else {
+      // Super Admin (Full access to all 7 modules)
+      return [
+        _DashboardMenuItem(
+          key: 'dashboard',
+          title: 'Dashboard',
+          appBarTitle: 'Dashboard Overview',
+          icon: Icons.dashboard_rounded,
+          builder: () => const AdminOverviewScreen(),
+        ),
+        _DashboardMenuItem(
+          key: 'students',
+          title: 'Students',
+          appBarTitle: 'Student Management',
+          icon: Icons.people_alt_rounded,
+          builder: () => _buildStudentsModule(),
+        ),
+        _DashboardMenuItem(
+          key: 'faculty',
+          title: 'Faculty & Classes',
+          appBarTitle: 'Faculty & Classes',
+          icon: Icons.co_present_rounded,
+          builder: () => _buildFacultyModule(),
+        ),
+        _DashboardMenuItem(
+          key: 'academics',
+          title: 'Academics & Grades',
+          appBarTitle: 'Academics & Grades',
+          icon: Icons.assignment_turned_in_rounded,
+          builder: () => _buildAcademicsModule(),
+        ),
+        _DashboardMenuItem(
+          key: 'communications',
+          title: 'Communications',
+          appBarTitle: 'Communications',
+          icon: Icons.campaign_rounded,
+          builder: () => _buildCommunicationsModule(),
+        ),
+        _DashboardMenuItem(
+          key: 'reports',
+          title: 'Reports',
+          appBarTitle: 'Reports Generation',
+          icon: Icons.pie_chart_rounded,
+          builder: () => ReportsGenerationScreen(username: widget.username),
+        ),
+        _DashboardMenuItem(
+          key: 'system',
+          title: 'System Management',
+          appBarTitle: 'System Administration',
+          icon: Icons.admin_panel_settings_rounded,
+          builder: () => _buildSystemModule(),
+        ),
+      ];
+    }
+  }
+
+  Widget _buildStudentsModule() {
+    return Column(
+      children: [
+        _buildSubTabBar(
+          tabs: const [
+            _AdminTabItem(title: 'Student Records', icon: Icons.people_outline),
+            _AdminTabItem(title: 'Enrollment Status', icon: Icons.how_to_reg_outlined),
+          ],
+          activeIndex: _studentsSubTab,
+          onTabSelected: (index) => setState(() => _studentsSubTab = index),
+        ),
+        Expanded(
+          child: _studentsSubTab == 0
+              ? const StudentManagementScreen()
+              : const EnrollmentManagementScreen(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFacultyModule() {
+    return Column(
+      children: [
+        _buildSubTabBar(
+          tabs: const [
+            _AdminTabItem(title: 'Teachers', icon: Icons.badge_outlined),
+            _AdminTabItem(title: 'Subject & Classes', icon: Icons.menu_book_outlined),
+          ],
+          activeIndex: _facultySubTab,
+          onTabSelected: (index) => setState(() => _facultySubTab = index),
+        ),
+        Expanded(
+          child: _facultySubTab == 0
+              ? const TeacherManagementScreen()
+              : const SubjectClassScreen(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAcademicsModule() {
+    return Column(
+      children: [
+        _buildSubTabBar(
+          tabs: const [
+            _AdminTabItem(title: 'Academic Evaluation', icon: Icons.assignment_turned_in_outlined),
+            _AdminTabItem(title: 'Failure Analytics', icon: Icons.insights_outlined),
+          ],
+          activeIndex: _academicsSubTab,
+          onTabSelected: (index) => setState(() => _academicsSubTab = index),
+        ),
+        Expanded(
+          child: _academicsSubTab == 0
+              ? AcademicEvaluationScreen(username: widget.username, role: _currentRole)
+              : FailureAnalyticsScreen(username: widget.username),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCommunicationsModule() {
+    return Column(
+      children: [
+        _buildSubTabBar(
+          tabs: const [
+            _AdminTabItem(title: 'School Announcements', icon: Icons.campaign_outlined),
+            _AdminTabItem(title: 'Parent Notices', icon: Icons.notifications_active_outlined),
+          ],
+          activeIndex: _commsSubTab,
+          onTabSelected: (index) => setState(() => _commsSubTab = index),
+        ),
+        Expanded(
+          child: _commsSubTab == 0
+              ? AnnouncementManagementScreen(username: widget.username, role: _currentRole)
+              : ParentNotificationScreen(username: widget.username),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSystemModule() {
+    return Column(
+      children: [
+        _buildSubTabBar(
+          tabs: const [
+            _AdminTabItem(title: 'User Accounts', icon: Icons.manage_accounts_outlined),
+            _AdminTabItem(title: 'Archive & Bin', icon: Icons.archive_outlined),
+            _AdminTabItem(title: 'System Settings', icon: Icons.settings_outlined),
+          ],
+          activeIndex: _systemSubTab,
+          onTabSelected: (index) => setState(() => _systemSubTab = index),
+        ),
+        Expanded(
+          child: _systemSubTab == 0
+              ? const UserManagementScreen()
+              : _systemSubTab == 1
+                  ? const AdminArchiveScreen()
+                  : SettingsScreen(username: widget.username, role: 'admin'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubTabBar({
+    required List<_AdminTabItem> tabs,
+    required int activeIndex,
+    required ValueChanged<int> onTabSelected,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        border: Border(
+          bottom: BorderSide(color: Colors.blueGrey.shade100, width: 1),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: List.generate(tabs.length, (index) {
+            final tab = tabs[index];
+            final isSelected = activeIndex == index;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: InkWell(
+                onTap: () => onTabSelected(index),
+                borderRadius: BorderRadius.circular(20),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFF2B81B7) : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isSelected ? const Color(0xFF2B81B7) : Colors.grey.shade300,
+                      width: 1,
+                    ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF2B81B7).withValues(alpha: 0.25),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            )
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        tab.icon,
+                        size: 16,
+                        color: isSelected ? Colors.white : const Color(0xFF475569),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        tab.title,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                          color: isSelected ? Colors.white : const Color(0xFF334155),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(List<_DashboardMenuItem> menuItems) {
+    if (_isProfileOpen) {
+      return SharedProfileScreen(username: widget.username, role: UserRole.admin);
+    }
+    if (_selectedIndex >= 0 && _selectedIndex < menuItems.length) {
+      return menuItems[_selectedIndex].builder();
+    }
+    return const Center(child: Text('Screen not found.'));
+  }
+
+  Widget _buildMenuItem(
+    int index,
+    IconData icon,
+    String title,
+    Color hoveredColor,
+    bool isDesktop,
+  ) {
+    bool isSelected = !_isProfileOpen && _selectedIndex == index;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: isSelected ? hoveredColor : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        leading: Icon(icon, color: Colors.white, size: 22),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+        onTap: () {
+          setState(() {
+            _selectedIndex = index;
+            _isProfileOpen = false;
+          });
+          if (!isDesktop) {
+            Navigator.pop(context); // Close drawer on mobile
+          }
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color appBarColor = Color(0xFF2B81B7);
@@ -70,10 +512,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
     const Color backgroundColor = Color(0xFFCBEAFB);
     const Color textWhite = Colors.white;
 
+    final menuItems = _getMenuItems();
+    if (_selectedIndex >= menuItems.length) {
+      _selectedIndex = 0;
+    }
+
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
+        if (_isProfileOpen) {
+          setState(() {
+            _isProfileOpen = false;
+          });
+          return;
+        }
         if (_selectedIndex != 0) {
           setState(() {
             _selectedIndex = 0;
@@ -81,7 +534,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
           return;
         }
         final shouldLogout = await _showLogoutDialog();
-        if (shouldLogout && mounted) {
+        if (!context.mounted) return;
+        if (shouldLogout) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const LoginScreen(isLoggingOut: true)),
@@ -97,7 +551,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Container(
                 padding: const EdgeInsets.only(
                   top: 20,
-                  left: 24,
+                  left: 20,
                   right: 16,
                   bottom: 20,
                 ),
@@ -107,30 +561,53 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Image.asset(
-                          'assets/images/logo.png',
-                          height: 24,
-                          width: 24,
-                          color: textWhite,
-                          colorBlendMode: BlendMode.srcIn,
-                          errorBuilder: (_, _, _) => const Icon(Icons.school, color: textWhite, size: 20),
-                        ),
-                        const SizedBox(width: 10),
-                        RichText(
-                          text: TextSpan(
-                            style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
-                            children: const [
-                              TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                              TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
-                              TextSpan(text: ' Admin', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
-                            ],
+                    Image.asset(
+                      'assets/images/logo.png',
+                      height: 24,
+                      width: 24,
+                      color: textWhite,
+                      colorBlendMode: BlendMode.srcIn,
+                      errorBuilder: (_, _, _) => const Icon(Icons.school, color: textWhite, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _getPortalTitle(),
+                            style: const TextStyle(
+                              color: textWhite,
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 3),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _getRoleBadgeColor().withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: _getRoleBadgeColor().withValues(alpha: 0.6),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              _getRoleBadgeText(),
+                              style: TextStyle(
+                                color: _getRoleBadgeColor(),
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     if (!isDesktop)
                       InkWell(
@@ -148,21 +625,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Expanded(
                 child: ListView(
                   padding: EdgeInsets.zero,
-                  children: [
-                    _buildMenuItem(0, Icons.home, 'Dashboard', hoveredColor, isDesktop),
-                    _buildMenuItem(1, Icons.people, 'Student Management', hoveredColor, isDesktop),
-                    _buildMenuItem(2, Icons.co_present, 'Teacher Management', hoveredColor, isDesktop),
-                    _buildMenuItem(3, Icons.menu_book, 'Subject & Classes', hoveredColor, isDesktop),
-                    _buildMenuItem(4, Icons.assignment_turned_in, 'Academic Evaluation', hoveredColor, isDesktop),
-                    _buildMenuItem(5, Icons.show_chart, 'Failure Analytics', hoveredColor, isDesktop),
-                    _buildMenuItem(6, Icons.notifications, 'Parent Notification', hoveredColor, isDesktop),
-                    _buildMenuItem(7, Icons.pie_chart, 'Reports Generation', hoveredColor, isDesktop),
-                    _buildMenuItem(8, Icons.campaign, 'Announcements', hoveredColor, isDesktop),
-                    _buildMenuItem(11, Icons.archive, 'Archive & Bin', hoveredColor, isDesktop),
-                    _buildMenuItem(12, Icons.manage_accounts, 'User Management', hoveredColor, isDesktop),
-                    _buildMenuItem(13, Icons.how_to_reg, 'Enrollment', hoveredColor, isDesktop),
-                    _buildMenuItem(10, Icons.settings, 'Settings', hoveredColor, isDesktop),
-                  ],
+                  children: List.generate(menuItems.length, (i) {
+                    final item = menuItems[i];
+                    return _buildMenuItem(i, item.icon, item.title, hoveredColor, isDesktop);
+                  }),
                 ),
               ),
               Container(
@@ -182,7 +648,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                   onTap: () async {
                     final logout = await _showLogoutDialog();
-                    if (logout && mounted) {
+                    if (!context.mounted) return;
+                    if (logout) {
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
@@ -214,31 +681,35 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           errorBuilder: (_, _, _) => const Icon(Icons.school, color: textWhite, size: 20),
                         ),
                         const SizedBox(width: 10),
-                        RichText(
-                          text: TextSpan(
-                            style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
-                            children: const [
-                              TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                              TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
-                              TextSpan(text: '  •  Admin Portal', style: TextStyle(color: Color(0xFFE2F1FC), fontSize: 14, fontWeight: FontWeight.w500)),
-                            ],
+                        Expanded(
+                          child: Text(
+                            'Academic Management System - ${_getAppBarTitle(menuItems)}',
+                            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     )
-                  : null,
+                  : Text(
+                      _getAppBarTitle(menuItems),
+                      style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
+                    ),
               actions: [
                 Padding(
                   padding: const EdgeInsets.only(right: 16.0),
                   child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
                     onTap: () {
                       setState(() {
-                        _selectedIndex = 9; // Admin Profile
+                        _isProfileOpen = true;
                       });
                     },
-                    child: const CircleAvatar(
-                      backgroundColor: Colors.white,
-                      child: Icon(Icons.person, color: Colors.black),
+                    child: Tooltip(
+                      message: 'My Profile',
+                      child: CircleAvatar(
+                        backgroundColor: _isProfileOpen ? Colors.amber : Colors.white,
+                        child: const Icon(Icons.person, color: Colors.black87),
+                      ),
                     ),
                   ),
                 ),
@@ -255,12 +726,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
               children: [
                 if (isDesktop)
                   Container(
-                    width: 260,
+                    width: 250,
                     color: drawerColor,
                     child: SafeArea(child: drawerContent),
                   ),
                 Expanded(
-                  child: _buildBody(),
+                  child: _buildBody(menuItems),
                 ),
               ],
             ),
