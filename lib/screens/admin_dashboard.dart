@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'admin_overview_screen.dart';
 import 'student_management_screen.dart';
 import 'teacher_management_screen.dart';
@@ -31,18 +32,28 @@ class _AdminDashboardState extends State<AdminDashboard> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Logout',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you sure you want to logout?',
+          style: GoogleFonts.poppins(fontSize: 14),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
+            child: Text(
               'Logout',
-              style: TextStyle(color: Colors.red),
+              style: GoogleFonts.poppins(color: Colors.red, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -98,13 +109,28 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Admin Portal',
-                      style: TextStyle(
-                        color: textWhite,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Image.asset(
+                          'assets/images/logo.png',
+                          height: 24,
+                          width: 24,
+                          color: textWhite,
+                          colorBlendMode: BlendMode.srcIn,
+                          errorBuilder: (_, _, _) => const Icon(Icons.school, color: textWhite, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        RichText(
+                          text: TextSpan(
+                            style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
+                            children: const [
+                              TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                              TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                              TextSpan(text: ' Admin', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                     if (!isDesktop)
                       InkWell(
@@ -177,9 +203,28 @@ class _AdminDashboardState extends State<AdminDashboard> {
               automaticallyImplyLeading: !isDesktop,
               iconTheme: const IconThemeData(color: textWhite),
               title: isDesktop
-                  ? const Text(
-                      'Academic Management System - Admin',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                  ? Row(
+                      children: [
+                        Image.asset(
+                          'assets/images/logo.png',
+                          height: 24,
+                          width: 24,
+                          color: textWhite,
+                          colorBlendMode: BlendMode.srcIn,
+                          errorBuilder: (_, _, _) => const Icon(Icons.school, color: textWhite, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        RichText(
+                          text: TextSpan(
+                            style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
+                            children: const [
+                              TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                              TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                              TextSpan(text: '  •  Admin Portal', style: TextStyle(color: Color(0xFFE2F1FC), fontSize: 14, fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        ),
+                      ],
                     )
                   : null,
               actions: [
@@ -276,10 +321,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
       child: ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        leading: Icon(icon, color: Colors.white),
+        leading: Icon(icon, color: Colors.white, size: 20),
         title: Text(
           title,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontSize: 13.5,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+          ),
         ),
         onTap: () {
           setState(() {

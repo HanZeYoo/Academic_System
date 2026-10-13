@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
@@ -81,125 +82,490 @@ class _LandingScreenState extends State<LandingScreen> {
     }
   }
 
+  Widget _buildFeatureChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFB8D8EE).withValues(alpha: 0.85),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2B81B7).withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: const BoxDecoration(
+              color: Color(0xFFE8F4FD),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 12, color: const Color(0xFF2B81B7)),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF102A43),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     const Color headerBlue = Color(0xFF2B81B7);
-    const Color pageBlue = Color(0xFFCBEAFB);
+    const Color deepNavy = Color(0xFF0F2B48);
+    const Color subtitleColor = Color(0xFF334E68);
 
     return Scaffold(
-      backgroundColor: pageBlue,
-      appBar: AppBar(
-        backgroundColor: headerBlue,
-        elevation: 0,
-        titleSpacing: 16,
-        title: Row(
-          children: [
-            Image.asset(
-              'assets/images/logo.png',
-              height: 28,
-              width: 28,
-              fit: BoxFit.contain,
-              color: Colors.white,
-              colorBlendMode: BlendMode.srcIn,
-              errorBuilder: (_, __, ___) =>
-                  const Icon(Icons.image_not_supported, color: Colors.white),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'NotifyED',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
+      body: Stack(
+        children: [
+          // Background Gradient with Ambient Glow
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFFE4F3FD),
+                    Color(0xFFCBEAFB),
+                    Color(0xFFBDDFF6),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 56),
-            const Text(
-              'NotifyED',
-              style: TextStyle(
-                fontSize: 48,
-                fontWeight: FontWeight.w700,
-                color: Colors.black,
+          ),
+
+          // Ambient Decorative Glow Orbs
+          Positioned(
+            top: -50,
+            right: -40,
+            child: Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    headerBlue.withValues(alpha: 0.16),
+                    headerBlue.withValues(alpha: 0.0),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 14),
-            const Text(
-              'Academic Evaluation &\nParent Connection',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 34 / 2,
-                height: 1.35,
-                color: Colors.black87,
+          ),
+          Positioned(
+            bottom: 40,
+            left: -50,
+            child: Container(
+              width: 240,
+              height: 240,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    Colors.white.withValues(alpha: 0.65),
+                    Colors.white.withValues(alpha: 0.0),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 36),
-            Image.asset(
-              'assets/images/logo.png',
-              height: 120,
-              width: 120,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Icon(
-                Icons.image_not_supported,
-                size: 80,
-                color: Color(0xFF24445A),
-              ),
-            ),
-            const SizedBox(height: 56),
-            _isCheckingSession
-                ? const CircularProgressIndicator(color: headerBlue)
-                : SizedBox(
-                    width: 150,
-                    height: 46,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const LoginScreen()),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        elevation: 0,
-                        backgroundColor: headerBlue,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                      child: const Text(
-                        'Start',
-                        style: TextStyle(
-                          fontSize: 20,
+          ),
+
+          // Foreground Content
+          Column(
+            children: [
+              // Top App Bar
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Color(0xFF2272A3),
+                      Color(0xFF2B81B7),
+                      Color(0xFF358FC5),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x1F000000),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        Image.asset(
+                          'assets/images/logo.png',
+                          height: 28,
+                          width: 28,
+                          fit: BoxFit.contain,
                           color: Colors.white,
-                          fontWeight: FontWeight.w600,
+                          colorBlendMode: BlendMode.srcIn,
+                          errorBuilder: (_, _, _) =>
+                              const Icon(Icons.image_not_supported, color: Colors.white),
                         ),
-                      ),
+                        const SizedBox(width: 10),
+                        RichText(
+                          text: TextSpan(
+                            style: GoogleFonts.outfit(
+                              fontSize: 21,
+                              letterSpacing: 0.3,
+                              shadows: const [
+                                Shadow(
+                                  color: Color(0x33000000),
+                                  offset: Offset(0, 1),
+                                  blurRadius: 3,
+                                ),
+                              ],
+                            ),
+                            children: const [
+                              TextSpan(
+                                text: 'Notify',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              TextSpan(
+                                text: 'ED',
+                                style: TextStyle(
+                                  color: Color(0xFFBAE3FF),
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.35),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.school_outlined, size: 12, color: Colors.white),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Academic Portal',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-            const Spacer(),
-            const Text(
-              '@2026 NotifyED. A Capstone Project',
-              style: TextStyle(fontSize: 13, color: Colors.black87),
-            ),
-            const SizedBox(height: 8),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.security, size: 14, color: Colors.black87),
-                SizedBox(width: 4),
-                Text(
-                  'Secure & Private',
-                  style: TextStyle(fontSize: 11, color: Colors.black87),
                 ),
-              ],
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
+              ),
+
+              // Content Body
+              Expanded(
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      const Spacer(flex: 2),
+
+                      // Welcoming School Pill Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.88),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: headerBlue.withValues(alpha: 0.12),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.school_rounded, size: 16, color: headerBlue),
+                            const SizedBox(width: 6),
+                            RichText(
+                              text: TextSpan(
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12.5,
+                                  color: headerBlue,
+                                ),
+                                children: [
+                                  const TextSpan(
+                                    text: 'Welcome to ',
+                                    style: TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  TextSpan(
+                                    text: 'Notify',
+                                    style: GoogleFonts.outfit(fontWeight: FontWeight.w700),
+                                  ),
+                                  TextSpan(
+                                    text: 'ED',
+                                    style: GoogleFonts.outfit(fontWeight: FontWeight.w900),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Main App Name
+                      RichText(
+                        text: TextSpan(
+                          style: GoogleFonts.outfit(
+                            fontSize: 40,
+                            letterSpacing: -0.5,
+                            shadows: [
+                              Shadow(
+                                color: headerBlue.withValues(alpha: 0.18),
+                                offset: const Offset(0, 3),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                          children: const [
+                            TextSpan(
+                              text: 'Notify',
+                              style: TextStyle(
+                                color: deepNavy,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'ED',
+                              style: TextStyle(
+                                color: headerBlue,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Subtitle
+                      Text(
+                        'Academic Evaluation &\nParent Connection',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14.5,
+                          height: 1.35,
+                          fontWeight: FontWeight.w500,
+                          color: subtitleColor,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Feature Highlights Micro-Badges
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          _buildFeatureChip(Icons.assessment_rounded, 'Academic Tracking'),
+                          _buildFeatureChip(Icons.connect_without_contact_rounded, 'Parent Connect'),
+                          _buildFeatureChip(Icons.notifications_active_rounded, 'Instant Alerts'),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Logo with Dual-Ring Glowing Aura Badge
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white,
+                              headerBlue.withValues(alpha: 0.3),
+                            ],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: headerBlue.withValues(alpha: 0.22),
+                              blurRadius: 24,
+                              spreadRadius: 3,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            height: 74,
+                            width: 74,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, _, _) => const Icon(
+                              Icons.image_not_supported,
+                              size: 54,
+                              color: Color(0xFF24445A),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Start Button with Sleek Gradient & Icon Pill
+                      _isCheckingSession
+                          ? const CircularProgressIndicator(color: headerBlue)
+                          : Container(
+                              width: 175,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(30),
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF2272A3),
+                                    Color(0xFF2B81B7),
+                                    Color(0xFF3892C8),
+                                  ],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: headerBlue.withValues(alpha: 0.38),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  elevation: 0,
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'Start',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 16,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.22),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.arrow_forward_rounded, size: 14, color: Colors.white),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                      const Spacer(flex: 3),
+
+                      // Welcoming Trust Footer
+                      Text(
+                        '@2026 NotifyED. A Capstone Project',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          color: const Color(0xFF486581),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.75),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: headerBlue.withValues(alpha: 0.06),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.verified_user_rounded, size: 14, color: headerBlue),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Secure & Private',
+                              style: GoogleFonts.poppins(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF334E68),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

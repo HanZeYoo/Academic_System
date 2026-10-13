@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AestheticDialogs {
   /// Checks whether an error is caused by missing internet or network failure.
@@ -50,17 +51,17 @@ class AestheticDialogs {
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         elevation: 0,
         backgroundColor: Colors.transparent,
         child: Container(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(26),
           decoration: BoxDecoration(
             color: Colors.white,
             shape: BoxShape.rectangle,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(22),
             boxShadow: const [
-              BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 10)),
+              BoxShadow(color: Color(0x260F2B48), blurRadius: 18, offset: Offset(0, 8)),
             ],
           ),
           child: Column(
@@ -69,24 +70,32 @@ class AestheticDialogs {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF97316).withOpacity(0.12),
+                  color: const Color(0xFFF97316).withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.wifi_off_rounded, color: Color(0xFFF97316), size: 48),
+                child: const Icon(Icons.wifi_off_rounded, color: Color(0xFFF97316), size: 44),
               ),
-              const SizedBox(height: 20),
-              const Text(
+              const SizedBox(height: 18),
+              Text(
                 'No Internet Connection',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                style: GoogleFonts.outfit(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF0F2B48),
+                ),
               ),
-              const SizedBox(height: 10),
-              const Text(
+              const SizedBox(height: 8),
+              Text(
                 'Unable to connect to the server. Please check your Wi-Fi or mobile data connection and try again.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Color(0xFF64748B), height: 1.4),
+                style: GoogleFonts.poppins(
+                  fontSize: 13.5,
+                  color: const Color(0xFF486581),
+                  height: 1.45,
+                ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 22),
               Row(
                 children: [
                   Expanded(
@@ -94,10 +103,16 @@ class AestheticDialogs {
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        side: const BorderSide(color: Color(0xFFB8D8EE)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
-                      child: const Text('Dismiss', style: TextStyle(color: Color(0xFF475569), fontWeight: FontWeight.w600)),
+                      child: Text(
+                        'Dismiss',
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFF486581),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                   if (onRetry != null) ...[
@@ -112,10 +127,15 @@ class AestheticDialogs {
                           backgroundColor: const Color(0xFF2B81B7),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 2,
                         ),
-                        child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: Text(
+                          'Retry',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -134,13 +154,13 @@ class AestheticDialogs {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
-          children: const [
-            Icon(Icons.wifi_off_rounded, color: Colors.white, size: 20),
-            SizedBox(width: 10),
+          children: [
+            const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'No internet connection. Please check your network.',
-                style: TextStyle(color: Colors.white, fontSize: 13),
+                style: GoogleFonts.poppins(color: Colors.white, fontSize: 13),
               ),
             ),
           ],
@@ -148,7 +168,7 @@ class AestheticDialogs {
         backgroundColor: const Color(0xFFDC2626),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
   }
@@ -163,17 +183,17 @@ class AestheticDialogs {
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         elevation: 0,
         backgroundColor: Colors.transparent,
         child: Container(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(26),
           decoration: BoxDecoration(
             color: Colors.white,
             shape: BoxShape.rectangle,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(22),
             boxShadow: const [
-              BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 10)),
+              BoxShadow(color: Color(0x260F2B48), blurRadius: 18, offset: Offset(0, 8)),
             ],
           ),
           child: Column(
@@ -182,36 +202,47 @@ class AestheticDialogs {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                child: const Icon(Icons.error_outline_rounded, color: Colors.red, size: 44),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF224A60)),
+                style: GoogleFonts.outfit(
+                  fontSize: 21,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF0F2B48),
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.4),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: const Color(0xFF486581),
+                  height: 1.45,
+                ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 22),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
+                    backgroundColor: const Color(0xFF2B81B7),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 2,
                   ),
-                  child: const Text('Got it', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  child: Text(
+                    'Got it',
+                    style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],
@@ -231,33 +262,40 @@ class AestheticDialogs {
           children: [
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF1F5F9),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.wifi_off_rounded, size: 48, color: Color(0xFF94A3B8)),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'No Internet Connection',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+              style: GoogleFonts.outfit(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF0F2B48),
+              ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Unable to load data. Please check your connection and tap retry.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+              style: GoogleFonts.poppins(fontSize: 13, color: const Color(0xFF64748B)),
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Retry'),
+              label: Text(
+                'Retry',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF2B81B7),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
             ),
           ],

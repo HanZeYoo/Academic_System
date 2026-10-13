@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
 import 'my_classes_screen.dart';
@@ -108,18 +109,28 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Logout',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you sure you want to logout?',
+          style: GoogleFonts.poppins(fontSize: 14),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
+            child: Text(
               'Logout',
-              style: TextStyle(color: Colors.red),
+              style: GoogleFonts.poppins(color: Colors.red, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -163,13 +174,28 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Teacher Portal',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Image.asset(
+                          'assets/images/logo.png',
+                          height: 24,
+                          width: 24,
+                          color: Colors.white,
+                          colorBlendMode: BlendMode.srcIn,
+                          errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        RichText(
+                          text: TextSpan(
+                            style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
+                            children: const [
+                              TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                              TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                              TextSpan(text: ' Teacher', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                     if (!isDesktop)
                       GestureDetector(
@@ -298,9 +324,28 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               elevation: 0,
               automaticallyImplyLeading: !isDesktop,
               title: isDesktop
-                  ? const Text(
-                      'Academic Management System - Teacher',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                  ? Row(
+                      children: [
+                        Image.asset(
+                          'assets/images/logo.png',
+                          height: 24,
+                          width: 24,
+                          color: Colors.white,
+                          colorBlendMode: BlendMode.srcIn,
+                          errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        RichText(
+                          text: TextSpan(
+                            style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
+                            children: const [
+                              TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                              TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                              TextSpan(text: '  •  Teacher Portal', style: TextStyle(color: Color(0xFFE2F1FC), fontSize: 14, fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        ),
+                      ],
                     )
                   : null,
               actions: [

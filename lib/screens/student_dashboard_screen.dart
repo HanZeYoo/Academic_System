@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
 import 'announcement_management_screen.dart';
@@ -278,6 +279,32 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         appBar: AppBar(
           backgroundColor: const Color(0xFF3383B3), // App bar blue color
           elevation: 0,
+          title: Row(
+            children: [
+              Image.asset(
+                'assets/images/logo.png',
+                height: 22,
+                width: 22,
+                color: Colors.white,
+                colorBlendMode: BlendMode.srcIn,
+                errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 8),
+              RichText(
+                text: TextSpan(
+                  style: GoogleFonts.outfit(fontSize: 17, letterSpacing: 0.2),
+                  children: [
+                    const TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    const TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                    TextSpan(
+                      text: _selectedMenu == 'Dashboard' ? '  •  Student' : '  •  $_selectedMenu',
+                      style: const TextStyle(color: Color(0xFFE2F1FC), fontSize: 13, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           leading: Builder(
             builder: (context) => IconButton(
               icon: const Icon(Icons.menu, color: Colors.white),
@@ -316,13 +343,28 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Student Menu',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Image.asset(
+                            'assets/images/logo.png',
+                            height: 24,
+                            width: 24,
+                            color: Colors.white,
+                            colorBlendMode: BlendMode.srcIn,
+                            errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          RichText(
+                            text: TextSpan(
+                              style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
+                              children: const [
+                                TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                                TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                                TextSpan(text: ' Student', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
@@ -407,12 +449,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       showDialog(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text('Logout'),
-                          content: const Text('Are you sure you want to logout?'),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          title: Text('Logout', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+                          content: Text('Are you sure you want to logout?', style: GoogleFonts.poppins(fontSize: 14)),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancel'),
+                              child: Text('Cancel', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
                             ),
                             TextButton(
                               onPressed: () {
@@ -424,9 +467,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                                   ),
                                 );
                               },
-                              child: const Text(
+                              child: Text(
                                 'Logout',
-                                style: TextStyle(color: Colors.red),
+                                style: GoogleFonts.poppins(color: Colors.red, fontWeight: FontWeight.bold),
                               ),
                             ),
                           ],

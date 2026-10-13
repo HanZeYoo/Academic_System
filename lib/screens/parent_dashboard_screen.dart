@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -474,10 +475,31 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               onPressed: () => Scaffold.of(ctx).openDrawer(),
             ),
           ),
-          title: Text(
-            _selectedMenu,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+          title: Row(
+            children: [
+              Image.asset(
+                'assets/images/logo.png',
+                height: 22,
+                width: 22,
+                color: Colors.white,
+                colorBlendMode: BlendMode.srcIn,
+                errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 8),
+              RichText(
+                text: TextSpan(
+                  style: GoogleFonts.outfit(fontSize: 17, letterSpacing: 0.2),
+                  children: [
+                    const TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    const TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                    TextSpan(
+                      text: _selectedMenu == 'Dashboard' ? '  •  Parent' : '  •  $_selectedMenu',
+                      style: const TextStyle(color: Color(0xFFE2F1FC), fontSize: 13, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           actions: [
             if (_schoolYears.isNotEmpty)
@@ -551,11 +573,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Parent Portal',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16)),
+                        RichText(
+                          text: TextSpan(
+                            style: GoogleFonts.outfit(fontSize: 16, letterSpacing: 0.2),
+                            children: const [
+                              TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                              TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                              TextSpan(text: ' Parent', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        ),
                         Text(
                           widget.username,
                           style: const TextStyle(
