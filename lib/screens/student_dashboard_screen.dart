@@ -281,6 +281,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             appBar: AppBar(
               backgroundColor: roleTheme.primary,
               elevation: 0,
+              flexibleSpace: Container(
+                decoration: BoxDecoration(gradient: roleTheme.appBarGradient),
+              ),
               title: Row(
                 children: [
                   Image.asset(

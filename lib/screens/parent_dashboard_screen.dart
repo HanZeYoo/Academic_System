@@ -471,6 +471,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           appBar: AppBar(
             backgroundColor: roleTheme.primary,
             elevation: 0,
+            flexibleSpace: Container(
+              decoration: BoxDecoration(gradient: roleTheme.appBarGradient),
+            ),
             leading: Builder(
               builder: (ctx) => IconButton(
                 icon: const Icon(Icons.menu, color: Colors.white),

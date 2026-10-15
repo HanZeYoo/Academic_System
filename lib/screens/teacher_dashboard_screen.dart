@@ -9,7 +9,7 @@ import 'ecr_import_screen.dart';
 import 'teacher_student_screen.dart';
 import 'shared_profile_screen.dart';
 import 'academic_evaluation_screen.dart';
-import 'failure_analytics_screen.dart';
+import 'performance_analytics_screen.dart';
 import 'parent_notification_screen.dart';
 import 'teacher_attendance_screen.dart';
 import 'reports_generation_screen.dart';
@@ -334,6 +334,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             appBar: AppBar(
               backgroundColor: roleTheme.primary,
               elevation: 0,
+              flexibleSpace: Container(
+                decoration: BoxDecoration(gradient: roleTheme.appBarGradient),
+              ),
               automaticallyImplyLeading: !isDesktop,
               title: isDesktop
                   ? Row(

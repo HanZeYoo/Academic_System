@@ -5,6 +5,7 @@ class RoleColorScheme {
   final String roleKey;
   final String displayName;
   final String badgeText;
+  final String portalSubtitle;
 
   /// Primary blue shade (AppBar, primary actions, titles)
   final Color primary;
@@ -45,6 +46,9 @@ class RoleColorScheme {
   /// Gradient for welcome banners or cards
   final LinearGradient cardGradient;
 
+  /// LinearGradient for the Top AppBar
+  final LinearGradient appBarGradient;
+
   /// Icon representing this user role
   final IconData icon;
 
@@ -52,6 +56,7 @@ class RoleColorScheme {
     required this.roleKey,
     required this.displayName,
     required this.badgeText,
+    this.portalSubtitle = '',
     required this.primary,
     required this.primaryDark,
     required this.drawerBackground,
@@ -65,6 +70,7 @@ class RoleColorScheme {
     required this.badgeTextColor,
     required this.scaffoldBackground,
     required this.cardGradient,
+    required this.appBarGradient,
     required this.icon,
   });
 }
@@ -73,130 +79,178 @@ class RoleColorScheme {
 class RoleTheme {
   RoleTheme._();
 
-  // 1. Super Admin: Deep Midnight Navy Blue (Commanding, Secure, Authoritative)
+  // 1. Super Admin: Superior Obsidian Midnight Navy (Executive, Sovereign, Commanding Authority)
   static const RoleColorScheme adminTheme = RoleColorScheme(
     roleKey: 'admin',
     displayName: 'Super Admin',
     badgeText: 'SUPER ADMIN',
-    primary: Color(0xFF1E3A8A), // Midnight Navy Blue (Tailwind Blue 900)
-    primaryDark: Color(0xFF0F1E36),
-    drawerBackground: Color(0xFF0F1E36), // Deep Midnight Navy Drawer
-    drawerHeader: Color(0xFF17294A),
-    drawerSelected: Color(0xFF2563EB), // Vibrant Royal Navy highlight
-    badgeBackground: Color(0x3360A5FA),
-    badgeTextColor: Color(0xFF93C5FD), // Ice Blue
-    scaffoldBackground: Color(0xFFEFF4F9),
+    portalSubtitle: 'Supreme Executive Command',
+    primary: Color(0xFF0A192F), // Obsidian Midnight Navy
+    primaryDark: Color(0xFF050E1C),
+    drawerBackground: Color(0xFF060F1E), // Deepest Sovereign Obsidian Drawer
+    drawerHeader: Color(0xFF0B1B33),
+    drawerSelected: Color(0xFF1D4ED8), // Royal Blue highlight
+    drawerText: Color(0xFFCBD5E1),
+    drawerIcon: Color(0xFF94A3B8),
+    badgeBackground: Color(0x333B82F6),
+    badgeTextColor: Color(0xFF93C5FD), // Ice-Diamond Blue
+    scaffoldBackground: Color(0xFFEFF3F8),
     cardGradient: LinearGradient(
-      colors: [Color(0xFF1E3A8A), Color(0xFF0F1E36)],
+      colors: [Color(0xFF0A1E3F), Color(0xFF050E1C)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
+    ),
+    appBarGradient: LinearGradient(
+      colors: [Color(0xFF060F1E), Color(0xFF0A192F), Color(0xFF0F264A)],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
     ),
     icon: Icons.admin_panel_settings,
   );
 
-  // 2. Principal: Imperial Indigo-Navy Blue (Executive Leadership, Prestigious)
+  // 2. Principal: Regal Imperial Indigo-Navy (Executive School Leadership, Prestigious)
   static const RoleColorScheme principalTheme = RoleColorScheme(
     roleKey: 'principal',
     displayName: 'Principal',
     badgeText: 'PRINCIPAL',
-    primary: Color(0xFF1D4ED8), // Royal Indigo Blue (Tailwind Blue 700)
-    primaryDark: Color(0xFF132247),
-    drawerBackground: Color(0xFF132247), // Deep Imperial Indigo-Navy Drawer
-    drawerHeader: Color(0xFF1C2F5E),
-    drawerSelected: Color(0xFF3B82F6),
+    portalSubtitle: 'Executive Leadership Portal',
+    primary: Color(0xFF1E3A8A), // Regal Indigo-Navy
+    primaryDark: Color(0xFF0E1E42),
+    drawerBackground: Color(0xFF0A1938), // Imperial Indigo-Navy Drawer
+    drawerHeader: Color(0xFF12244E),
+    drawerSelected: Color(0xFF2563EB),
+    drawerText: Color(0xFFD5DEE9),
+    drawerIcon: Color(0xFFA5B4FC),
     badgeBackground: Color(0x33818CF8),
     badgeTextColor: Color(0xFFA5B4FC), // Lavender Blue
     scaffoldBackground: Color(0xFFF0F4FA),
     cardGradient: LinearGradient(
-      colors: [Color(0xFF1D4ED8), Color(0xFF132247)],
+      colors: [Color(0xFF1E3A8A), Color(0xFF0E1E42)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
+    ),
+    appBarGradient: LinearGradient(
+      colors: [Color(0xFF0E1E42), Color(0xFF1E3A8A), Color(0xFF2563EB)],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
     ),
     icon: Icons.workspace_premium,
   );
 
-  // 3. Registrar: Steel Ocean Blue (Administrative Records, Precision)
+  // 3. Registrar: Steel Slate Ocean Blue (Records Management, Administrative Precision)
   static const RoleColorScheme registrarTheme = RoleColorScheme(
     roleKey: 'registrar',
     displayName: 'Registrar',
     badgeText: 'REGISTRAR',
-    primary: Color(0xFF0284C7), // Steel Ocean Blue (Tailwind Sky 600)
-    primaryDark: Color(0xFF0C2D48),
-    drawerBackground: Color(0xFF0C2D48), // Deep Steel Ocean Blue Drawer
-    drawerHeader: Color(0xFF133E63),
-    drawerSelected: Color(0xFF0EA5E9),
+    portalSubtitle: 'Records & Enrollment Portal',
+    primary: Color(0xFF0369A1), // Steel Ocean Slate
+    primaryDark: Color(0xFF082F49),
+    drawerBackground: Color(0xFF082842), // Deep Steel Ocean Drawer
+    drawerHeader: Color(0xFF0E385C),
+    drawerSelected: Color(0xFF0284C7),
+    drawerText: Color(0xFFE0F2FE),
+    drawerIcon: Color(0xFF7DD3FC),
     badgeBackground: Color(0x3338BDF8),
-    badgeTextColor: Color(0xFF7DD3FC), // Sky Blue
+    badgeTextColor: Color(0xFF7DD3FC), // Sky Steel Blue
     scaffoldBackground: Color(0xFFF0F6FA),
     cardGradient: LinearGradient(
-      colors: [Color(0xFF0284C7), Color(0xFF0C2D48)],
+      colors: [Color(0xFF0369A1), Color(0xFF082F49)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
+    ),
+    appBarGradient: LinearGradient(
+      colors: [Color(0xFF082842), Color(0xFF0369A1), Color(0xFF0284C7)],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
     ),
     icon: Icons.badge_outlined,
   );
 
-  // 4. Teacher: Classic Scholastic Sapphire Blue (Guiding, Scholarly, Trusted)
+  // 4. Teacher: Classic Scholastic Sapphire Navy (Same institutional vibe, but lower authority / classroom-focused)
   static const RoleColorScheme teacherTheme = RoleColorScheme(
     roleKey: 'teacher',
     displayName: 'Teacher',
-    badgeText: 'TEACHER',
-    primary: Color(0xFF1565C0), // Classic Scholastic Sapphire (Material Blue 800)
-    primaryDark: Color(0xFF0D47A1),
-    drawerBackground: Color(0xFF0E2A47), // Rich Sapphire Navy Drawer
-    drawerHeader: Color(0xFF163C63),
-    drawerSelected: Color(0xFF1976D2), // Sapphire Blue highlight
-    badgeBackground: Color(0x3364B5F6),
-    badgeTextColor: Color(0xFF90CAF9), // Soft Sapphire Blue
-    scaffoldBackground: Color(0xFFF0F5FA),
+    badgeText: 'FACULTY TEACHER',
+    portalSubtitle: 'Faculty & Classroom Instruction',
+    primary: Color(0xFF1E40AF), // Scholastic Royal Sapphire (Tailwind Blue 800)
+    primaryDark: Color(0xFF172554),
+    drawerBackground: Color(0xFF112D4E), // Warm Academic Sapphire Navy Drawer
+    drawerHeader: Color(0xFF1A3F6B),
+    drawerSelected: Color(0xFF2563EB), // Sapphire Blue highlight
+    drawerText: Color(0xFFD8E6F8),
+    drawerIcon: Color(0xFFA5C9F3),
+    badgeBackground: Color(0x3360A5FA),
+    badgeTextColor: Color(0xFFBFDBFE), // Soft Sapphire Tint
+    scaffoldBackground: Color(0xFFF1F5F9),
     cardGradient: LinearGradient(
-      colors: [Color(0xFF1565C0), Color(0xFF0D47A1)],
+      colors: [Color(0xFF1E40AF), Color(0xFF172554)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
+    ),
+    appBarGradient: LinearGradient(
+      colors: [Color(0xFF172554), Color(0xFF1E40AF), Color(0xFF2563EB)],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
     ),
     icon: Icons.co_present,
   );
 
-  // 5. Student: Vibrant Cerulean & Sky Blue (Youthful, Energetic, Inspiring)
+  // 5. Student: Cheerful Electric Cerulean & Cyan-Sky Blue (Friendly, Youthful, Energetic, Inspiring)
   static const RoleColorScheme studentTheme = RoleColorScheme(
     roleKey: 'student',
     displayName: 'Student',
-    badgeText: 'STUDENT',
-    primary: Color(0xFF0288D1), // Electric Sky Blue (Light Blue 700)
-    primaryDark: Color(0xFF01579B),
-    drawerBackground: Color(0xFF0B3354), // Deep Cerulean Ocean Drawer
-    drawerHeader: Color(0xFF104672),
-    drawerSelected: Color(0xFF039BE5), // Electric Sky Blue highlight
-    badgeBackground: Color(0x334FC3F7),
-    badgeTextColor: Color(0xFF81D4FA), // Bright Sky Blue
-    scaffoldBackground: Color(0xFFEDF7FC),
+    badgeText: 'STUDENT PORTAL',
+    portalSubtitle: 'Learning Journey & Growth',
+    primary: Color(0xFF0096C7), // Bright Friendly Electric Cerulean (Vivid Sky Blue)
+    primaryDark: Color(0xFF0077B6),
+    drawerBackground: Color(0xFF075985), // Vibrant Bright Cerulean Ocean Drawer (Tailwind Sky 800)
+    drawerHeader: Color(0xFF0369A1),
+    drawerSelected: Color(0xFF0EA5E9), // Vivid Electric Cyan-Sky highlight
+    drawerText: Color(0xFFF0F9FF),
+    drawerIcon: Color(0xFFBAE6FD),
+    badgeBackground: Color(0x3338BDF8),
+    badgeTextColor: Color(0xFF67E8F9), // Electric Cyan
+    scaffoldBackground: Color(0xFFF0F9FF), // Bright energizing sky tint
     cardGradient: LinearGradient(
-      colors: [Color(0xFF0288D1), Color(0xFF01579B)],
+      colors: [Color(0xFF0096C7), Color(0xFF0077B6)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     ),
-    icon: Icons.school,
+    appBarGradient: LinearGradient(
+      colors: [Color(0xFF0077B6), Color(0xFF0096C7), Color(0xFF00B4D8)],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+    ),
+    icon: Icons.school_rounded,
   );
 
-  // 6. Parent: Twilight Marine Slate Blue (Supportive, Calm, Family Guardian)
+  // 6. Parent: Soft Light Marine Sky Blue (More Lighter, Approachable, Calm, Family Guardian)
   static const RoleColorScheme parentTheme = RoleColorScheme(
     roleKey: 'parent',
     displayName: 'Parent',
-    badgeText: 'PARENT',
-    primary: Color(0xFF316395), // Warm Twilight Marine Blue
-    primaryDark: Color(0xFF1E3A5F),
-    drawerBackground: Color(0xFF1B2E48), // Twilight Slate Navy Drawer
-    drawerHeader: Color(0xFF263F61),
-    drawerSelected: Color(0xFF3B72A8), // Twilight Slate highlight
-    badgeBackground: Color(0x3390CAF9),
-    badgeTextColor: Color(0xFFBBDEFB), // Periwinkle Tint
-    scaffoldBackground: Color(0xFFF2F6FA),
+    badgeText: 'PARENT PORTAL',
+    portalSubtitle: 'Family & Home Collaboration',
+    primary: Color(0xFF2B81B7), // Soft Light Marine Sky Blue
+    primaryDark: Color(0xFF1C5982),
+    drawerBackground: Color(0xFF1E4870), // Soft Lighter Twilight Marine Drawer (Visibly much lighter)
+    drawerHeader: Color(0xFF2B5C8A),
+    drawerSelected: Color(0xFF3892C8), // Soft Morning Sky highlight
+    drawerText: Color(0xFFE6F2FA),
+    drawerIcon: Color(0xFFBCE0F5),
+    badgeBackground: Color(0x33BAE6FD),
+    badgeTextColor: Color(0xFFBAE6FD), // Soft Morning Sky Tint
+    scaffoldBackground: Color(0xFFF4F9FD), // Airy, welcoming, comforting sky tint
     cardGradient: LinearGradient(
-      colors: [Color(0xFF316395), Color(0xFF1E3A5F)],
+      colors: [Color(0xFF358FC5), Color(0xFF1F5E87)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     ),
-    icon: Icons.family_restroom,
+    appBarGradient: LinearGradient(
+      colors: [Color(0xFF1F5E87), Color(0xFF2B81B7), Color(0xFF3A94CC)],
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+    ),
+    icon: Icons.family_restroom_rounded,
   );
 
   /// Returns the corresponding [RoleColorScheme] for any role string.

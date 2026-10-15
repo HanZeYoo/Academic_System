@@ -6,7 +6,7 @@ import 'student_management_screen.dart';
 import 'teacher_management_screen.dart';
 import 'subject_class_screen.dart';
 import 'academic_evaluation_screen.dart';
-import 'failure_analytics_screen.dart';
+import 'performance_analytics_screen.dart';
 import 'parent_notification_screen.dart';
 import 'reports_generation_screen.dart';
 import 'announcement_management_screen.dart';
@@ -674,6 +674,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
             backgroundColor: backgroundColor,
             appBar: AppBar(
               backgroundColor: appBarColor,
+              elevation: 0,
+              flexibleSpace: Container(
+                decoration: BoxDecoration(gradient: roleTheme.appBarGradient),
+              ),
               automaticallyImplyLeading: !isDesktop,
               iconTheme: const IconThemeData(color: textWhite),
               title: isDesktop
