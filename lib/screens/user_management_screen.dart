@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
 import '../utils/dialog_utils.dart';
+import '../utils/role_theme.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -107,7 +108,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           String getRoleDescription() {
             switch (selectedRole) {
               case 'principal':
-                return 'Principal Portal: Access to Overview Dashboard, Faculty & Classes, Academics & Failure Analytics, Announcements, and Reports.';
+                return 'Principal Portal: Access to Overview Dashboard, Faculty & Classes, Academics & Performance Analytics, Announcements, and Reports.';
               case 'registrar':
                 return 'Registrar Portal: Access to Student Records, Enrollment Status, Subjects & Classes Rosters, Official Reports, and Records Archive.';
               case 'admin':
@@ -403,22 +404,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
   }
 
   Color _roleColor(String? role) {
-    switch (role?.toLowerCase()) {
-      case 'admin':
-        return const Color(0xFF7C3AED);
-      case 'principal':
-        return const Color(0xFF4338CA);
-      case 'registrar':
-        return const Color(0xFF0D9488);
-      case 'teacher':
-        return const Color(0xFF0F52BA);
-      case 'student':
-        return const Color(0xFF10B981);
-      case 'parent':
-        return const Color(0xFFF59E0B);
-      default:
-        return Colors.grey;
-    }
+    return RoleTheme.getRoleTheme(role).primary;
   }
 
   IconData _roleIcon(String? role) {

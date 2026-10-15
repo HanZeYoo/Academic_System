@@ -10,6 +10,7 @@ import 'shared_profile_screen.dart';
 
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../utils/role_theme.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
   final String username; // The student's email/username
@@ -256,6 +257,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final roleTheme = RoleTheme.studentTheme;
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) async {
@@ -275,110 +277,120 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFD6F0FA), // Light blue background
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF3383B3), // App bar blue color
-          elevation: 0,
-          title: Row(
-            children: [
-              Image.asset(
-                'assets/images/logo.png',
-                height: 22,
-                width: 22,
-                color: Colors.white,
-                colorBlendMode: BlendMode.srcIn,
-                errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 8),
-              RichText(
-                text: TextSpan(
-                  style: GoogleFonts.outfit(fontSize: 17, letterSpacing: 0.2),
-                  children: [
-                    const TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                    const TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
-                    TextSpan(
-                      text: _selectedMenu == 'Dashboard' ? '  •  Student' : '  •  $_selectedMenu',
-                      style: const TextStyle(color: Color(0xFFE2F1FC), fontSize: 13, fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          leading: Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.menu, color: Colors.white),
-              onPressed: () => Scaffold.of(context).openDrawer(),
-            ),
-          ),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedMenu = 'Profile';
-                  });
-                },
-                child: const CircleAvatar(
-                  backgroundColor: Colors.white,
-                  radius: 18,
-                  child: Icon(Icons.person, color: Color(0xFF3383B3), size: 24),
-                ),
-              ),
-            ),
-          ],
-        ),
-        drawer: Drawer(
-          backgroundColor: const Color(0xFF224A60), // Dark teal drawer background
-          child: SafeArea(
-            child: Column(
-              children: [
-                // Drawer Header
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16.0,
-                    vertical: 16.0,
+        backgroundColor: roleTheme.scaffoldBackground,
+            appBar: AppBar(
+              backgroundColor: roleTheme.primary,
+              elevation: 0,
+              title: Row(
+                children: [
+                  Image.asset(
+                    'assets/images/logo.png',
+                    height: 22,
+                    width: 22,
+                    color: Colors.white,
+                    colorBlendMode: BlendMode.srcIn,
+                    errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
+                  const SizedBox(width: 8),
+                  RichText(
+                    text: TextSpan(
+                      style: GoogleFonts.outfit(fontSize: 17, letterSpacing: 0.2),
+                      children: [
+                        const TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                        const TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                        TextSpan(
+                          text: _selectedMenu == 'Dashboard' ? '  •  Student' : '  •  $_selectedMenu',
+                          style: const TextStyle(color: Color(0xFFE2F1FC), fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              leading: Builder(
+                builder: (context) => IconButton(
+                  icon: const Icon(Icons.menu, color: Colors.white),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
+              ),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedMenu = 'Profile';
+                      });
+                    },
+                    child: CircleAvatar(
+                      backgroundColor: Colors.white,
+                      radius: 18,
+                      child: Icon(Icons.person, color: roleTheme.primary, size: 24),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            drawer: Drawer(
+              backgroundColor: roleTheme.drawerBackground,
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    // Drawer Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 16.0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: roleTheme.drawerHeader,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Image.asset(
-                            'assets/images/logo.png',
-                            height: 24,
-                            width: 24,
-                            color: Colors.white,
-                            colorBlendMode: BlendMode.srcIn,
-                            errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
+                          Row(
+                            children: [
+                              Image.asset(
+                                'assets/images/logo.png',
+                                height: 24,
+                                width: 24,
+                                color: Colors.white,
+                                colorBlendMode: BlendMode.srcIn,
+                                errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
+                              ),
+                              const SizedBox(width: 10),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  RichText(
+                                    text: TextSpan(
+                                      style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
+                                      children: const [
+                                        TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                                        TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  RoleTheme.buildRoleBadge('student', fontSize: 9.5),
+                                ],
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 10),
-                          RichText(
-                            text: TextSpan(
-                              style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
-                              children: const [
-                                TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                                TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
-                                TextSpan(text: ' Student', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
-                              ],
+                          GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: const Icon(
+                              Icons.arrow_back,
+                              color: Colors.white,
+                              size: 20,
                             ),
                           ),
                         ],
                       ),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: const Icon(
-                          Icons.arrow_back,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(color: Colors.white24, height: 1, thickness: 1),
-                const SizedBox(height: 8),
+                    ),
+                    const Divider(color: Colors.white24, height: 1, thickness: 1),
+                    const SizedBox(height: 8),
 
                 // Drawer Menu Items
                 Expanded(
@@ -532,7 +544,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF3383B3) : Colors.transparent,
+        color: isSelected ? RoleTheme.studentTheme.drawerSelected : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListTile(

@@ -16,6 +16,7 @@ import 'reports_generation_screen.dart';
 import 'announcement_management_screen.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../utils/role_theme.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   final String username;
@@ -162,14 +163,18 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isDesktop = constraints.maxWidth >= 800;
+          final roleTheme = RoleTheme.teacherTheme;
 
           Widget drawerContent = Column(
             children: [
               // Drawer Header
-              Padding(
+              Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16.0,
                   vertical: 16.0,
+                ),
+                decoration: BoxDecoration(
+                  color: roleTheme.drawerHeader,
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -185,15 +190,22 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
                         ),
                         const SizedBox(width: 10),
-                        RichText(
-                          text: TextSpan(
-                            style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
-                            children: const [
-                              TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                              TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
-                              TextSpan(text: ' Teacher', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
-                            ],
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            RichText(
+                              text: TextSpan(
+                                style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
+                                children: const [
+                                  TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                                  TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            RoleTheme.buildRoleBadge('teacher', fontSize: 9.5),
+                          ],
                         ),
                       ],
                     ),
@@ -248,10 +260,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       onTap: () => _onMenuTap('Academic Evaluation', isDesktop: isDesktop),
                     ),
                     _buildMenuItem(
-                      title: 'Failure Analytics',
-                      icon: Icons.show_chart,
-                      isSelected: _selectedMenu == 'Failure Analytics',
-                      onTap: () => _onMenuTap('Failure Analytics', isDesktop: isDesktop),
+                      title: 'Performance Analytics',
+                      icon: Icons.insights_rounded,
+                      isSelected: _selectedMenu == 'Performance Analytics' || _selectedMenu == 'Failure Analytics',
+                      onTap: () => _onMenuTap('Performance Analytics', isDesktop: isDesktop),
                     ),
                     _buildMenuItem(
                       title: 'Parent Notification',
@@ -318,9 +330,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           );
 
           return Scaffold(
-            backgroundColor: const Color(0xFFD6F0FA), // Light blue background
+            backgroundColor: roleTheme.scaffoldBackground,
             appBar: AppBar(
-              backgroundColor: const Color(0xFF3383B3), // App bar blue color
+              backgroundColor: roleTheme.primary,
               elevation: 0,
               automaticallyImplyLeading: !isDesktop,
               title: isDesktop
@@ -356,7 +368,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           value: _selectedSchoolYear,
-                          dropdownColor: const Color(0xFF224A60),
+                          dropdownColor: roleTheme.drawerBackground,
                           icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                           onChanged: (String? newValue) {
@@ -385,10 +397,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         _selectedMenu = 'Profile';
                       });
                     },
-                    child: const CircleAvatar(
+                    child: CircleAvatar(
                       backgroundColor: Colors.white,
                       radius: 18,
-                      child: Icon(Icons.person, color: Color(0xFF3383B3), size: 24),
+                      child: Icon(Icons.person, color: roleTheme.primary, size: 24),
                     ),
                   ),
                 ),
@@ -396,7 +408,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             ),
             drawer: !isDesktop
                 ? Drawer(
-                    backgroundColor: const Color(0xFF224A60),
+                    backgroundColor: roleTheme.drawerBackground,
                     child: SafeArea(child: drawerContent),
                   )
                 : null,
@@ -405,7 +417,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 if (isDesktop)
                   Container(
                     width: 260,
-                    color: const Color(0xFF224A60),
+                    color: roleTheme.drawerBackground,
                     child: SafeArea(child: drawerContent),
                   ),
                 Expanded(
@@ -444,8 +456,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     if (_selectedMenu == 'Academic Evaluation') {
       return AcademicEvaluationScreen(username: widget.username, role: 'teacher');
     }
-    if (_selectedMenu == 'Failure Analytics') {
-      return FailureAnalyticsScreen(
+    if (_selectedMenu == 'Performance Analytics' || _selectedMenu == 'Failure Analytics') {
+      return PerformanceAnalyticsScreen(
         username: widget.username,
         onComposeNotification: (studentId, message) {
           setState(() {
@@ -505,11 +517,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF3383B3), Color(0xFF1E5676)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                gradient: RoleTheme.teacherTheme.cardGradient,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4)),
@@ -688,7 +696,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF36617A) : Colors.transparent,
+        color: isSelected ? RoleTheme.teacherTheme.drawerSelected : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListTile(
@@ -726,7 +734,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
         color: isExpandedOrSelected
-            ? const Color(0xFF36617A).withOpacity(0.3)
+            ? RoleTheme.teacherTheme.drawerSelected.withValues(alpha: 0.35)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
@@ -756,7 +764,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               margin: const EdgeInsets.only(left: 40, right: 8, bottom: 4),
               decoration: BoxDecoration(
                 color: isSubItemSelected
-                    ? const Color(0xFF36617A)
+                    ? RoleTheme.teacherTheme.drawerSelected
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
               ),

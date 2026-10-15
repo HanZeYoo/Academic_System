@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../utils/role_theme.dart';
 
 enum UserRole { admin, teacher, student }
 
@@ -356,9 +357,9 @@ class _SharedProfileScreenState extends State<SharedProfileScreen> {
 
   Color _getThemeColor() {
     switch (widget.role) {
-      case UserRole.admin: return const Color(0xFF24445A);
-      case UserRole.teacher: return const Color(0xFF3383B3);
-      case UserRole.student: return const Color(0xFF1E66B4);
+      case UserRole.admin: return RoleTheme.adminTheme.primary;
+      case UserRole.teacher: return RoleTheme.teacherTheme.primary;
+      case UserRole.student: return RoleTheme.studentTheme.primary;
     }
   }
 

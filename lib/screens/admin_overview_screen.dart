@@ -3,7 +3,6 @@ import 'package:fl_chart/fl_chart.dart';
 import '../database_helper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'reports_generation_screen.dart';
-import 'failure_analytics_screen.dart';
 import '../utils/dialog_utils.dart';
 class AdminOverviewScreen extends StatefulWidget {
   const AdminOverviewScreen({super.key});
@@ -24,12 +23,12 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
   double _latePercent = 0.0;
   double _absentPercent = 0.0;
 
-  // Failure Rates
-  List<Map<String, dynamic>> _failureRates = [];
-  bool _showAllFailureRates = false;
+  // Subject Performance & Mastery Rates
+  final List<Map<String, dynamic>> _subjectMasteryRates = [];
+  bool _showAllMasteryRates = false;
 
   // Trend Data (1st Term, 2nd Term, 3rd Term)
-  List<double> _trendData = [0.0, 0.0, 0.0];
+  final List<double> _trendData = [0.0, 0.0, 0.0];
 
   String _selectedPeriod = '1st Term';
   static const _periods = [
@@ -199,16 +198,20 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
         }
       }
 
-      _failureRates.clear();
+      _subjectMasteryRates.clear();
       subjectStats.forEach((subject, stats) {
         if (stats['total']! > 0) {
-          _failureRates.add({
+          final total = stats['total']!;
+          final passed = total - stats['failed']!;
+          _subjectMasteryRates.add({
             'subject': subject,
-            'rate': (stats['failed']! / stats['total']!) * 100
+            'rate': (passed / total) * 100,
+            'total': total,
+            'passed': passed,
           });
         }
       });
-      _failureRates.sort((a, b) => (b['rate'] as double).compareTo(a['rate'] as double));
+      _subjectMasteryRates.sort((a, b) => (b['rate'] as double).compareTo(a['rate'] as double));
       
       // Calculate Trend Data (Q1, Q2, Q3, Q4)
       List<String> quarters = ['1st Term', '2nd Term', '3rd Term'];
@@ -288,8 +291,8 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
           _buildTrendChartCard(),
           const SizedBox(height: 16),
 
-          // Failure Rate by Subject
-          _buildFailureRateCard(),
+          // Subject Performance & Mastery Rates
+          _buildSubjectMasteryCard(),
           const SizedBox(height: 16),
 
           // Attendance Overview
@@ -423,7 +426,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
                   horizontalInterval: 20,
                   getDrawingHorizontalLine: (value) {
                     return FlLine(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       strokeWidth: 1,
                     );
                   },
@@ -490,8 +493,8 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
                       show: true,
                       gradient: LinearGradient(
                         colors: [
-                          const Color(0xFF1664C5).withOpacity(0.3),
-                          const Color(0xFF1664C5).withOpacity(0.0),
+                          const Color(0xFF1664C5).withValues(alpha: 0.3),
+                          const Color(0xFF1664C5).withValues(alpha: 0.0),
                         ],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
@@ -516,13 +519,13 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
     );
   }
 
-  Widget _buildFailureRateCard() {
+  Widget _buildSubjectMasteryCard() {
     final colors = [
-      const Color(0xFFEF4444),
-      const Color(0xFFF59E0B),
-      const Color(0xFF10B981),
-      const Color(0xFF3B82F6),
-      const Color(0xFF8B5CF6)
+      const Color(0xFF059669),
+      const Color(0xFF0284C7),
+      const Color(0xFF2563EB),
+      const Color(0xFFD97706),
+      const Color(0xFF8B5CF6),
     ];
 
     return Container(
@@ -539,14 +542,14 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
               Text(
-                'Failure Rate by Subject',
+                'Subject Performance & Mastery Rates',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF1E293B),
                 ),
               ),
-              Icon(Icons.info_outline, color: Colors.black38, size: 20),
+              Icon(Icons.insights_rounded, color: Color(0xFF2563EB), size: 20),
             ],
           ),
           const SizedBox(height: 4),
@@ -554,8 +557,8 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Select Grading Period',
-                style: TextStyle(color: Colors.black45, fontSize: 13),
+                'Learners meeting competency standards (≥75%)',
+                style: TextStyle(color: Colors.black54, fontSize: 12),
               ),
               DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
@@ -573,28 +576,29 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
             ],
           ),
           const SizedBox(height: 20),
-          ...(_showAllFailureRates ? _failureRates : _failureRates.take(5)).toList().asMap().entries.map((entry) {
+          ...(_showAllMasteryRates ? _subjectMasteryRates : _subjectMasteryRates.take(5).toList()).asMap().entries.map((entry) {
              int idx = entry.key;
              Map<String, dynamic> item = entry.value;
+             final double rate = (item['rate'] as num).toDouble();
              return Padding(
                 padding: const EdgeInsets.only(bottom: 12.0),
-                child: _buildFailureBar(
+                child: _buildMasteryBar(
                   item['subject'],
-                  item['rate'] / 100,
-                  '${item['rate'].toStringAsFixed(1)}%',
-                  const Color(0xFF1664C5),
-                  colors[idx % colors.length]
+                  rate / 100,
+                  '${rate.toStringAsFixed(1)}%',
+                  colors[idx % colors.length],
+                  colors[idx % colors.length],
                 ),
              );
-          }).toList(),
-          if (_failureRates.isNotEmpty) const SizedBox(height: 8),
-          _buildViewFailureReportButton(),
+          }),
+          if (_subjectMasteryRates.isNotEmpty) const SizedBox(height: 8),
+          _buildViewMasteryReportButton(),
         ],
       ),
     );
   }
 
-  Widget _buildFailureBar(String subject, double value, String percentageStr, Color barColor, Color percentColor) {
+  Widget _buildMasteryBar(String subject, double value, String percentageStr, Color barColor, Color percentColor) {
     return Row(
       children: [
         SizedBox(
@@ -608,8 +612,8 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: value,
-              backgroundColor: Colors.black.withOpacity(0.05),
+              value: value.clamp(0.0, 1.0),
+              backgroundColor: Colors.black.withValues(alpha: 0.05),
               valueColor: AlwaysStoppedAnimation<Color>(barColor),
               minHeight: 6,
             ),
@@ -617,7 +621,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
         ),
         const SizedBox(width: 12),
         SizedBox(
-          width: 32,
+          width: 44,
           child: Text(
             percentageStr,
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: percentColor),
@@ -747,8 +751,8 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
     );
   }
 
-  Widget _buildViewFailureReportButton() {
-    if (_failureRates.length <= 5) return const SizedBox.shrink();
+  Widget _buildViewMasteryReportButton() {
+    if (_subjectMasteryRates.length <= 5) return const SizedBox.shrink();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -760,11 +764,11 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
             child: TextButton.icon(
               onPressed: () {
                 setState(() {
-                  _showAllFailureRates = !_showAllFailureRates;
+                  _showAllMasteryRates = !_showAllMasteryRates;
                 });
               },
-              icon: Icon(_showAllFailureRates ? Icons.expand_less : Icons.expand_more, size: 18),
-              label: Text(_showAllFailureRates ? 'Show Less' : 'View All Subjects'),
+              icon: Icon(_showAllMasteryRates ? Icons.expand_less : Icons.expand_more, size: 18),
+              label: Text(_showAllMasteryRates ? 'Show Less' : 'View All Subjects'),
               style: TextButton.styleFrom(
                 foregroundColor: const Color(0xFF1664C5),
                 backgroundColor: const Color(0xFFE6F0FA),

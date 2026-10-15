@@ -372,9 +372,9 @@ class _ReportsGenerationScreenState extends State<ReportsGenerationScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: _buildCategoryCard(
-                  Icons.show_chart,
-                  const Color(0xFFF6A65C),
-                  'Failure Analytics',
+                  Icons.insights,
+                  const Color(0xFF0D6EFD),
+                  'Performance Analytics',
                 ),
               ),
             ],
@@ -469,9 +469,9 @@ class _ReportsGenerationScreenState extends State<ReportsGenerationScreen> {
               IconData icon = Icons.insert_chart;
               Color color = const Color(0xFF4A89DC);
               
-              if (report['category'] == 'Failure Analytics') {
-                icon = Icons.show_chart;
-                color = const Color(0xFFF6A65C);
+              if (report['category'] == 'Performance Analytics' || report['category'] == 'Failure Analytics') {
+                icon = Icons.insights;
+                color = const Color(0xFF0D6EFD);
               } else if (report['category'] == 'Attendance Report') {
                 icon = Icons.calendar_today;
                 color = const Color(0xFF4DC271);
@@ -716,7 +716,7 @@ class _ReportsGenerationScreenState extends State<ReportsGenerationScreen> {
           double pct = s['total'] > 0 ? (s['score'] / s['total']) * 100 : 0;
           data.add([sId, s['name'], '${s['score']}/${s['total']}', '${pct.toStringAsFixed(1)}%']);
         }
-      } else if (category == 'Failure Analytics') {
+      } else if (category == 'Performance Analytics' || category == 'Failure Analytics') {
         headers = ['Student ID', 'Name', 'Status'];
         final scores = await db.getScoresForClass(
           subjectCode: subjectCode,

@@ -16,6 +16,7 @@ import 'login_screen.dart';
 import 'admin_archive_screen.dart';
 import 'user_management_screen.dart';
 import 'enrollment_management_screen.dart';
+import '../utils/role_theme.dart';
 
 class AdminDashboard extends StatefulWidget {
   final String username;
@@ -132,10 +133,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Color _getRoleBadgeColor() {
-    final role = _currentRole.toLowerCase();
-    if (role == 'principal') return const Color(0xFF818CF8); // Indigo 400
-    if (role == 'registrar') return const Color(0xFF2DD4BF); // Teal 400
-    return const Color(0xFFC084FC); // Purple 400
+    return RoleTheme.getRoleTheme(_currentRole).badgeTextColor;
   }
 
   String _getAppBarTitle(List<_DashboardMenuItem> menuItems) {
@@ -326,7 +324,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         _buildSubTabBar(
           tabs: const [
             _AdminTabItem(title: 'Academic Evaluation', icon: Icons.assignment_turned_in_outlined),
-            _AdminTabItem(title: 'Failure Analytics', icon: Icons.insights_outlined),
+            _AdminTabItem(title: 'Performance Analytics', icon: Icons.insights_outlined),
           ],
           activeIndex: _academicsSubTab,
           onTabSelected: (index) => setState(() => _academicsSubTab = index),
@@ -334,7 +332,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         Expanded(
           child: _academicsSubTab == 0
               ? AcademicEvaluationScreen(username: widget.username, role: _currentRole)
-              : FailureAnalyticsScreen(username: widget.username),
+              : PerformanceAnalyticsScreen(username: widget.username),
         ),
       ],
     );
@@ -506,10 +504,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    const Color appBarColor = Color(0xFF2B81B7);
-    const Color drawerColor = Color(0xFF24445A);
-    const Color hoveredColor = Color(0xFF335C7A);
-    const Color backgroundColor = Color(0xFFCBEAFB);
+    final roleTheme = RoleTheme.getRoleTheme(_currentRole);
+    final Color appBarColor = roleTheme.primary;
+    final Color drawerColor = roleTheme.drawerBackground;
+    final Color hoveredColor = roleTheme.drawerSelected;
+    final Color backgroundColor = roleTheme.scaffoldBackground;
     const Color textWhite = Colors.white;
 
     final menuItems = _getMenuItems();
@@ -555,8 +554,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   right: 16,
                   bottom: 20,
                 ),
-                decoration: const BoxDecoration(
-                  border: Border(
+                decoration: BoxDecoration(
+                  color: roleTheme.drawerHeader,
+                  border: const Border(
                     bottom: BorderSide(color: Colors.white24, width: 0.5),
                   ),
                 ),
@@ -585,25 +585,32 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 4),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                             decoration: BoxDecoration(
-                              color: _getRoleBadgeColor().withValues(alpha: 0.25),
+                              color: roleTheme.badgeBackground,
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(
-                                color: _getRoleBadgeColor().withValues(alpha: 0.6),
-                                width: 0.8,
+                                color: roleTheme.badgeTextColor.withValues(alpha: 0.7),
+                                width: 0.9,
                               ),
                             ),
-                            child: Text(
-                              _getRoleBadgeText(),
-                              style: TextStyle(
-                                color: _getRoleBadgeColor(),
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(roleTheme.icon, size: 11, color: roleTheme.badgeTextColor),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _getRoleBadgeText(),
+                                  style: TextStyle(
+                                    color: roleTheme.badgeTextColor,
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],

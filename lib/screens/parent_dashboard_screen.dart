@@ -12,6 +12,7 @@ import 'student_grades_view_screen.dart';
 import 'student_attendance_view_screen.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../utils/role_theme.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   final String username;
@@ -426,6 +427,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final roleTheme = RoleTheme.parentTheme;
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) async {
@@ -465,106 +467,110 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFD6F0FA),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF3383B3),
-          elevation: 0,
-          leading: Builder(
-            builder: (ctx) => IconButton(
-              icon: const Icon(Icons.menu, color: Colors.white),
-              onPressed: () => Scaffold.of(ctx).openDrawer(),
-            ),
-          ),
-          title: Row(
-            children: [
-              Image.asset(
-                'assets/images/logo.png',
-                height: 22,
-                width: 22,
-                color: Colors.white,
-                colorBlendMode: BlendMode.srcIn,
-                errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
+        backgroundColor: roleTheme.scaffoldBackground,
+          appBar: AppBar(
+            backgroundColor: roleTheme.primary,
+            elevation: 0,
+            leading: Builder(
+              builder: (ctx) => IconButton(
+                icon: const Icon(Icons.menu, color: Colors.white),
+                onPressed: () => Scaffold.of(ctx).openDrawer(),
               ),
-              const SizedBox(width: 8),
-              RichText(
-                text: TextSpan(
-                  style: GoogleFonts.outfit(fontSize: 17, letterSpacing: 0.2),
-                  children: [
-                    const TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                    const TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
-                    TextSpan(
-                      text: _selectedMenu == 'Dashboard' ? '  •  Parent' : '  •  $_selectedMenu',
-                      style: const TextStyle(color: Color(0xFFE2F1FC), fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+            title: Row(
+              children: [
+                Image.asset(
+                  'assets/images/logo.png',
+                  height: 22,
+                  width: 22,
+                  color: Colors.white,
+                  colorBlendMode: BlendMode.srcIn,
+                  errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 8),
+                RichText(
+                  text: TextSpan(
+                    style: GoogleFonts.outfit(fontSize: 17, letterSpacing: 0.2),
+                    children: [
+                      const TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                      const TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                      TextSpan(
+                        text: _selectedMenu == 'Dashboard' ? '  •  Parent' : '  •  $_selectedMenu',
+                        style: const TextStyle(color: Color(0xFFE2F1FC), fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              if (_schoolYears.isNotEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 16.0),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedSchoolYear,
+                        dropdownColor: roleTheme.drawerBackground,
+                        icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        onChanged: (String? newValue) {
+                          if (newValue != null && newValue != _selectedSchoolYear) {
+                            setState(() {
+                              _selectedSchoolYear = newValue;
+                              if (_children.isNotEmpty) {
+                                _fetchDashboardDataForChild(_children[_selectedChildIndex]);
+                              }
+                            });
+                          }
+                        },
+                        items: _schoolYears.map<DropdownMenuItem<String>>((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
+                          );
+                        }).toList(),
+                      ),
                     ),
-                  ],
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.only(right: 16.0),
+                child: CircleAvatar(
+                  backgroundColor: Colors.white,
+                  radius: 18,
+                  child: Icon(Icons.family_restroom,
+                      color: roleTheme.primary, size: 22),
                 ),
               ),
             ],
           ),
-          actions: [
-            if (_schoolYears.isNotEmpty)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 16.0),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedSchoolYear,
-                      dropdownColor: const Color(0xFF224A60),
-                      icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      onChanged: (String? newValue) {
-                        if (newValue != null && newValue != _selectedSchoolYear) {
-                          setState(() {
-                            _selectedSchoolYear = newValue;
-                            if (_children.isNotEmpty) {
-                              _fetchDashboardDataForChild(_children[_selectedChildIndex]);
-                            }
-                          });
-                        }
-                      },
-                      items: _schoolYears.map<DropdownMenuItem<String>>((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: CircleAvatar(
-                backgroundColor: Colors.white,
-                radius: 18,
-                child: const Icon(Icons.family_restroom,
-                    color: Color(0xFF3383B3), size: 22),
-              ),
-            ),
-          ],
+          drawer: _buildDrawer(),
+          body: _buildBody(),
         ),
-        drawer: _buildDrawer(),
-        body: _buildBody(),
-      ),
-    );
-  }
+      );
+    }
 
-  // â”€â”€â”€ Drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Drawer ─────────────────────────────────────────────────────────────
 
   Widget _buildDrawer() {
+    final roleTheme = RoleTheme.parentTheme;
     return Drawer(
-      backgroundColor: const Color(0xFF224A60),
+      backgroundColor: roleTheme.drawerBackground,
       child: SafeArea(
         child: Column(
           children: [
             // Header
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              decoration: BoxDecoration(
+                color: roleTheme.drawerHeader,
+              ),
               child: Row(
                 children: [
                   CircleAvatar(
                     radius: 26,
-                    backgroundColor: const Color(0xFF3383B3),
+                    backgroundColor: roleTheme.primary,
                     child: const Icon(Icons.family_restroom,
                         color: Colors.white, size: 28),
                   ),
@@ -579,10 +585,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             children: const [
                               TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
                               TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
-                              TextSpan(text: ' Parent', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
                             ],
                           ),
                         ),
+                        const SizedBox(height: 3),
+                        RoleTheme.buildRoleBadge('parent', fontSize: 9.5),
+                        const SizedBox(height: 4),
                         Text(
                           widget.username,
                           style: const TextStyle(
@@ -638,7 +646,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF3383B3) : Colors.transparent,
+        color: isSelected ? RoleTheme.parentTheme.drawerSelected : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
       ),
       child: ListTile(
