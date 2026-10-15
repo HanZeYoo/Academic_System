@@ -577,7 +577,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             _buildRoleChip(Icons.school_rounded, 'Teacher'),
                             _buildRoleChip(Icons.person_outline_rounded, 'Student'),
                             _buildRoleChip(Icons.family_restroom_rounded, 'Parent'),
-                            _buildRoleChip(Icons.admin_panel_settings_outlined, 'Admin'),
                           ],
                         ),
                         const SizedBox(height: 10),
