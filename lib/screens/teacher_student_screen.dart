@@ -450,46 +450,43 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                   const SizedBox(height: 16),
 
                   // Filter Chips
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: _filters.map((filter) {
-                        bool isSelected = _selectedFilter == filter;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: ChoiceChip(
-                            label: Text(
-                              filter,
-                              style: TextStyle(
-                                color: isSelected
-                                    ? Colors.white
-                                    : Colors.black87,
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                fontSize: 13,
-                              ),
-                            ),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              if (selected)
-                                setState(() => _selectedFilter = filter);
-                            },
-                            backgroundColor: Colors.white,
-                            selectedColor: const Color(0xFF0D6EFD),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                              side: BorderSide(
-                                color: isSelected
-                                    ? const Color(0xFF0D6EFD)
-                                    : Colors.transparent,
-                              ),
-                            ),
-                            showCheckmark: false,
+                  Wrap(
+                    spacing: 8.0,
+                    runSpacing: 8.0,
+                    children: _filters.map((filter) {
+                      bool isSelected = _selectedFilter == filter;
+                      return ChoiceChip(
+                        label: Text(
+                          filter,
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : Colors.black87,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontSize: 13,
                           ),
-                        );
-                      }).toList(),
-                    ),
+                        ),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() => _selectedFilter = filter);
+                          }
+                        },
+                        backgroundColor: Colors.white,
+                        selectedColor: const Color(0xFF0D6EFD),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: isSelected
+                                ? const Color(0xFF0D6EFD)
+                                : Colors.transparent,
+                          ),
+                        ),
+                        showCheckmark: false,
+                      );
+                    }).toList(),
                   ),
                   const SizedBox(height: 16),
 

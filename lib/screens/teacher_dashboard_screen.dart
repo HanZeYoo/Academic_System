@@ -496,7 +496,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       onRefresh: () => _loadDashboardData(isRefresh: true),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -560,17 +560,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             // Quick Actions
             const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
             const SizedBox(height: 12),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildActionChip('Encode Scores', Icons.edit_document, () => setState(() => _selectedMenu = 'Encode score')),
-                  const SizedBox(width: 12),
-                  _buildActionChip('Take Attendance', Icons.check_circle_outline, () => setState(() => _selectedMenu = 'Attendance')),
-                  const SizedBox(width: 12),
-                  _buildActionChip('View Students', Icons.groups, () => setState(() => _selectedMenu = 'Student')),
-                ],
-              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildActionChip('Encode Scores', Icons.edit_document, () => setState(() => _selectedMenu = 'Encode score')),
+                _buildActionChip('Take Attendance', Icons.check_circle_outline, () => setState(() => _selectedMenu = 'Attendance')),
+                _buildActionChip('View Students', Icons.groups, () => setState(() => _selectedMenu = 'Student')),
+              ],
             ),
             const SizedBox(height: 24),
   
@@ -643,23 +640,40 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   }
 
   Widget _buildActionChip(String label, IconData icon, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF3383B3).withOpacity(0.3)),
-          boxShadow: [BoxShadow(color: const Color(0xFF3383B3).withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))],
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: const Color(0xFF3383B3)),
-            const SizedBox(width: 8),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF224A60))),
-          ],
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF3383B3).withOpacity(0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF3383B3).withOpacity(0.06),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: const Color(0xFF3383B3)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF224A60),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

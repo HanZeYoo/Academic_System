@@ -281,136 +281,138 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
             children: [
               // Subject Icon
               Container(
-                width: 64,
-                height: 64,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: iconColor,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: Colors.white, size: 32),
+                child: Icon(icon, color: Colors.white, size: 24),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               // Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Top row: Subject Title & Badges
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
                           child: Text(
                             subject,
                             style: const TextStyle(
-                              fontSize: 17,
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Colors.black87,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (status == 'Active')
+                        const SizedBox(width: 8),
+                        if (status.isNotEmpty) ...[
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF198754).withOpacity(0.12),
+                              color: status == 'Active'
+                                  ? const Color(0xFF198754).withOpacity(0.12)
+                                  : Colors.grey.withOpacity(0.15),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Text(
-                              'Active',
+                            child: Text(
+                              status,
                               style: TextStyle(
                                 fontSize: 10,
-                                color: Color(0xFF198754),
+                                color: status == 'Active'
+                                    ? const Color(0xFF198754)
+                                    : Colors.grey.shade700,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                        if (status == 'Inactive')
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'Inactive',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey,
-                                fontWeight: FontWeight.w600,
+                          const SizedBox(width: 8),
+                        ],
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.people, size: 14, color: Color(0xFF0D6EFD)),
+                            const SizedBox(width: 4),
+                            Text(
+                              capacity,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
                             ),
-                          ),
+                            const Text(
+                              ' Cap.',
+                              style: TextStyle(fontSize: 10, color: Colors.black54),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                     if (gradeLine.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: 2),
+                        padding: const EdgeInsets.only(top: 2, bottom: 4),
                         child: Text(
                           gradeLine,
                           style: const TextStyle(
                             fontSize: 13,
                             color: Colors.black54,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
+                    // Schedule row
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Icon(Icons.event_note, size: 14, color: Colors.black45),
                         const SizedBox(width: 6),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                finalSchedule,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                              if (room.isNotEmpty) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  room,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                              ],
-                            ],
+                          child: Text(
+                            finalSchedule,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
+                    // Room row
+                    if (room.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.meeting_room_outlined, size: 14, color: Colors.black45),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              room.toLowerCase().startsWith('room') ? room : 'Room: $room',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black54,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
-              // Student count from capacity
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.people, size: 14, color: Color(0xFF0D6EFD)),
-                      const SizedBox(width: 4),
-                      Text(
-                        capacity,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                      const Text(
-                        ' Cap.',
-                        style: TextStyle(fontSize: 10, color: Colors.black54),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
@@ -433,9 +435,9 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
-                  child: const Text('View Class', style: TextStyle(fontSize: 12)),
+                  child: const Text('View Class', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -459,9 +461,9 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
-                  child: const Text('Attendance', style: TextStyle(fontSize: 12)),
+                  child: const Text('Attendance', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 ),
               ),
             ],
