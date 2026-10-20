@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'parent_notification_screen.dart';
 import '../database_helper.dart';
+import '../utils/avatar_utils.dart';
 
 class StudentEvaluationDetailScreen extends StatelessWidget {
   final Map<String, dynamic> student;
@@ -175,13 +176,12 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
+              AvatarUtils.buildAvatar(
+                photo: student['profile_picture']?.toString(),
+                name: student['name']?.toString(),
                 radius: 36,
                 backgroundColor: Colors.white.withOpacity(0.2),
-                child: Text(
-                  student['name']?.toString().isNotEmpty == true ? student['name'].toString()[0].toUpperCase() : '?',
-                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
-                ),
+                foregroundColor: Colors.white,
               ),
               const SizedBox(width: 16),
               Expanded(

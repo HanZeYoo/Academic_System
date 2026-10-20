@@ -9,6 +9,7 @@ import 'student_attendance_view_screen.dart';
 import 'shared_profile_screen.dart';
 
 import '../database_helper.dart';
+import '../utils/avatar_utils.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
 
@@ -23,6 +24,7 @@ class StudentDashboardScreen extends StatefulWidget {
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   String _selectedMenu = 'Dashboard';
   String _studentName = '';
+  String? _profilePicture;
   bool _isLoading = true;
   List<Map<String, dynamic>> _schedule = [];
   List<Map<String, dynamic>> _subjectGrades = [];
@@ -54,6 +56,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     } else {
       _studentName = widget.username;
     }
+    _profilePicture = student?['profile_picture']?.toString();
 
     // Fetch Schedule
     _schedule = await dbHelper.getStudentSchedule(widget.username);
@@ -325,10 +328,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                         _selectedMenu = 'Profile';
                       });
                     },
-                    child: CircleAvatar(
-                      backgroundColor: Colors.white,
+                    child: AvatarUtils.buildAvatar(
+                      photo: _profilePicture,
+                      name: _studentName,
                       radius: 18,
-                      child: Icon(Icons.person, color: roleTheme.primary, size: 24),
+                      foregroundColor: roleTheme.primary,
+                      backgroundColor: Colors.white,
                     ),
                   ),
                 ),

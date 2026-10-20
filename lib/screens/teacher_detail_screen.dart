@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../utils/avatar_utils.dart';
 import '../utils/dialog_utils.dart';
 import 'login_screen.dart';
 
@@ -123,10 +124,12 @@ class _TeacherDetailScreenState extends State<TeacherDetailScreen> {
                         shape: BoxShape.circle,
                         color: Colors.white,
                       ),
-                      child: const CircleAvatar(
+                      child: AvatarUtils.buildAvatar(
+                        photo: teacher['profile_picture']?.toString(),
+                        name: teacher['name']?.toString(),
                         radius: 50,
-                        backgroundColor: Color(0xFFE2E8F0),
-                        child: Icon(Icons.person, size: 50, color: Color(0xFF94A3B8)),
+                        foregroundColor: const Color(0xFF1664C5),
+                        backgroundColor: const Color(0xFFE2E8F0),
                       ),
                     ),
                   ),

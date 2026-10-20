@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
+import '../utils/avatar_utils.dart';
 import '../utils/dialog_utils.dart';
 
 class AddStudentScreen extends StatefulWidget {
@@ -27,6 +28,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
   String? _selectedGradeLevel;
   String? _selectedSection;
+  String? _profilePicture;
 
   @override
   void initState() {
@@ -55,6 +57,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       _parentNameController.text = s['parent_name'] ?? '';
       _parentContactController.text = s['parent_contact'] ?? '';
       _parentEmailController.text = s['parent_email'] ?? '';
+      _profilePicture = s['profile_picture']?.toString();
     }
   }
 
@@ -163,6 +166,10 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
           messageText: 'Hello $fullName,<br><br>Your student account has been created successfully.<br><br><b>Username/Email:</b> ${_emailController.text}<br><b>Temporary Password:</b> student123<br><br>Please log in to your account and change your password immediately.',
         );
       }
+    }
+
+    if (_profilePicture != null) {
+      await DatabaseHelper().updateStudentProfilePicture(_emailController.text.trim(), _profilePicture!);
     }
 
     setState(() => _isLoading = false);
@@ -276,56 +283,98 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
 
               // Upload Photo Section
               _buildSectionContainer(
-                child: Row(
-                  children: [
-                    CustomPaint(
-                      painter: _DashedCirclePainter(color: const Color(0xFF93C5FD)),
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.transparent,
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.add_a_photo, color: Color(0xFF0F52BA), size: 28),
-                            SizedBox(height: 4),
-                            Text(
-                              'Upload Photo',
-                              style: TextStyle(
-                                color: Color(0xFF0F52BA),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
+                child: InkWell(
+                  onTap: () async {
+                    final photo = await AvatarUtils.showPhotoPickerModal(
+                      context: context,
+                      primaryColor: const Color(0xFF0F52BA),
+                      hasExistingPhoto: _profilePicture != null && _profilePicture!.isNotEmpty,
+                    );
+                    if (photo != null) {
+                      setState(() {
+                        _profilePicture = photo.isEmpty ? null : photo;
+                      });
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Row(
+                    children: [
+                      if (_profilePicture != null && _profilePicture!.isNotEmpty)
+                        Stack(
+                          children: [
+                            AvatarUtils.buildAvatar(
+                              photo: _profilePicture,
+                              radius: 40,
+                              foregroundColor: const Color(0xFF0F52BA),
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF0F52BA),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.edit, color: Colors.white, size: 12),
                               ),
+                            ),
+                          ],
+                        )
+                      else
+                        CustomPaint(
+                          painter: _DashedCirclePainter(color: const Color(0xFF93C5FD)),
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.transparent,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.add_a_photo, color: Color(0xFF0F52BA), size: 28),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Upload Photo',
+                                  style: TextStyle(
+                                    color: Color(0xFF0F52BA),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _profilePicture != null && _profilePicture!.isNotEmpty
+                                  ? 'Photo Selected (Tap to change)'
+                                  : 'Add a photo to personalize',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1E293B),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _profilePicture != null && _profilePicture!.isNotEmpty
+                                  ? 'Student profile picture is ready to save.'
+                                  : 'JPG, PNG up to 2MB.',
+                              style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 20),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Add a photo to personalize',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF1E293B),
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'JPG, PNG up to 2MB.',
-                            style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 16),

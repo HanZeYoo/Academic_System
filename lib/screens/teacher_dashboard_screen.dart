@@ -15,6 +15,7 @@ import 'teacher_attendance_screen.dart';
 import 'reports_generation_screen.dart';
 import 'announcement_management_screen.dart';
 import '../database_helper.dart';
+import '../utils/avatar_utils.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
 
@@ -30,6 +31,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   String _selectedMenu = 'Dashboard';
   bool _isLoading = true;
   String _teacherName = '';
+  String? _profilePicture;
   int _totalClasses = 0;
   int _totalStudents = 0;
   String _avgAttendance = '0%';
@@ -64,6 +66,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     
     final teacher = await db.getTeacherByEmail(widget.username);
     final tName = teacher?['name']?.toString() ?? 'Teacher';
+    _profilePicture = teacher?['profile_picture']?.toString();
     
     final classes = await db.getSubjectClassesByTeacher(tName, _selectedSchoolYear);
     
@@ -400,10 +403,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         _selectedMenu = 'Profile';
                       });
                     },
-                    child: CircleAvatar(
-                      backgroundColor: Colors.white,
+                    child: AvatarUtils.buildAvatar(
+                      photo: _profilePicture,
+                      name: _teacherName,
                       radius: 18,
-                      child: Icon(Icons.person, color: roleTheme.primary, size: 24),
+                      foregroundColor: roleTheme.primary,
+                      backgroundColor: Colors.white,
                     ),
                   ),
                 ),

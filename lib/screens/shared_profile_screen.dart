@@ -1,7 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import '../database_helper.dart';
+import '../utils/avatar_utils.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
 
@@ -50,8 +49,10 @@ class _SharedProfileScreenState extends State<SharedProfileScreen> {
     
     if (widget.role == UserRole.admin) {
       _adminEmail = widget.username.isNotEmpty ? widget.username : 'admin@school.edu.ph';
+      final adminPic = await db.getAdminProfilePicture(_adminEmail);
       if (mounted) {
         setState(() {
+          _profilePicturePath = adminPic;
           _isLoading = false;
         });
       }
@@ -92,75 +93,60 @@ class _SharedProfileScreenState extends State<SharedProfileScreen> {
   }
 
   Future<void> _pickProfilePicture() async {
-    final picker = ImagePicker();
-    final source = await showModalBottomSheet<ImageSource>(
+    final photo = await AvatarUtils.showPhotoPickerModal(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text('Change Profile Photo',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: CircleAvatar(
-                backgroundColor: const Color(0xFFE8F4FF),
-                child: Icon(Icons.camera_alt, color: _getThemeColor()),
-              ),
-              title: const Text('Take a photo'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: CircleAvatar(
-                backgroundColor: const Color(0xFFE8F4FF),
-                child: Icon(Icons.photo_library, color: _getThemeColor()),
-              ),
-              title: const Text('Choose from gallery'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-            if (_profilePicturePath != null && _profilePicturePath!.isNotEmpty)
-              ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: Color(0xFFFFE8E8),
-                  child: Icon(Icons.delete, color: Colors.red),
-                ),
-                title: const Text('Remove photo', style: TextStyle(color: Colors.red)),
-                onTap: () async {
-                  if (widget.role == UserRole.teacher) {
-                    await DatabaseHelper().updateTeacherProfilePicture(widget.username, '');
-                  } else if (widget.role == UserRole.student) {
-                    await DatabaseHelper().updateStudentProfilePicture(widget.username, '');
-                  }
-                  setState(() => _profilePicturePath = null);
-                  if (context.mounted) Navigator.pop(context);
-                },
-              ),
-          ],
-        ),
-      ),
+      primaryColor: _getThemeColor(),
+      hasExistingPhoto: _profilePicturePath != null && _profilePicturePath!.isNotEmpty,
     );
 
-    if (source == null) return;
-    final XFile? picked = await picker.pickImage(source: source, maxWidth: 800, imageQuality: 85);
-    if (picked != null) {
+    if (photo == null) return;
+
+    setState(() => _isLoading = true);
+    final db = DatabaseHelper();
+
+    if (photo.isEmpty) {
+      // Remove photo
       if (widget.role == UserRole.teacher) {
-        await DatabaseHelper().updateTeacherProfilePicture(widget.username, picked.path);
+        await db.updateTeacherProfilePicture(widget.username, '');
       } else if (widget.role == UserRole.student) {
-        await DatabaseHelper().updateStudentProfilePicture(widget.username, picked.path);
+        await db.updateStudentProfilePicture(widget.username, '');
+      } else if (widget.role == UserRole.admin) {
+        await db.updateAdminProfilePicture(_adminEmail, '');
       }
-      setState(() => _profilePicturePath = picked.path);
+      if (mounted) {
+        setState(() {
+          _profilePicturePath = null;
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile photo removed.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } else {
+      // Update photo
+      if (widget.role == UserRole.teacher) {
+        await db.updateTeacherProfilePicture(widget.username, photo);
+      } else if (widget.role == UserRole.student) {
+        await db.updateStudentProfilePicture(widget.username, photo);
+      } else if (widget.role == UserRole.admin) {
+        await db.updateAdminProfilePicture(_adminEmail, photo);
+      }
+      if (mounted) {
+        setState(() {
+          _profilePicturePath = photo;
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile photo updated successfully!'),
+            backgroundColor: Color(0xFF059669),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -405,25 +391,54 @@ class _SharedProfileScreenState extends State<SharedProfileScreen> {
                 Container(height: 160, width: double.infinity, color: _getThemeColor()),
                 // Avatar
                 Positioned(
-                  top: 30, left: 24,
+                  top: 24,
+                  left: 24,
                   child: GestureDetector(
                     onTap: _pickProfilePicture,
                     child: Stack(
                       children: [
-                        CircleAvatar(
-                          radius: 55,
-                          backgroundColor: Colors.white,
-                          backgroundImage: _profilePicturePath != null && _profilePicturePath!.isNotEmpty
-                              ? FileImage(File(_profilePicturePath!)) : null,
-                          child: _profilePicturePath == null || _profilePicturePath!.isEmpty
-                              ? Icon(Icons.person, size: 80, color: _getThemeColor()) : null,
+                        Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: AvatarUtils.buildAvatar(
+                            photo: _profilePicturePath,
+                            name: displayName,
+                            radius: 52,
+                            foregroundColor: _getThemeColor(),
+                            backgroundColor: const Color(0xFFF1F5F9),
+                          ),
                         ),
                         Positioned(
-                          bottom: 0, right: 0,
+                          bottom: 2,
+                          right: 2,
                           child: Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: BoxDecoration(color: _getThemeColor().withOpacity(0.8), shape: BoxShape.circle),
-                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: _getThemeColor(),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
                           ),
                         ),
                       ],

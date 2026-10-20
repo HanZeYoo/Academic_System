@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../utils/avatar_utils.dart';
 import 'add_teacher_screen.dart';
 import 'teacher_detail_screen.dart';
 
@@ -264,7 +265,13 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
       ),
       child: Row(
         children: [
-          const CircleAvatar(backgroundColor: Color(0xFFD9D9D9), radius: 30),
+          AvatarUtils.buildAvatar(
+            photo: teacher['profile_picture']?.toString(),
+            name: name,
+            radius: 26,
+            foregroundColor: const Color(0xFF1664C5),
+            backgroundColor: const Color(0xFFE2E8F0),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(

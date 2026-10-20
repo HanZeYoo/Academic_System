@@ -574,11 +574,17 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1E293B)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
+                const SizedBox(width: 8),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       '$percent%',
@@ -657,8 +663,8 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
             ),
           ],
         ),
-        content: SizedBox(
-          width: 500,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -732,16 +738,22 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF2563EB)),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'Class Attendance & Presence',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1E293B)),
-                          ),
-                        ],
+                      Expanded(
+                        child: Row(
+                          children: const [
+                            Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF2563EB)),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Class Attendance & Presence',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1E293B)),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Text(
                         '${student['attendanceStats']['percentage']} Attendance',
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2563EB)),
@@ -1121,42 +1133,12 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
           const SizedBox(height: 16),
 
           // Header Title and Constructive Action Buttons
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.auto_graph_rounded,
-                  color: Color(0xFF2563EB),
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'Child Performance Analytics',
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      'Academic mastery, strengths & growth mentorship',
-                      style: TextStyle(fontSize: 11, color: Colors.black54),
-                    ),
-                  ],
-                ),
-              ),
-              // Commend Honors Action
-              if (_outstandingCount > 0)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6.0),
-                  child: TextButton.icon(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 600;
+              final actionButtons = [
+                if (_outstandingCount > 0)
+                  TextButton.icon(
                     onPressed: () {
                       final honorsList = _allStudents.where((s) => (s['rawGrade'] as double) >= 90).toList();
                       _showBulkNotificationDialog(honorsList, 'Honors');
@@ -1173,27 +1155,89 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     ),
                   ),
-                ),
-              // Mentorship Action
-              if (_targetedSupportCount > 0)
-                TextButton.icon(
-                  onPressed: () {
-                    final supportList = _allStudents.where((s) => (s['rawGrade'] as double) < 75).toList();
-                    _showBulkNotificationDialog(supportList, 'Support');
-                  },
-                  icon: const Icon(Icons.handshake_rounded, size: 15),
-                  label: Text(
-                    'Growth Plans ($_targetedSupportCount)',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                if (_targetedSupportCount > 0)
+                  TextButton.icon(
+                    onPressed: () {
+                      final supportList = _allStudents.where((s) => (s['rawGrade'] as double) < 75).toList();
+                      _showBulkNotificationDialog(supportList, 'Support');
+                    },
+                    icon: const Icon(Icons.handshake_rounded, size: 15),
+                    label: Text(
+                      'Growth Plans ($_targetedSupportCount)',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF2563EB),
+                      backgroundColor: const Color(0xFFEFF6FF),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    ),
                   ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF2563EB),
-                    backgroundColor: const Color(0xFFEFF6FF),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ];
+
+              final titleSection = Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.auto_graph_rounded,
+                      color: Color(0xFF2563EB),
+                      size: 22,
+                    ),
                   ),
-                ),
-            ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Child Performance Analytics',
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          'Academic mastery, strengths & growth mentorship',
+                          style: TextStyle(fontSize: 11, color: Colors.black54),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titleSection,
+                    if (actionButtons.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: actionButtons,
+                      ),
+                    ],
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: titleSection),
+                  if (actionButtons.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      children: actionButtons,
+                    ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 14),
 
@@ -1204,7 +1248,8 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
                 // 4 Child Performance Overview Stat Cards
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final cardWidth = (constraints.maxWidth - 12) / 2;
+                    final isDesktop = constraints.maxWidth >= 720;
+                    final cardWidth = isDesktop ? (constraints.maxWidth - 36) / 4 : (constraints.maxWidth - 12) / 2;
                     return Wrap(
                       spacing: 12,
                       runSpacing: 12,
@@ -1265,10 +1310,14 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Child Performance Roster',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                    const Expanded(
+                      child: Text(
+                        'Child Performance Roster',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
+                    const SizedBox(width: 8),
                     DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: _sortBy,
@@ -1491,14 +1540,18 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 6,
             children: [
               const Text(
                 'Subject Performance & Child Mastery',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B)),
               ),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     width: 8,
@@ -1677,10 +1730,14 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
-              Text(
-                'Child Performance Mastery Tiers',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B)),
+              Expanded(
+                child: Text(
+                  'Child Performance Mastery Tiers',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B)),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
+              SizedBox(width: 8),
               Text(
                 'Tap tier to filter roster',
                 style: TextStyle(fontSize: 10, color: Colors.grey),
@@ -1836,17 +1893,15 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Expanded(
-                          child: Text(
-                            name,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B)),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        Text(
+                          name,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B)),
                         ),
-                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
@@ -1902,15 +1957,15 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
             ],
           ),
           const SizedBox(height: 8),
-          // Scores pill summary
-          Row(
+          // Scores pill summary & child strength/growth indicators
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               _buildMiniBadge('WW: ${breakdown['Written Works']}%'),
-              const SizedBox(width: 6),
               _buildMiniBadge('PT: ${breakdown['Performance Tasks']}%'),
-              const SizedBox(width: 6),
               _buildMiniBadge('TE: ${breakdown['Term Exams']}%'),
-              const Spacer(),
               // Child strength indicator
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1923,7 +1978,6 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
                   style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Color(0xFF065F46)),
                 ),
               ),
-              const SizedBox(width: 6),
               // Child growth indicator
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

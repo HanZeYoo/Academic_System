@@ -13,6 +13,7 @@ import 'student_attendance_view_screen.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
+import '../utils/avatar_utils.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   final String username;
@@ -471,6 +472,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           appBar: AppBar(
             backgroundColor: roleTheme.primary,
             elevation: 0,
+            titleSpacing: 0,
             flexibleSpace: Container(
               decoration: BoxDecoration(gradient: roleTheme.appBarGradient),
             ),
@@ -481,6 +483,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               ),
             ),
             title: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Image.asset(
                   'assets/images/logo.png',
@@ -491,17 +494,21 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
                 ),
                 const SizedBox(width: 8),
-                RichText(
-                  text: TextSpan(
-                    style: GoogleFonts.outfit(fontSize: 17, letterSpacing: 0.2),
-                    children: [
-                      const TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                      const TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
-                      TextSpan(
-                        text: _selectedMenu == 'Dashboard' ? '  •  Parent' : '  •  $_selectedMenu',
-                        style: const TextStyle(color: Color(0xFFE2F1FC), fontSize: 13, fontWeight: FontWeight.w500),
-                      ),
-                    ],
+                Flexible(
+                  child: RichText(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    text: TextSpan(
+                      style: GoogleFonts.outfit(fontSize: 16, letterSpacing: 0.2),
+                      children: [
+                        const TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                        const TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                        TextSpan(
+                          text: _selectedMenu == 'Dashboard' ? '  •  Parent' : '  •  $_selectedMenu',
+                          style: const TextStyle(color: Color(0xFFE2F1FC), fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -510,40 +517,48 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               if (_schoolYears.isNotEmpty)
                 Center(
                   child: Padding(
-                    padding: const EdgeInsets.only(right: 16.0),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedSchoolYear,
-                        dropdownColor: roleTheme.drawerBackground,
-                        icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        onChanged: (String? newValue) {
-                          if (newValue != null && newValue != _selectedSchoolYear) {
-                            setState(() {
-                              _selectedSchoolYear = newValue;
-                              if (_children.isNotEmpty) {
-                                _fetchDashboardDataForChild(_children[_selectedChildIndex]);
-                              }
-                            });
-                          }
-                        },
-                        items: _schoolYears.map<DropdownMenuItem<String>>((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedSchoolYear,
+                          isDense: true,
+                          dropdownColor: roleTheme.drawerBackground,
+                          icon: const Icon(Icons.arrow_drop_down, color: Colors.white, size: 18),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                          onChanged: (String? newValue) {
+                            if (newValue != null && newValue != _selectedSchoolYear) {
+                              setState(() {
+                                _selectedSchoolYear = newValue;
+                                if (_children.isNotEmpty) {
+                                  _fetchDashboardDataForChild(_children[_selectedChildIndex]);
+                                }
+                              });
+                            }
+                          },
+                          items: _schoolYears.map<DropdownMenuItem<String>>((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
                   ),
                 ),
               Padding(
-                padding: const EdgeInsets.only(right: 16.0),
+                padding: const EdgeInsets.only(right: 12.0),
                 child: CircleAvatar(
                   backgroundColor: Colors.white,
-                  radius: 18,
+                  radius: 16,
                   child: Icon(Icons.family_restroom,
-                      color: roleTheme.primary, size: 22),
+                      color: roleTheme.primary, size: 18),
                 ),
               ),
             ],
@@ -782,16 +797,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   ),
                   child: Row(
                     children: [
-                      CircleAvatar(
+                      AvatarUtils.buildAvatar(
+                        photo: child['profile_picture']?.toString(),
+                        name: child['name']?.toString(),
                         radius: 20,
                         backgroundColor: isSelected
                             ? Colors.white.withOpacity(0.2)
                             : const Color(0xFF3383B3).withOpacity(0.1),
-                        child: Icon(Icons.person,
-                            color: isSelected
-                                ? Colors.white
-                                : const Color(0xFF3383B3),
-                            size: 20),
+                        foregroundColor: isSelected
+                            ? Colors.white
+                            : const Color(0xFF3383B3),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -898,11 +913,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
+                  AvatarUtils.buildAvatar(
+                    photo: child['profile_picture']?.toString(),
+                    name: child['name']?.toString(),
                     radius: 32,
                     backgroundColor: Colors.white.withOpacity(0.2),
-                    child: const Icon(Icons.person,
-                        color: Colors.white, size: 36),
+                    foregroundColor: Colors.white,
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -915,12 +931,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                               color: Colors.white,
                               fontSize: 20,
                               fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
                         Text(
                           '${child['grade_level']} - ${child['section']}',
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 6),
                         Container(
@@ -1134,11 +1154,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               ),
               child: Column(
                 children: [
-                  CircleAvatar(
+                  AvatarUtils.buildAvatar(
+                    photo: child['profile_picture']?.toString(),
+                    name: name,
                     radius: 44,
                     backgroundColor: Colors.white.withOpacity(0.15),
-                    child:
-                        const Icon(Icons.person, color: Colors.white, size: 52),
+                    foregroundColor: Colors.white,
                   ),
                   const SizedBox(height: 14),
                   Text(name,
@@ -1321,13 +1342,17 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   child: const Icon(Icons.notifications_rounded, color: Color(0xFF3383B3), size: 26),
                 ),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Notifications', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
-                    Text('${notifications.length} alert(s) for ${_selectedChild?['name'] ?? 'your child'}',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Notifications', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
+                      Text('${notifications.length} alert(s) for ${_selectedChild?['name'] ?? 'your child'}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1402,12 +1427,17 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   child: const Icon(Icons.grade_rounded, color: Color(0xFF3383B3), size: 26),
                 ),
                 const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Grades', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
-                    Text('${_selectedChild?['name'] ?? ''} Â· 1st Term', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Grades', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF224A60))),
+                      Text('${_selectedChild?['name'] ?? ''} • 1st Term',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1443,12 +1473,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             ),
             const SizedBox(height: 20),
             // Legend
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 _legendBadge('Excellent', const Color(0xFF1976D2)),
-                const SizedBox(width: 8),
                 _legendBadge('Passed', const Color(0xFF388E3C)),
-                const SizedBox(width: 8),
                 _legendBadge('At-Risk', const Color(0xFFD32F2F)),
               ],
             ),
@@ -1964,12 +1994,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   children: [
                     Icon(Icons.psychology, color: Color(0xFF3383B3), size: 28),
                     SizedBox(width: 10),
-                    Text(
-                      'AI Intervention Plan',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF224A60),
+                    Expanded(
+                      child: Text(
+                        'AI Intervention Plan',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF224A60),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -2102,15 +2136,21 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.forum_outlined, color: Color(0xFF3383B3), size: 22),
-                  SizedBox(width: 8),
-                  Text(
-                    'Ask the AI Assistant',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60)),
-                  ),
-                ],
+              const Expanded(
+                child: Row(
+                  children: [
+                    Icon(Icons.forum_outlined, color: Color(0xFF3383B3), size: 22),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Ask the AI Assistant',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               if (_chatHistory.isNotEmpty)
                 TextButton.icon(
@@ -2470,19 +2510,23 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
                     color: Color(0xFF3383B3), size: 26),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Attendance',
-                      style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF224A60))),
-                  Text(
-                    '${widget.studentName} Â· 1st Term',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Attendance',
+                        style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF224A60))),
+                    Text(
+                      '${widget.studentName} • 1st Term',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
+import '../utils/avatar_utils.dart';
 
 class ParentNotificationScreen extends StatefulWidget {
   final String username;
@@ -414,9 +415,12 @@ class _ParentNotificationScreenState
           ),
           child: Row(
             children: [
-              CircleAvatar(
+              AvatarUtils.buildAvatar(
+                photo: student['profile_picture']?.toString(),
+                name: student['name']?.toString(),
+                radius: 20,
                 backgroundColor: isHighRisk ? const Color(0xFFFDECEE) : const Color(0xFFFFF3CD),
-                child: Icon(Icons.warning, color: isHighRisk ? const Color(0xFFE74C3C) : Colors.orange, size: 20),
+                foregroundColor: isHighRisk ? const Color(0xFFE74C3C) : Colors.orange,
               ),
               const SizedBox(width: 12),
               Expanded(

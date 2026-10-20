@@ -5,6 +5,7 @@ import 'package:nfc_manager/nfc_manager.dart';
 import 'dart:async';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../utils/avatar_utils.dart';
 
 class TeacherAttendanceScreen extends StatefulWidget {
   final String username;
@@ -127,6 +128,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
         'status': status,
         'color': baseColor.shade100,
         'iconColor': baseColor,
+        'profile_picture': student['profile_picture']?.toString(),
       });
     }
 
@@ -896,10 +898,12 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
         children: [
           Row(
             children: [
-              CircleAvatar(
+              AvatarUtils.buildAvatar(
+                photo: student['profile_picture']?.toString(),
+                name: student['name'],
                 radius: 22,
                 backgroundColor: student['color'],
-                child: Icon(Icons.person, color: student['iconColor'], size: 24),
+                foregroundColor: student['iconColor'],
               ),
               const SizedBox(width: 16),
               Expanded(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../utils/avatar_utils.dart';
 import 'class_evaluation_report_screen.dart';
 import 'student_evaluation_detail_screen.dart';
 
@@ -467,7 +468,7 @@ class _AcademicEvaluationScreenState
                   name: student['name'].toString(),
                   section: student['section'].toString(),
                   id: sid,
-                  avatarUrl: '',
+                  avatarUrl: student['profile_picture']?.toString() ?? '',
                   overallGrade: hasScores ? '${grade.toStringAsFixed(1)}%' : 'N/A',
                   gradeColor: !hasScores
                       ? Colors.grey
@@ -936,13 +937,12 @@ class _AcademicEvaluationScreenState
                 children: [
                   Row(
                     children: [
-                      CircleAvatar(
+                      AvatarUtils.buildAvatar(
+                        photo: avatarUrl,
+                        name: name,
                         radius: 20,
                         backgroundColor: const Color(0xFFE0E7FF),
-                        child: Text(
-                          name.isNotEmpty ? name[0].toUpperCase() : '?',
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
-                        ),
+                        foregroundColor: const Color(0xFF4F46E5),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1021,13 +1021,12 @@ class _AcademicEvaluationScreenState
             return Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
+                AvatarUtils.buildAvatar(
+                  photo: avatarUrl,
+                  name: name,
                   radius: 24,
                   backgroundColor: const Color(0xFFE0E7FF),
-                  child: Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : '?',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF4F46E5), fontSize: 18),
-                  ),
+                  foregroundColor: const Color(0xFF4F46E5),
                 ),
                 const SizedBox(width: 16),
                 Expanded(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../utils/avatar_utils.dart';
 
 class StudentGradesScreen extends StatefulWidget {
   final Map<String, dynamic> student;
@@ -117,15 +118,12 @@ class _StudentGradesScreenState extends State<StudentGradesScreen> {
             ),
             child: Row(
               children: [
-                CircleAvatar(
+                AvatarUtils.buildAvatar(
+                  photo: student['profile_picture']?.toString(),
+                  name: student['name']?.toString(),
                   radius: 30,
                   backgroundColor: Colors.white.withOpacity(0.2),
-                  child: Text(
-                    (student['name']?.toString().isNotEmpty == true)
-                        ? student['name'].toString()[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
+                  foregroundColor: Colors.white,
                 ),
                 const SizedBox(width: 16),
                 Expanded(

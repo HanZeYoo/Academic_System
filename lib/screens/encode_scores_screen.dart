@@ -5,6 +5,7 @@ import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../utils/avatar_utils.dart';
 import 'ecr_import_screen.dart';
 
 class EncodeScoresScreen extends StatefulWidget {
@@ -929,25 +930,14 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                                       flex: 4,
                                       child: Row(
                                         children: [
-                                          CircleAvatar(
+                                          AvatarUtils.buildAvatar(
+                                            photo: student['profile_picture']?.toString(),
+                                            name: student['name']?.toString(),
                                             radius: 15,
                                             backgroundColor: idx % 2 == 0
                                                 ? Colors.blue.shade100
                                                 : Colors.pink.shade100,
-                                            child: Text(
-                                              (student['name']
-                                                          ?.toString()
-                                                          .isNotEmpty ==
-                                                      true)
-                                                  ? student['name']
-                                                      .toString()[0]
-                                                      .toUpperCase()
-                                                  : '?',
-                                              style: const TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.black54),
-                                            ),
+                                            foregroundColor: Colors.black54,
                                           ),
                                           const SizedBox(width: 8),
                                           Expanded(

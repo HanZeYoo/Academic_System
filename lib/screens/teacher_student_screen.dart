@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import 'student_detail_screen.dart';
 import 'student_grades_screen.dart';
+import '../utils/avatar_utils.dart';
 
 class TeacherStudentScreen extends StatefulWidget {
   final String username;
@@ -658,19 +659,12 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Avatar
-              CircleAvatar(
+              AvatarUtils.buildAvatar(
+                photo: student['profile_picture']?.toString(),
+                name: student['name']?.toString(),
                 radius: 28,
                 backgroundColor: const Color(0xFFE7F1FF),
-                child: Text(
-                  (student['name']?.toString().isNotEmpty == true)
-                      ? student['name'].toString()[0].toUpperCase()
-                      : '?',
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0D6EFD),
-                  ),
-                ),
+                foregroundColor: const Color(0xFF0D6EFD),
               ),
               const SizedBox(width: 16),
 

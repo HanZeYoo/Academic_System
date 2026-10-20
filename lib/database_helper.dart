@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DatabaseHelper {
@@ -414,7 +415,19 @@ class DatabaseHelper {
   // Get a single student by email
   Future<Map<String, dynamic>?> getStudentByEmail(String email) async {
     final results = await Supabase.instance.client.from('students').select().eq('email', email).limit(1);
-    if (results.isNotEmpty) return results.first as Map<String, dynamic>;
+    if (results.isNotEmpty) {
+      final map = Map<String, dynamic>.from(results.first);
+      if (map['profile_picture'] == null || map['profile_picture'].toString().trim().isEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final cached = prefs.getString('profile_pic_student_$email');
+          if (cached != null && cached.isNotEmpty) {
+            map['profile_picture'] = cached;
+          }
+        } catch (_) {}
+      }
+      return map;
+    }
     return null;
   }
 
@@ -427,7 +440,19 @@ class DatabaseHelper {
 
   // Update student profile picture path
   Future<void> updateStudentProfilePicture(String email, String imagePath) async {
-    await Supabase.instance.client.from('students').update({'profile_picture': imagePath}).eq('email', email);
+    try {
+      await Supabase.instance.client.from('students').update({'profile_picture': imagePath}).eq('email', email);
+    } catch (e) {
+      print('Supabase updateStudentProfilePicture error: $e');
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (imagePath.isEmpty) {
+        await prefs.remove('profile_pic_student_$email');
+      } else {
+        await prefs.setString('profile_pic_student_$email', imagePath);
+      }
+    } catch (_) {}
   }
 
   // Get student schedule based on enrolled grade level and section
@@ -902,7 +927,20 @@ class DatabaseHelper {
   // Get teacher record by email (used as login username)
   Future<Map<String, dynamic>?> getTeacherByEmail(String email) async {
     final results = await Supabase.instance.client.from('teachers').select().eq('email', email).limit(1);
-    return results.isNotEmpty ? results.first as Map<String, dynamic> : null;
+    if (results.isNotEmpty) {
+      final map = Map<String, dynamic>.from(results.first);
+      if (map['profile_picture'] == null || map['profile_picture'].toString().trim().isEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final cached = prefs.getString('profile_pic_teacher_$email');
+          if (cached != null && cached.isNotEmpty) {
+            map['profile_picture'] = cached;
+          }
+        } catch (_) {}
+      }
+      return map;
+    }
+    return null;
   }
 
   // Get teacher record by teacher ID
@@ -1001,7 +1039,40 @@ class DatabaseHelper {
 
   // Update teacher profile picture path
   Future<void> updateTeacherProfilePicture(String email, String imagePath) async {
-    await Supabase.instance.client.from('teachers').update({'profile_picture': imagePath}).eq('email', email);
+    try {
+      await Supabase.instance.client.from('teachers').update({'profile_picture': imagePath}).eq('email', email);
+    } catch (e) {
+      print('Supabase updateTeacherProfilePicture error: $e');
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (imagePath.isEmpty) {
+        await prefs.remove('profile_pic_teacher_$email');
+      } else {
+        await prefs.setString('profile_pic_teacher_$email', imagePath);
+      }
+    } catch (_) {}
+  }
+
+  // Admin Profile Picture
+  Future<void> updateAdminProfilePicture(String email, String imagePath) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (imagePath.isEmpty) {
+        await prefs.remove('profile_pic_admin_$email');
+      } else {
+        await prefs.setString('profile_pic_admin_$email', imagePath);
+      }
+    } catch (_) {}
+  }
+
+  Future<String?> getAdminProfilePicture(String email) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('profile_pic_admin_$email');
+    } catch (_) {
+      return null;
+    }
   }
 
   // Update a teacher

@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
+import '../utils/avatar_utils.dart';
 import '../utils/dialog_utils.dart';
 import 'add_student_screen.dart';
 import 'student_detail_screen.dart';
@@ -218,49 +219,111 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
           const SizedBox(height: 24),
 
           // Title and Add button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Student List',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              Row(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 480;
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Student List',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _importCSV,
+                            icon: const Icon(Icons.upload_file, size: 18),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('Import CSV'),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF1664C5),
+                              side: const BorderSide(color: Color(0xFF1664C5)),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const AddStudentScreen()),
+                              );
+                              if (result == true) {
+                                _loadStudents();
+                              }
+                            },
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('Add Student'),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1664C5),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  OutlinedButton.icon(
-                    onPressed: _importCSV,
-                    icon: const Icon(Icons.upload_file, size: 18),
-                    label: const Text('Import CSV'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1664C5),
-                      side: const BorderSide(color: Color(0xFF1664C5)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
+                  const Text(
+                    'Student List',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(width: 12),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const AddStudentScreen()),
-                      );
-                      if (result == true) {
-                        _loadStudents();
-                      }
-                    },
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add Student'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1664C5),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _importCSV,
+                        icon: const Icon(Icons.upload_file, size: 18),
+                        label: const Text('Import CSV'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF1664C5),
+                          side: const BorderSide(color: Color(0xFF1664C5)),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const AddStudentScreen()),
+                          );
+                          if (result == true) {
+                            _loadStudents();
+                          }
+                        },
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add Student'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1664C5),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              ),
-            ],
+              );
+            },
           ),
           const SizedBox(height: 16),
 
@@ -410,7 +473,13 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
       ),
       child: Row(
         children: [
-          const CircleAvatar(backgroundColor: Color(0xFFD9D9D9), radius: 30),
+          AvatarUtils.buildAvatar(
+            photo: student['profile_picture']?.toString(),
+            name: name,
+            radius: 26,
+            foregroundColor: const Color(0xFF1664C5),
+            backgroundColor: const Color(0xFFE2E8F0),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
