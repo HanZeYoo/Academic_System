@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:nfc_manager/nfc_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
@@ -114,21 +116,34 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
     // Format for UI
     final List<Map<String, dynamic>> uiStudents = [];
     final colors = [Colors.blue, Colors.orange, Colors.purple, Colors.teal, Colors.pink, Colors.indigo];
+    final prefs = await SharedPreferences.getInstance();
     
     for (int i = 0; i < rawStudents.length; i++) {
       final student = rawStudents[i];
       final sid = student['student_id'].toString();
+      final email = student['email']?.toString() ?? '';
       final status = attendanceMap[sid] ?? 'Absent'; // Default to Absent
       final baseColor = colors[i % colors.length];
+
+      String? photo = student['profile_picture']?.toString();
+      if (photo == null || photo.trim().isEmpty) {
+        if (email.isNotEmpty) {
+          photo = prefs.getString('profile_pic_student_$email');
+        }
+        if ((photo == null || photo.isEmpty) && sid.isNotEmpty) {
+          photo = prefs.getString('profile_pic_student_$sid');
+        }
+      }
       
       uiStudents.add({
         'id': sid,
         'name': student['name'].toString(),
+        'email': email,
         'class': _selectedClass,
         'status': status,
         'color': baseColor.shade100,
         'iconColor': baseColor,
-        'profile_picture': student['profile_picture']?.toString(),
+        'profile_picture': photo,
       });
     }
 
@@ -1047,148 +1062,1014 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
     );
   }
 
-  void _startNfcScan() async {
-    bool isAvailable = await NfcManager.instance.isAvailable();
-    if (!isAvailable) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('NFC is not available on this device.')),
-        );
-      }
+  void _startNfcScan() {
+    if (_selectedClass == null || _students.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a class with enrolled students first.')),
+      );
       return;
     }
-
-    if (!mounted) return;
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('NFC Attendance Mode'),
-        content: const Column(
+      builder: (ctx) => _NfcAttendanceModalDialog(
+        selectedClass: _selectedClass!,
+        selectedDate: _selectedDate,
+        students: _students,
+        assignedClassesFull: _assignedClassesFull,
+        onAttendanceMarked: (studentId, status, [photo]) {
+          setState(() {
+            for (var student in _students) {
+              if (student['id'].toString() == studentId) {
+                student['status'] = status;
+                if (photo != null && photo.toString().isNotEmpty) {
+                  student['profile_picture'] = photo.toString();
+                }
+                break;
+              }
+            }
+          });
+        },
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NFC ATTENDANCE POP-UP MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum _NfcScanState { waiting, success, late, alreadyRecorded, unregistered, wrongClass }
+
+class _NfcAttendanceModalDialog extends StatefulWidget {
+  final String selectedClass;
+  final DateTime selectedDate;
+  final List<Map<String, dynamic>> students;
+  final List<Map<String, dynamic>> assignedClassesFull;
+  final Function(String studentId, String status, [String? profilePicture]) onAttendanceMarked;
+
+  const _NfcAttendanceModalDialog({
+    required this.selectedClass,
+    required this.selectedDate,
+    required this.students,
+    required this.assignedClassesFull,
+    required this.onAttendanceMarked,
+  });
+
+  @override
+  State<_NfcAttendanceModalDialog> createState() => _NfcAttendanceModalDialogState();
+}
+
+class _NfcAttendanceModalDialogState extends State<_NfcAttendanceModalDialog>
+    with SingleTickerProviderStateMixin {
+  _NfcScanState _scanState = _NfcScanState.waiting;
+  bool _isNfcAvailable = true;
+  bool _isListening = false;
+  bool _isProcessing = false;
+  Map<String, dynamic>? _scannedStudent;
+  String _lastUid = '';
+  int _sessionScanCount = 0;
+  final Set<String> _recordedStudentIdsInSession = {};
+  Timer? _countdownTimer;
+  int _countdownSeconds = 3;
+
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-populate with students already marked Present or Late for this class today
+    for (var s in widget.students) {
+      if (s['status'] == 'Present' || s['status'] == 'Late') {
+        _recordedStudentIdsInSession.add(s['id'].toString());
+      }
+    }
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.08).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+    _initNfc();
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    _pulseController.dispose();
+    try {
+      NfcManager.instance.stopSession();
+    } catch (_) {}
+    super.dispose();
+  }
+
+  Future<void> _initNfc() async {
+    try {
+      final available = await NfcManager.instance.isAvailable();
+      if (mounted) {
+        setState(() => _isNfcAvailable = available);
+      }
+      if (available) {
+        _startListening();
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isNfcAvailable = false);
+      }
+    }
+  }
+
+  void _startListening() {
+    if (_isListening) return;
+    _isListening = true;
+    try {
+      NfcManager.instance.startSession(
+        pollingOptions: {
+          NfcPollingOption.iso14443,
+          NfcPollingOption.iso15693,
+          NfcPollingOption.iso18092,
+        },
+        onDiscovered: (NfcTag tag) async {
+          _handleTagDiscovered(tag);
+        },
+      );
+    } catch (e) {
+      debugPrint('Error starting NFC session: $e');
+    }
+  }
+
+  Future<void> _handleTagDiscovered(NfcTag tag) async {
+    if (_isProcessing) return;
+    try {
+      final Map<String, dynamic> tagData = Map<String, dynamic>.from(tag.data as Map);
+      final Map<String, dynamic>? mifare = tagData['mifareclassic'] != null
+          ? Map<String, dynamic>.from(tagData['mifareclassic'] as Map)
+          : null;
+      final Map<String, dynamic>? nfca = tagData['nfca'] != null
+          ? Map<String, dynamic>.from(tagData['nfca'] as Map)
+          : null;
+      final Map<String, dynamic>? ndef = tagData['ndef'] != null
+          ? Map<String, dynamic>.from(tagData['ndef'] as Map)
+          : null;
+
+      final dynamic identifier = mifare?['identifier'] ?? nfca?['identifier'] ?? ndef?['identifier'];
+      if (identifier != null && identifier is List) {
+        final List<int> idBytes = List<int>.from(identifier);
+        final String uid = idBytes.map((e) => e.toRadixString(16).padLeft(2, '0').toUpperCase()).join(':');
+        _processUid(uid);
+      }
+    } catch (e) {
+      debugPrint('NFC Tag processing error: $e');
+    }
+  }
+
+  Future<void> _processUid(String uid) async {
+    if (_isProcessing) return;
+    _isProcessing = true;
+    _countdownTimer?.cancel();
+    _lastUid = uid;
+
+    try {
+      final res = await Supabase.instance.client
+          .from('students')
+          .select('student_id, name, email, profile_picture, grade_level, section')
+          .eq('nfc_uid', uid)
+          .maybeSingle();
+
+      if (!mounted) return;
+
+      if (res == null) {
+        HapticFeedback.mediumImpact();
+        setState(() {
+          _scanState = _NfcScanState.unregistered;
+        });
+        _startAutoResetTimer();
+        return;
+      }
+
+      final studentMap = Map<String, dynamic>.from(res);
+      String? photo = studentMap['profile_picture']?.toString();
+
+      // Fallback 1: check student list of current class
+      if (photo == null || photo.trim().isEmpty) {
+        final matchInList = widget.students.firstWhere(
+          (s) => s['id']?.toString() == studentMap['student_id']?.toString(),
+          orElse: () => {},
+        );
+        if (matchInList['profile_picture'] != null && matchInList['profile_picture'].toString().trim().isNotEmpty) {
+          photo = matchInList['profile_picture'].toString();
+        }
+      }
+
+      // Fallback 2: check SharedPreferences cache (by email or student_id)
+      if (photo == null || photo.trim().isEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final email = studentMap['email']?.toString() ?? '';
+          final sid = studentMap['student_id']?.toString() ?? '';
+          if (email.isNotEmpty) {
+            photo = prefs.getString('profile_pic_student_$email');
+          }
+          if ((photo == null || photo.isEmpty) && sid.isNotEmpty) {
+            photo = prefs.getString('profile_pic_student_$sid');
+          }
+        } catch (_) {}
+      }
+
+      studentMap['profile_picture'] = photo;
+
+      await _recordAttendanceForStudent(studentMap);
+    } catch (e) {
+      debugPrint('Error processing UID: $e');
+    } finally {
+      Future.delayed(const Duration(milliseconds: 1200), () {
+        if (mounted) {
+          _isProcessing = false;
+        }
+      });
+    }
+  }
+
+  Future<void> _recordAttendanceForStudent(Map<String, dynamic> studentData) async {
+    final matchedStudentId = studentData['student_id'].toString();
+    final studentInClass = widget.students.any((s) => s['id'].toString() == matchedStudentId);
+
+    if (!studentInClass) {
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _scanState = _NfcScanState.wrongClass;
+        _scannedStudent = studentData;
+      });
+      _startAutoResetTimer(seconds: 4);
+      return;
+    }
+
+    // Check if student was already recorded in this session or already marked Present/Late
+    final studentRecord = widget.students.firstWhere(
+      (s) => s['id'].toString() == matchedStudentId,
+      orElse: () => {},
+    );
+    final isAlreadyPresentOrLate = studentRecord['status'] == 'Present' || studentRecord['status'] == 'Late';
+    final isAlreadyRecordedInSession = _recordedStudentIdsInSession.contains(matchedStudentId);
+
+    if (isAlreadyRecordedInSession || isAlreadyPresentOrLate) {
+      // Duplicate tap detected: DO NOT count again, DO NOT re-notify parent
+      _recordedStudentIdsInSession.add(matchedStudentId);
+      final currentStatus = studentRecord['status']?.toString() ?? 'Present';
+
+      final now = DateTime.now();
+      final hour = now.hour > 12 ? now.hour - 12 : (now.hour == 0 ? 12 : now.hour);
+      final period = now.hour >= 12 ? 'PM' : 'AM';
+      final formattedTime = "$hour:${now.minute.toString().padLeft(2, '0')} $period";
+
+      HapticFeedback.selectionClick();
+
+      setState(() {
+        _scanState = _NfcScanState.alreadyRecorded;
+        _scannedStudent = {
+          ...studentData,
+          'status': currentStatus,
+          'time': formattedTime,
+        };
+        // NOTE: _sessionScanCount is NOT incremented!
+      });
+
+      _startAutoResetTimer(seconds: 3);
+      return;
+    }
+
+    // Compute Present vs Late
+    String newStatus = 'Present';
+    if (widget.selectedClass.isNotEmpty && widget.assignedClassesFull.isNotEmpty) {
+      final classRecord = widget.assignedClassesFull.firstWhere(
+        (c) => '${c['subject_code']} - ${c['grade_level']} - ${c['section_name']}' == widget.selectedClass,
+        orElse: () => {},
+      );
+      final timeStr = classRecord['time']?.toString() ?? '';
+      if (timeStr.isNotEmpty) {
+        final timeParts = timeStr.split(' - ');
+        if (timeParts.isNotEmpty) {
+          final startTimeStr = timeParts[0];
+          final match = RegExp(r'(\d+):(\d+)\s*(AM|PM)', caseSensitive: false).firstMatch(startTimeStr.trim());
+          if (match != null) {
+            int h = int.parse(match.group(1)!);
+            int m = int.parse(match.group(2)!);
+            String ampm = match.group(3)!.toUpperCase();
+            if (ampm == 'PM' && h < 12) h += 12;
+            if (ampm == 'AM' && h == 12) h = 0;
+
+            final now = DateTime.now();
+            final startDateTime = DateTime(now.year, now.month, now.day, h, m);
+            final lateThreshold = startDateTime.add(const Duration(minutes: 15));
+
+            if (now.isAfter(lateThreshold)) {
+              newStatus = 'Late';
+            }
+          }
+        }
+      }
+    }
+
+    // Mark student ID as recorded
+    _recordedStudentIdsInSession.add(matchedStudentId);
+
+    // Update parent screen list
+    widget.onAttendanceMarked(matchedStudentId, newStatus, studentData['profile_picture']?.toString());
+
+    // Save to database & send push/SMS notification
+    final dateStr = "${widget.selectedDate.year}-${widget.selectedDate.month.toString().padLeft(2, '0')}-${widget.selectedDate.day.toString().padLeft(2, '0')}";
+    final dbHelper = DatabaseHelper();
+    dbHelper.saveAttendance({
+      'student_id': matchedStudentId,
+      'class_name': widget.selectedClass,
+      'date': dateStr,
+      'status': newStatus,
+    });
+    dbHelper.sendAttendanceNotification(matchedStudentId, studentData['name'] ?? '', widget.selectedClass, newStatus);
+
+    final now = DateTime.now();
+    final hour = now.hour > 12 ? now.hour - 12 : (now.hour == 0 ? 12 : now.hour);
+    final period = now.hour >= 12 ? 'PM' : 'AM';
+    final formattedTime = "$hour:${now.minute.toString().padLeft(2, '0')} $period";
+
+    HapticFeedback.heavyImpact();
+
+    setState(() {
+      _scanState = newStatus == 'Late' ? _NfcScanState.late : _NfcScanState.success;
+      _scannedStudent = {
+        ...studentData,
+        'status': newStatus,
+        'time': formattedTime,
+      };
+      _sessionScanCount++;
+    });
+
+    _startAutoResetTimer(seconds: 3);
+  }
+
+  void _startAutoResetTimer({int seconds = 3}) {
+    _countdownTimer?.cancel();
+    _countdownSeconds = seconds;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_countdownSeconds <= 1) {
+        timer.cancel();
+        _resetToWaiting();
+      } else {
+        setState(() {
+          _countdownSeconds--;
+        });
+      }
+    });
+  }
+
+  void _resetToWaiting() {
+    _countdownTimer?.cancel();
+    _isProcessing = false;
+    if (mounted) {
+      setState(() {
+        _scanState = _NfcScanState.waiting;
+        _scannedStudent = null;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      clipBehavior: Clip.antiAlias,
+      elevation: 16,
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.nfc, size: 64, color: Color(0xFF0F52BA)),
-            SizedBox(height: 16),
-            Text('Ready to scan. Please tap student IDs.'),
+            // Top Header
+            _buildDialogHeader(),
+
+            // Animated Body
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: _buildCurrentStateView(),
+              ),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
+      ),
+    );
+  }
+
+  Widget _buildDialogHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF0F52BA), Color(0xFF1E3A8A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.nfc, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'NFC Attendance Scanner',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.selectedClass,
+                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white70),
+            tooltip: 'Close Scanner',
             onPressed: () {
               NfcManager.instance.stopSession();
-              Navigator.pop(ctx);
+              Navigator.pop(context);
             },
-            child: const Text('Stop Scanning'),
           ),
         ],
       ),
     );
+  }
 
-    NfcManager.instance.startSession(
-      pollingOptions: {
-        NfcPollingOption.iso14443,
-        NfcPollingOption.iso15693,
-        NfcPollingOption.iso18092,
-      },
-      onDiscovered: (NfcTag tag) async {
-      // Extract UID safely
-      debugPrint('NFC Tag Data: ${tag.data}');
-      
-      final Map<String, dynamic> tagData = Map<String, dynamic>.from(tag.data as Map);
-      
-      final Map<String, dynamic>? mifare = tagData['mifareclassic'] != null ? Map<String, dynamic>.from(tagData['mifareclassic'] as Map) : null;
-      final Map<String, dynamic>? nfca = tagData['nfca'] != null ? Map<String, dynamic>.from(tagData['nfca'] as Map) : null;
-      final Map<String, dynamic>? ndef = tagData['ndef'] != null ? Map<String, dynamic>.from(tagData['ndef'] as Map) : null;
-      
-      final dynamic identifier = mifare?['identifier'] ?? nfca?['identifier'] ?? ndef?['identifier'];
-                         
-      if (identifier != null && identifier is List) {
-        final List<int> idBytes = List<int>.from(identifier);
-        final String uid = idBytes.map((e) => e.toRadixString(16).padLeft(2, '0').toUpperCase()).join(':');
-        
-        debugPrint('Extracted UID: $uid');
-        
-        bool found = false;
-        String studentName = "";
+  Widget _buildCurrentStateView() {
+    switch (_scanState) {
+      case _NfcScanState.waiting:
+        return _buildWaitingState();
+      case _NfcScanState.success:
+      case _NfcScanState.late:
+        return _buildScannedSuccessState();
+      case _NfcScanState.alreadyRecorded:
+        return _buildAlreadyRecordedState();
+      case _NfcScanState.unregistered:
+        return _buildUnregisteredState();
+      case _NfcScanState.wrongClass:
+        return _buildWrongClassState();
+    }
+  }
 
-        // Find the student in the current list
-        for (int i = 0; i < _students.length; i++) {
-          final s = _students[i];
-          final rawStudent = _assignedClassesFull.isNotEmpty ? null : null; // Need original raw students which we don't store directly. 
-          // Wait, _students only has id, name, class, status, etc.
-          // Let's check Supabase for the uid directly.
-        }
+  // State 1: Waiting for NFC tap with radar effect
+  Widget _buildWaitingState() {
+    return Column(
+      key: const ValueKey('waiting'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 10),
+        ScaleTransition(
+          scale: _pulseAnimation,
+          child: Container(
+            width: 110,
+            height: 110,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF3B82F6), Color(0xFF0F52BA)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F52BA).withOpacity(0.35),
+                  blurRadius: 20,
+                  spreadRadius: 4,
+                ),
+              ],
+            ),
+            child: const Icon(Icons.contactless_rounded, color: Colors.white, size: 54),
+          ),
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Tap Student ID Card',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Hold the student\'s RFID/NFC card against the back of your phone to take attendance.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FDF4),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF86EFAC)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle_outline, color: Color(0xFF16A34A), size: 16),
+              const SizedBox(width: 6),
+              Text(
+                '$_sessionScanCount student(s) recorded this session',
+                style: const TextStyle(
+                  color: Color(0xFF15803D),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (!_isNfcAvailable) ...[
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, color: Color(0xFFD97706), size: 18),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'NFC hardware not detected.',
+                    style: TextStyle(color: Color(0xFF92400E), fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: () {
+              NfcManager.instance.stopSession();
+              Navigator.pop(context);
+            },
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Stop Scanning', style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ),
+      ],
+    );
+  }
 
-        // Simpler: query db for this uid
-        final res = await Supabase.instance.client.from('students').select('student_id, name').eq('nfc_uid', uid).maybeSingle();
-        if (res != null && mounted) {
-           final matchedStudentId = res['student_id'].toString();
-           // Update local list if they are in this class
-           for (var student in _students) {
-             if (student['id'].toString() == matchedStudentId) {
-               String newStatus = 'Present';
-               // Auto-Late Logic
-               if (_selectedClass != null && _assignedClassesFull.isNotEmpty) {
-                 final classRecord = _assignedClassesFull.firstWhere(
-                   (c) => '${c['subject_code']} - ${c['grade_level']} - ${c['section_name']}' == _selectedClass,
-                   orElse: () => {},
-                 );
-                 final timeStr = classRecord['time']?.toString() ?? '';
-                 if (timeStr.isNotEmpty) {
-                   final timeParts = timeStr.split(' - ');
-                   if (timeParts.isNotEmpty) {
-                     final startTimeStr = timeParts[0];
-                     final match = RegExp(r'(\d+):(\d+)\s*(AM|PM)', caseSensitive: false).firstMatch(startTimeStr.trim());
-                     if (match != null) {
-                       int h = int.parse(match.group(1)!);
-                       int m = int.parse(match.group(2)!);
-                       String ampm = match.group(3)!.toUpperCase();
-                       if (ampm == 'PM' && h < 12) h += 12;
-                       if (ampm == 'AM' && h == 12) h = 0;
-                       
-                       final now = DateTime.now();
-                       final startDateTime = DateTime(now.year, now.month, now.day, h, m);
-                       final lateThreshold = startDateTime.add(const Duration(minutes: 15));
-                       
-                       if (now.isAfter(lateThreshold)) {
-                         newStatus = 'Late';
-                       }
-                     }
-                   }
-                 }
-               }
+  // State 2: Pop-up modal when card is tapped
+  Widget _buildScannedSuccessState() {
+    final isLate = _scanState == _NfcScanState.late;
+    final statusColor = isLate ? const Color(0xFFD97706) : const Color(0xFF16A34A);
+    final statusBgColor = isLate ? const Color(0xFFFEF3C7) : const Color(0xFFDCFCE7);
+    final statusText = isLate ? 'LATE' : 'PRESENT';
+    final student = _scannedStudent ?? {};
 
-               setState(() {
-                 student['status'] = newStatus;
-               });
-               found = true;
-               studentName = res['name'];
-               
-               // Auto-save to DB and send notification
-               final dateStr = "${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
-               final dbHelper = DatabaseHelper();
-               dbHelper.saveAttendance({
-                 'student_id': matchedStudentId,
-                 'class_name': _selectedClass!,
-                 'date': dateStr,
-                 'status': newStatus,
-               });
-               dbHelper.sendAttendanceNotification(matchedStudentId, studentName, _selectedClass!, newStatus);
-               break;
-             }
-           }
-        }
+    return Column(
+      key: const ValueKey('success'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Status Badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: statusBgColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: statusColor.withOpacity(0.4), width: 1.5),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isLate ? Icons.schedule_rounded : Icons.check_circle_rounded,
+                color: statusColor,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'ATTENDANCE RECORDED: $statusText',
+                style: TextStyle(
+                  color: statusColor,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
 
-        if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-             content: Text(found ? 'Marked $studentName as Present' : 'Unrecognized ID or student not in this class'),
-             backgroundColor: found ? Colors.green : Colors.red,
-             duration: const Duration(milliseconds: 1500),
-           ));
-        }
+        // Large Student Avatar with glowing border
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: statusColor, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: statusColor.withOpacity(0.25),
+                blurRadius: 16,
+                spreadRadius: 3,
+              ),
+            ],
+          ),
+          child: AvatarUtils.buildAvatar(
+            photo: student['profile_picture']?.toString(),
+            name: student['name']?.toString(),
+            radius: 46,
+            backgroundColor: const Color(0xFFE2E8F0),
+            foregroundColor: const Color(0xFF0F52BA),
+          ),
+        ),
+        const SizedBox(height: 16),
 
-      }
-    });
+        // Student Full Name
+        Text(
+          student['name']?.toString() ?? 'Student',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+        const SizedBox(height: 4),
+
+        // LRN & Section
+        Text(
+          'LRN: ${student['student_id'] ?? 'N/A'} • Grade ${student['grade_level'] ?? ''} - ${student['section'] ?? ''}',
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 12),
+
+        // Time Stamp
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.access_time_rounded, size: 15, color: Colors.black54),
+              const SizedBox(width: 6),
+              Text(
+                'Recorded at ${student['time'] ?? 'Just Now'}',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Real-time parent notification badge
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0FDF4),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFBBF7D0)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.mark_email_read_rounded, color: Color(0xFF16A34A), size: 18),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Parent notified in real-time via Push Notification & SMS',
+                  style: TextStyle(color: Color(0xFF15803D), fontSize: 11, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Auto-dismiss countdown + action
+        Text(
+          'Scanning next student in $_countdownSeconds s...',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _resetToWaiting,
+            icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
+            label: const Text('Scan Next Student', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F52BA),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // State: Student already recorded / duplicate tap
+  Widget _buildAlreadyRecordedState() {
+    const statusColor = Color(0xFFD97706); // Amber
+    const statusBgColor = Color(0xFFFEF3C7);
+    final student = _scannedStudent ?? {};
+    final recordedStatus = student['status']?.toString() ?? 'Present';
+
+    return Column(
+      key: const ValueKey('alreadyRecorded'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Status Badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: statusBgColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: statusColor.withOpacity(0.4), width: 1.5),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.check_circle_outline_rounded,
+                color: statusColor,
+                size: 20,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'ALREADY RECORDED',
+                style: TextStyle(
+                  color: statusColor,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Student Avatar with glowing amber ring
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: statusColor, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: statusColor.withOpacity(0.2),
+                blurRadius: 16,
+                spreadRadius: 3,
+              ),
+            ],
+          ),
+          child: AvatarUtils.buildAvatar(
+            photo: student['profile_picture']?.toString(),
+            name: student['name']?.toString(),
+            radius: 46,
+            backgroundColor: const Color(0xFFE2E8F0),
+            foregroundColor: const Color(0xFF0F52BA),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Student Full Name
+        Text(
+          student['name']?.toString() ?? 'Student',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+        const SizedBox(height: 4),
+
+        // LRN & Section
+        Text(
+          'LRN: ${student['student_id'] ?? 'N/A'} • Grade ${student['grade_level'] ?? ''} - ${student['section'] ?? ''}',
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 12),
+
+        // Status pill
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.amber.shade200),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.info_outline, size: 15, color: Color(0xFFB45309)),
+              const SizedBox(width: 6),
+              Text(
+                'Currently marked as $recordedStatus',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF92400E)),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Duplicate Tap notice banner
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFFDE68A)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.repeat_rounded, color: Color(0xFFD97706), size: 18),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Card already tapped for this session. Not counted again.',
+                  style: TextStyle(color: Color(0xFF92400E), fontSize: 11, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Auto-dismiss countdown + action
+        Text(
+          'Scanning next student in $_countdownSeconds s...',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _resetToWaiting,
+            icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
+            label: const Text('Scan Next Student', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F52BA),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // State 3: Unregistered NFC card
+  Widget _buildUnregisteredState() {
+    return Column(
+      key: const ValueKey('unregistered'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEE2E2),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.credit_card_off_rounded, color: Color(0xFFDC2626), size: 48),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Unregistered NFC Card',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF991B1B)),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'UID: $_lastUid',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black54),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'This card is not yet linked to any student. Please register this card in Student Management before taking attendance.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.4),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _resetToWaiting,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F52BA),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Try Another Card', style: TextStyle(color: Colors.white)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // State 4: Student is in another class
+  Widget _buildWrongClassState() {
+    final student = _scannedStudent ?? {};
+    return Column(
+      key: const ValueKey('wrongClass'),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Large Student Avatar with amber warning ring
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0xFFD97706), width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFD97706).withValues(alpha: 0.25),
+                blurRadius: 16,
+                spreadRadius: 3,
+              ),
+            ],
+          ),
+          child: AvatarUtils.buildAvatar(
+            photo: student['profile_picture']?.toString(),
+            name: student['name']?.toString(),
+            radius: 46,
+            backgroundColor: const Color(0xFFFEF3C7),
+            foregroundColor: const Color(0xFFD97706),
+            fallbackIcon: Icons.warning_amber_rounded,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Student Not in This Class',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          student['name']?.toString() ?? 'Student',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Enrolled in: Grade ${student['grade_level'] ?? ''} - ${student['section'] ?? ''}',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'This student does not belong to ${widget.selectedClass}. Attendance was not recorded for this class.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.4),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _resetToWaiting,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F52BA),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Continue Scanning', style: TextStyle(color: Colors.white)),
+          ),
+        ),
+      ],
+    );
   }
 }
+
