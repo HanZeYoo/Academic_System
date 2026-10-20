@@ -2183,7 +2183,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 20),
                       child: Text(
-                        'May tanong ba kayo tungkol sa plano? Mag-type sa ibaba.',
+                        'Have questions about the plan or grades? Ask in English or Tagalog.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
                       ),
@@ -2235,7 +2235,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         child: TextField(
                           controller: _chatController,
                           decoration: InputDecoration(
-                            hintText: 'Type your question...',
+                            hintText: 'Type your question in English or Tagalog...',
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           ),
@@ -2300,6 +2300,15 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           "   - Do NOT say that the child has no records or is not in the system. Rather, explain that their records are active in their own dedicated tab.\n"
           "   - Respond politely in the language used by the parent (Filipino/Tagalog or English).";
     }
+
+    // Strict Language Matching Directive
+    contextText += "\n\n### MANDATORY LANGUAGE MATCHING RULE:\n"
+        "Strictly detect and mirror the language of the parent's message:\n"
+        "- If the parent writes/asks in ENGLISH: You MUST answer 100% in natural, clear, empathetic, and professional ENGLISH. Do NOT use Tagalog or Taglish.\n"
+        "- If the parent writes/asks in TAGALOG / FILIPINO: You MUST answer 100% in polite, supportive TAGALOG / FILIPINO (using 'po' and 'opo'). Do NOT answer in English.\n"
+        "- If the parent writes in TAGLISH: Respond in natural, conversational TAGLISH.\n"
+        "- NEVER reply in Tagalog if the question was written in English.\n"
+        "- NEVER reply in English if the question was written in Tagalog.";
 
     try {
       final historyToSend = _chatHistory.length > 7

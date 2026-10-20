@@ -25,7 +25,15 @@ The parent is asking you questions regarding the following Intervention Plan (an
 ${planText}
 """
 Your goal is to answer their questions clearly, simply, and concisely based on the plan and general educational best practices. 
-Use conversational Taglish (Tagalog-English) to make it highly relatable to Filipino parents. 
+
+MANDATORY LANGUAGE MATCHING RULE:
+- Strictly detect and match the language used by the parent in their prompt:
+  * If the parent asks in ENGLISH: Your response MUST be 100% in natural, professional, and empathetic ENGLISH. Do NOT use Tagalog or Taglish.
+  * If the parent asks in TAGALOG / FILIPINO: Your response MUST be 100% in polite, supportive TAGALOG / FILIPINO (using "po" and "opo"). Do NOT answer in English.
+  * If the parent asks in TAGLISH (mixed English and Tagalog): Respond in natural, conversational TAGLISH.
+- NEVER reply in Tagalog if the question was written in English.
+- NEVER reply in English if the question was written in Tagalog.
+
 IMPORTANT FORMATTING RULES: 
 - ALWAYS use Markdown formatting to make your answers easy to read. 
 - Use **bold text** for important keywords, subject names, or scores.
@@ -38,7 +46,7 @@ IMPORTANT FORMATTING RULES:
     // Always start with the system instruction masquerading as the user's initial prompt + an "OK" from the model
     // Gemini API requires alternating user/model roles. We simulate setting the context.
     contents.push({ role: 'user', parts: [{ text: systemInstruction }] });
-    contents.push({ role: 'model', parts: [{ text: 'Naintindihan ko po. Handa na akong sagutin ang inyong mga katanungan tungkol sa Intervention Plan ng inyong anak.' }] });
+    contents.push({ role: 'model', parts: [{ text: 'Understood. I will assist the parent with their child\'s academic intervention plan and will strictly mirror their language: 100% English if they ask in English, and 100% polite Tagalog/Filipino if they ask in Tagalog.' }] });
 
     // Append actual chat history
     if (chatHistory && Array.isArray(chatHistory)) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
 import 'announcement_management_screen.dart';
@@ -24,6 +25,9 @@ class StudentDashboardScreen extends StatefulWidget {
 class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   String _selectedMenu = 'Dashboard';
   String _studentName = '';
+  String _gradeLevel = '';
+  String _sectionName = '';
+  String _studentId = '';
   String? _profilePicture;
   bool _isLoading = true;
   List<Map<String, dynamic>> _schedule = [];
@@ -47,16 +51,30 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     
     // Fetch Name & Details
     final student = await dbHelper.getStudentByEmail(widget.username);
-    final gradeLevel = student?['grade_level'] ?? '';
-    final sectionName = student?['section'] ?? '';
+    final gradeLevel = student?['grade_level']?.toString() ?? '';
+    final sectionName = student?['section']?.toString() ?? '';
+    final sid = student?['student_id']?.toString() ?? '';
     const gradingPeriod = '1st Term'; // Assuming first quarter for dashboard view
+
+    _gradeLevel = gradeLevel;
+    _sectionName = sectionName;
+    _studentId = sid;
 
     if (student != null && student['name'] != null) {
       _studentName = student['name'];
     } else {
       _studentName = widget.username;
     }
-    _profilePicture = student?['profile_picture']?.toString();
+
+    String? photo = student?['profile_picture']?.toString();
+    if (photo == null || photo.trim().isEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        photo = prefs.getString('profile_pic_student_${widget.username}') ??
+            prefs.getString('profile_pic_student_$_studentId');
+      } catch (_) {}
+    }
+    _profilePicture = photo;
 
     // Fetch Schedule
     _schedule = await dbHelper.getStudentSchedule(widget.username);
@@ -588,24 +606,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Header Section
-            Text(
-              'Good Day, ${_studentName.isNotEmpty ? _studentName : widget.username}!',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF224A60),
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'SY 2026-2027 | 1st Term',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            // 1. Header Card (Good Day, Student Name)
+            _buildGreetingCard(),
             const SizedBox(height: 24),
 
             // 2. Academic Overview
@@ -659,6 +661,173 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               }).toList(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildGreetingCard() {
+    final name = _studentName.isNotEmpty ? _studentName : widget.username;
+    final hasClassInfo = _gradeLevel.isNotEmpty || _sectionName.isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF3383B3), Color(0xFF224A60)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF3383B3).withValues(alpha: 0.3),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Student Profile Picture Avatar with glowing ring
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.45), width: 2.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: AvatarUtils.buildAvatar(
+              photo: _profilePicture,
+              name: name,
+              radius: 32,
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
+              foregroundColor: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 16),
+
+          // Details Column
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Tag: Good Day! + SY
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.waving_hand_rounded, color: Color(0xFFFFD54F), size: 12),
+                          SizedBox(width: 5),
+                          Text(
+                            'Good Day!',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      'SY 2026-2027',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Student Full Name
+                Text(
+                  name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+
+                // Grade & Section
+                if (hasClassInfo) ...[
+                  Text(
+                    '$_gradeLevel${_gradeLevel.isNotEmpty && _sectionName.isNotEmpty ? ' • ' : ''}$_sectionName',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                ],
+
+                // Bottom Badges: LRN & Term
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    if (_studentId.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'LRN: $_studentId',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        '1st Term',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -903,6 +1072,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     });
     if (fromDrawer) {
       Navigator.pop(context); // Close the drawer
+    }
+    if (menu == 'Dashboard') {
+      _fetchDashboardData(isRefresh: true);
     }
   }
 }
