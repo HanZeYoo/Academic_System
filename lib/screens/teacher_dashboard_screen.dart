@@ -505,7 +505,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       return EncodeScoresScreen(username: widget.username);
     }
     if (_selectedMenu == 'ECR Import') {
-      return EcrImportScreen(username: widget.username);
+      return EcrImportScreen(
+        username: widget.username,
+        onBackToDashboard: () {
+          setState(() {
+            _selectedMenu = 'Dashboard';
+          });
+        },
+      );
     }
     if (_selectedMenu == 'Profile') {
       return SharedProfileScreen(username: widget.username, role: UserRole.teacher);

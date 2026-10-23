@@ -12,8 +12,13 @@ import '../utils/dialog_utils.dart';
 
 class EcrImportScreen extends StatefulWidget {
   final String username; // Teacher email or username
+  final VoidCallback? onBackToDashboard;
 
-  const EcrImportScreen({super.key, required this.username});
+  const EcrImportScreen({
+    super.key,
+    required this.username,
+    this.onBackToDashboard,
+  });
 
   @override
   State<EcrImportScreen> createState() => _EcrImportScreenState();
@@ -999,74 +1004,215 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     return target.label;
   }
 
+  // ── BACK CONFIRMATION & NAVIGATION HELPERS ──────────────────────────────
+
+  bool get _hasUnsavedWork {
+    if (_currentStep == 3) return false; // Already saved to Supabase
+    return _uploadedBytes != null || _parseResult != null || _currentStep > 0;
+  }
+
+  Future<bool> _onWillPop() async {
+    if (_isSaving) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait for grade import to complete.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return false;
+    }
+
+    if (!_hasUnsavedWork) {
+      return true;
+    }
+
+    final shouldDiscard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+            SizedBox(width: 8),
+            Text('Discard Import?'),
+          ],
+        ),
+        content: const Text(
+          'You have an active ECR file or mapping in progress. Leaving this screen will discard all unimported grade data.',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Stay & Continue', style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Discard', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    return shouldDiscard ?? false;
+  }
+
+  Future<void> _handleBackNavigation() async {
+    final shouldPop = await _onWillPop();
+    if (shouldPop && mounted) {
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      } else if (widget.onBackToDashboard != null) {
+        widget.onBackToDashboard!();
+      }
+    }
+  }
+
+  Future<void> _confirmBackToUpload() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+            SizedBox(width: 8),
+            Text('Change ECR File?'),
+          ],
+        ),
+        content: const Text(
+          'Going back to upload will clear your current column mappings and loaded file. Do you want to choose a different file?',
+          style: TextStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Stay Here', style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Choose Another File', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) {
+      setState(() {
+        _currentStep = 0;
+        _uploadedBytes = null;
+        _uploadedFilename = null;
+        _parseResult = null;
+        _columnMappings.clear();
+        _validationSummary = null;
+        _rosterMatchResult = null;
+      });
+    }
+  }
+
   // ── BUILD UI ─────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 700;
+    final canPopRoute = Navigator.canPop(context);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.drive_folder_upload_rounded, color: Color(0xFF1E293B)),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                isMobile ? 'ECR Import' : 'ECR Grade Import',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
-                overflow: TextOverflow.ellipsis,
+    return PopScope(
+      canPop: !canPopRoute ? !_isSaving : false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        if (canPopRoute) {
+          final shouldPop = await _onWillPop();
+          if (shouldPop && context.mounted) {
+            Navigator.pop(context);
+          }
+        } else if (_isSaving) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please wait for grade import to complete.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          leading: (canPopRoute || widget.onBackToDashboard != null)
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
+                  tooltip: canPopRoute ? 'Back' : 'Back to Dashboard',
+                  onPressed: _handleBackNavigation,
+                )
+              : null,
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.drive_folder_upload_rounded, color: Color(0xFF1E293B)),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  isMobile ? 'ECR Import' : 'ECR Grade Import',
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
+            ],
+          ),
+          actions: [
+            Padding(
+              padding: EdgeInsets.only(right: isMobile ? 8 : 16),
+              child: isMobile
+                  ? IconButton(
+                      onPressed: _showCreateEcrTemplateDialog,
+                      icon: const Icon(Icons.post_add_rounded, color: Color(0xFF059669)),
+                      tooltip: 'Create ECR Template',
+                    )
+                  : ElevatedButton.icon(
+                      onPressed: _showCreateEcrTemplateDialog,
+                      icon: const Icon(Icons.post_add_rounded, size: 18),
+                      label: const Text('Create ECR Template'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
             ),
           ],
+          backgroundColor: Colors.white,
+          elevation: 1,
+          iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
         ),
-        actions: [
-          Padding(
-            padding: EdgeInsets.only(right: isMobile ? 8 : 16),
-            child: isMobile
-                ? IconButton(
-                    onPressed: _showCreateEcrTemplateDialog,
-                    icon: const Icon(Icons.post_add_rounded, color: Color(0xFF059669)),
-                    tooltip: 'Create ECR Template',
-                  )
-                : ElevatedButton.icon(
-                    onPressed: _showCreateEcrTemplateDialog,
-                    icon: const Icon(Icons.post_add_rounded, size: 18),
-                    label: const Text('Create ECR Template'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF059669),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-          ),
-        ],
-        backgroundColor: Colors.white,
-        elevation: 1,
-        iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
-      ),
-      body: (_isLoading || _isSaving)
-          ? _buildLoadingScreen()
-          : SingleChildScrollView(
-              padding: EdgeInsets.all(isMobile ? 12 : 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeaderContextCard(isMobile),
-                  const SizedBox(height: 16),
-                  _buildStepIndicator(isMobile),
-                  const SizedBox(height: 16),
-                  if (_currentStep == 0) _buildUploadStep(isMobile),
-                  if (_currentStep == 1) _buildMappingStep(isMobile),
-                  if (_currentStep == 2) _buildValidationStep(isMobile),
-                  if (_currentStep == 3) _buildSuccessStep(isMobile),
-                ],
+        body: (_isLoading || _isSaving)
+            ? _buildLoadingScreen()
+            : SingleChildScrollView(
+                padding: EdgeInsets.all(isMobile ? 12 : 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeaderContextCard(isMobile),
+                    const SizedBox(height: 16),
+                    _buildStepIndicator(isMobile),
+                    const SizedBox(height: 16),
+                    if (_currentStep == 0) _buildUploadStep(isMobile),
+                    if (_currentStep == 1) _buildMappingStep(isMobile),
+                    if (_currentStep == 2) _buildValidationStep(isMobile),
+                    if (_currentStep == 3) _buildSuccessStep(isMobile),
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 
@@ -1446,15 +1592,33 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                         ],
                       ),
                       const SizedBox(height: 10),
-                      ElevatedButton.icon(
-                        onPressed: _proceedToValidation,
-                        icon: const Icon(Icons.arrow_forward),
-                        label: const Text('Validate & Proceed'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _confirmBackToUpload,
+                              icon: const Icon(Icons.arrow_back, size: 16),
+                              label: const Text('Change File'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF475569),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _proceedToValidation,
+                              icon: const Icon(Icons.arrow_forward, size: 16),
+                              label: const Text('Validate & Proceed'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2563EB),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   )
@@ -1490,6 +1654,16 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                           ],
                         ),
                       ),
+                      OutlinedButton.icon(
+                        onPressed: _confirmBackToUpload,
+                        icon: const Icon(Icons.arrow_back, size: 16),
+                        label: const Text('Change File'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF475569),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
                       ElevatedButton.icon(
                         onPressed: _proceedToValidation,
                         icon: const Icon(Icons.arrow_forward),
@@ -2450,6 +2624,8 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                   onPressed: () {
                     setState(() {
                       _currentStep = 0;
+                      _uploadedBytes = null;
+                      _uploadedFilename = null;
                       _parseResult = null;
                       _columnMappings = [];
                       _validationSummary = null;
@@ -2459,7 +2635,13 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                   label: const Text('Import Another ECR File'),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                    } else if (widget.onBackToDashboard != null) {
+                      widget.onBackToDashboard!();
+                    }
+                  },
                   icon: const Icon(Icons.arrow_back),
                   label: const Text('Return to Dashboard'),
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white),
