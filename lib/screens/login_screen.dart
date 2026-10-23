@@ -284,6 +284,7 @@ class _LoginScreenState extends State<LoginScreen> {
     const Color subtitleColor = Color(0xFF486581);
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           // Base Background Gradient
@@ -969,54 +970,53 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                           ),
                         ),
+                        const SizedBox(height: 24),
+
+                        // Footer
+                        Column(
+                          children: [
+                            Text(
+                              '@2026 NotifyED. A Capstone Project',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11.5,
+                                color: const Color(0xFF486581),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.verified_user_rounded, size: 13, color: buttonColor),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    'Secure & Private',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF334E68),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
                 ),
-              ),
-            ),
-
-            // Footer
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12.0, top: 4.0),
-              child: Column(
-                children: [
-                  Text(
-                    '@2026 NotifyED. A Capstone Project',
-                    style: GoogleFonts.poppins(
-                      fontSize: 11.5,
-                      color: const Color(0xFF486581),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: Colors.white,
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.verified_user_rounded, size: 13, color: buttonColor),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Secure & Private',
-                          style: GoogleFonts.poppins(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF334E68),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ),
             ),
             ],

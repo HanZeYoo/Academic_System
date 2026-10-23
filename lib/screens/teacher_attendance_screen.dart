@@ -1774,7 +1774,7 @@ class _NfcAttendanceModalDialogState extends State<_NfcAttendanceModalDialog>
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Parent notified in real-time via Push Notification & SMS',
+                  'Parent notified in real-time via Push Notification & Email',
                   style: TextStyle(color: Color(0xFF15803D), fontSize: 11, fontWeight: FontWeight.w500),
                 ),
               ),

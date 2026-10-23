@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
 import 'school_year_rollover_screen.dart';
@@ -24,10 +25,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _obscureConfirm = true;
   bool _isLoading = false;
 
+  // Notification Preferences state
+  bool _emailNotifEnabled = true;
+  bool _pushNotifEnabled = true;
+  bool _attendanceAlertsEnabled = true;
+  bool _announcementAlertsEnabled = true;
+
   // Grading Deadlines state
   bool _deadlinesLoading = true;
   bool _deadlinesSaving = false;
-  List<Map<String, dynamic>> _deadlines = [];
   // Local editable values: quarter -> {startDate, endDate, extendedUntil}
   final Map<String, Map<String, String?>> _deadlineEdits = {};
 
@@ -70,6 +76,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() => _deadlinesLoading = false);
       }
     }
+
+    _loadNotificationPreferences();
+  }
+
+  Future<void> _loadNotificationPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _emailNotifEnabled = prefs.getBool('pref_email_notifications') ?? true;
+        _pushNotifEnabled = prefs.getBool('pref_push_notifications') ?? true;
+        _attendanceAlertsEnabled = prefs.getBool('pref_attendance_alerts') ?? true;
+        _announcementAlertsEnabled = prefs.getBool('pref_announcement_alerts') ?? true;
+      });
+    }
+  }
+
+  Future<void> _saveNotificationPref(String key, bool val) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, val);
   }
 
   Future<void> _loadDeadlines() async {
@@ -85,7 +110,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       };
     }
     setState(() {
-      _deadlines = data;
       _deadlinesLoading = false;
     });
   }
@@ -712,6 +736,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildExtraSettingsCard() {
+    final bool anyActive = _emailNotifEnabled || _pushNotifEnabled;
 
     return Container(
       decoration: BoxDecoration(
@@ -722,39 +747,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         children: [
           ListTile(
-            leading: const Icon(
-              Icons.notifications_active,
-              color: Color(0xFF1E66B4),
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E66B4).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.notifications_active,
+                color: Color(0xFF1E66B4),
+                size: 20,
+              ),
             ),
-            title: const Text('Notification Preferences'),
-            subtitle: const Text('Manage alerts & email notifications'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {},
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.dark_mode, color: Color(0xFF1E66B4)),
-            title: const Text('Theme Options'),
-            subtitle: const Text('Light mode active'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {},
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.dark_mode, color: Color(0xFF1E66B4)),
-            title: const Text('Theme Options'),
-            subtitle: const Text('Light mode active'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {},
+            title: const Text(
+              'Notification Preferences',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            ),
+            subtitle: Text(
+              'Email: ${_emailNotifEnabled ? "Enabled" : "Off"} • Push: ${_pushNotifEnabled ? "Enabled" : "Off"}',
+              style: TextStyle(
+                fontSize: 12,
+                color: anyActive ? const Color(0xFF15803D) : Colors.grey,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            onTap: _showNotificationPreferencesModal,
           ),
           if (_isAdmin) ...[
             const Divider(height: 1),
             ListTile(
-              leading: Icon(Icons.update, color: Colors.orange.shade700),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.update, color: Colors.orange.shade700, size: 20),
+              ),
               title: const Text('End of School Year Rollover',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Promote students & start new school year'),
-              trailing: const Icon(Icons.chevron_right),
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              subtitle: const Text('Promote students & start new school year',
+                  style: TextStyle(fontSize: 12, color: Colors.grey)),
+              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
               onTap: () {
                 Navigator.push(
                   context,
@@ -765,6 +800,188 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  void _showNotificationPreferencesModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (modalContext, setModalState) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E66B4).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.notifications_active_rounded, color: Color(0xFF1E66B4), size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Notification Preferences',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E66B4)),
+                            ),
+                            Text(
+                              'Customize system alerts & delivery',
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.grey),
+                        onPressed: () => Navigator.pop(modalContext),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 8),
+
+                  _buildNotifSwitch(
+                    title: 'Email Notifications',
+                    subtitle: 'Send automated emails for attendance and reports',
+                    icon: Icons.mail_outline_rounded,
+                    value: _emailNotifEnabled,
+                    onChanged: (val) {
+                      setModalState(() => _emailNotifEnabled = val);
+                      setState(() => _emailNotifEnabled = val);
+                      _saveNotificationPref('pref_email_notifications', val);
+                    },
+                  ),
+                  const Divider(height: 1),
+
+                  _buildNotifSwitch(
+                    title: 'Push Notifications',
+                    subtitle: 'Receive real-time mobile push notifications',
+                    icon: Icons.cell_tower_rounded,
+                    value: _pushNotifEnabled,
+                    onChanged: (val) {
+                      setModalState(() => _pushNotifEnabled = val);
+                      setState(() => _pushNotifEnabled = val);
+                      _saveNotificationPref('pref_push_notifications', val);
+                    },
+                  ),
+                  const Divider(height: 1),
+
+                  _buildNotifSwitch(
+                    title: 'Student Attendance Alerts',
+                    subtitle: 'Notify parents when student is marked Absent or Late',
+                    icon: Icons.co_present_rounded,
+                    value: _attendanceAlertsEnabled,
+                    onChanged: (val) {
+                      setModalState(() => _attendanceAlertsEnabled = val);
+                      setState(() => _attendanceAlertsEnabled = val);
+                      _saveNotificationPref('pref_attendance_alerts', val);
+                    },
+                  ),
+                  const Divider(height: 1),
+
+                  _buildNotifSwitch(
+                    title: 'School Announcements',
+                    subtitle: 'Alerts for posted announcements and advisories',
+                    icon: Icons.campaign_rounded,
+                    value: _announcementAlertsEnabled,
+                    onChanged: (val) {
+                      setModalState(() => _announcementAlertsEnabled = val);
+                      setState(() => _announcementAlertsEnabled = val);
+                      _saveNotificationPref('pref_announcement_alerts', val);
+                    },
+                  ),
+
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(modalContext);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(Icons.check_circle, color: Colors.white, size: 18),
+                                SizedBox(width: 8),
+                                Text('Notification preferences saved!'),
+                              ],
+                            ),
+                            backgroundColor: Color(0xFF15803D),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E66B4),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        },
+      ),
+    );
+  }
+
+  Widget _buildNotifSwitch({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return SwitchListTile.adaptive(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      secondary: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: (value ? const Color(0xFF1E66B4) : Colors.grey).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 20, color: value ? const Color(0xFF1E66B4) : Colors.grey),
+      ),
+      title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      value: value,
+      activeTrackColor: const Color(0xFF1E66B4).withValues(alpha: 0.5),
+      activeThumbColor: const Color(0xFF1E66B4),
+      onChanged: onChanged,
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:mailer/mailer.dart';
 import 'package:mailer/smtp_server.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class EmailService {
   // User's provided App Password
@@ -14,6 +15,13 @@ class EmailService {
     required String messageText,
   }) async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final bool emailEnabled = prefs.getBool('pref_email_notifications') ?? true;
+      if (!emailEnabled) {
+        print('EmailService: Email notifications disabled by user preferences.');
+        return true;
+      }
+
       if (_emailAddress.contains('YOUR_GMAIL_ADDRESS')) {
         // Fallback mock if the user hasn't put their email yet
         print('MOCK EMAIL: To $toEmail | Subject: $subject | Msg: $messageText');

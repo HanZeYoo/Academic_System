@@ -81,25 +81,28 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Enroll '),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Grade Level: ', style: const TextStyle(fontSize: 13)),
-            const SizedBox(height: 12),
-            const Text('Assign Section (optional):', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: sectionController,
-              decoration: InputDecoration(
-                hintText: 'e.g. Rizal, Bonifacio...',
-                filled: true, fillColor: Colors.grey.shade50,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                isDense: true,
+        title: Text('Enroll ${student['name'] ?? 'Student'}'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Grade Level: ${student['grade_level'] ?? 'N/A'}', style: const TextStyle(fontSize: 13, color: Colors.black87)),
+              const SizedBox(height: 12),
+              const Text('Assign Section (optional):', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: sectionController,
+                decoration: InputDecoration(
+                  hintText: 'e.g. Rizal, Bonifacio...',
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  isDense: true,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),

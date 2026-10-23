@@ -594,14 +594,16 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
       builder: (context) {
         return AlertDialog(
           title: Text('Add $title Label', style: const TextStyle(fontSize: 16)),
-          content: TextField(
-            controller: _labelCtrl,
-            decoration: const InputDecoration(
-              hintText: 'e.g. Quiz 1, Long Test',
-              border: OutlineInputBorder(),
-              isDense: true,
+          content: SingleChildScrollView(
+            child: TextField(
+              controller: _labelCtrl,
+              decoration: const InputDecoration(
+                hintText: 'e.g. Quiz 1, Long Test',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              autofocus: true,
             ),
-            autofocus: true,
           ),
           actions: [
             TextButton(
