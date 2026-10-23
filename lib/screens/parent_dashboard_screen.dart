@@ -8,8 +8,6 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'login_screen.dart';
 import 'settings_screen.dart';
 import 'announcement_management_screen.dart';
-import 'student_grades_view_screen.dart';
-import 'student_attendance_view_screen.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
@@ -49,7 +47,15 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   // AI Chat State
   List<Map<String, String>> _chatHistory = [];
   final TextEditingController _chatController = TextEditingController();
+  final ScrollController _interventionScrollController = ScrollController();
   bool _isChatLoading = false;
+
+  @override
+  void dispose() {
+    _chatController.dispose();
+    _interventionScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -391,30 +397,68 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     if (fromDrawer) Navigator.pop(context);
   }
 
-  void _handleLogout() {
-    showDialog(
+  void _handleLogout() async {
+    final shouldLogout = await _showLogoutDialog();
+    if (shouldLogout && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen(isLoggingOut: true)),
+      );
+    }
+  }
+
+  Future<bool> _showLogoutDialog() async {
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.logout_rounded, color: Colors.red.shade600, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Confirm Logout',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to log out of your parent account?',
+          style: GoogleFonts.poppins(fontSize: 14, color: const Color(0xFF475569)),
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: const Color(0xFF64748B)),
+            ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginScreen(isLoggingOut: true)),
-              );
-            },
-            child: const Text('Logout', style: TextStyle(color: Colors.red)),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(
+              'Logout',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
     );
+    return result ?? false;
   }
 
   // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -431,7 +475,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     final roleTheme = RoleTheme.parentTheme;
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         if (_selectedMenu != 'Dashboard') {
           setState(() {
@@ -439,28 +483,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           });
           return;
         }
-        // Show logout confirmation
-        final result = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Logout'),
-            content: const Text('Are you sure you want to logout?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text(
-                  'Logout',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
-          ),
-        );
-        if (result == true && mounted) {
+        final shouldLogout = await _showLogoutDialog();
+        if (shouldLogout && mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => const LoginScreen(isLoggingOut: true)),
@@ -1969,11 +1993,15 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   Widget _buildInterventionPlanScreen() {
     if (_selectedChild == null) return _buildNoChildView();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.translucent,
+      child: SingleChildScrollView(
+        controller: _interventionScrollController,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           _buildChildSelector(),
           const SizedBox(height: 20),
           
@@ -2173,7 +2201,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
               ),
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -2183,7 +2211,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 20),
                       child: Text(
-                        'Have questions about the plan or grades? Ask in English or Tagalog.',
+                        'Have questions about the plan or grades?',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
                       ),
@@ -2239,6 +2267,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           ),
+                          onTap: () => Future.delayed(const Duration(milliseconds: 300), _scrollChatToBottom),
                           onSubmitted: (_) => _sendChatMessage(),
                         ),
                       ),
@@ -2255,7 +2284,20 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             ),
         ],
       ),
-    );
+    ),
+  );
+}
+
+  void _scrollChatToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_interventionScrollController.hasClients) {
+        _interventionScrollController.animateTo(
+          _interventionScrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
   }
 
   Future<void> _sendChatMessage() async {
@@ -2267,6 +2309,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       _chatController.clear();
       _isChatLoading = true;
     });
+    _scrollChatToBottom();
     await _saveChatHistory(_selectedChild?['email'] ?? '');
 
     String contextText = _interventionPlanText;
@@ -2329,13 +2372,17 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           _chatHistory.add({'role': 'model', 'text': res.data['reply']});
         });
         await _saveChatHistory(_selectedChild?['email'] ?? '');
+        _scrollChatToBottom();
       } else {
         throw Exception(res.data['error'] ?? 'Failed to get reply');
       }
     } catch (e) {
       _showAiErrorDialog(e);
     } finally {
-      if (mounted) setState(() => _isChatLoading = false);
+      if (mounted) {
+        setState(() => _isChatLoading = false);
+        _scrollChatToBottom();
+      }
     }
   }
 

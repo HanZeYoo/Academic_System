@@ -256,18 +256,48 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.logout_rounded, color: Colors.red.shade600, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Confirm Logout',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to log out of your student account?',
+          style: GoogleFonts.poppins(fontSize: 14, color: const Color(0xFF475569)),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: const Color(0xFF64748B)),
+            ),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(
               'Logout',
-              style: TextStyle(color: Colors.red),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -281,7 +311,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     final roleTheme = RoleTheme.studentTheme;
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         if (_selectedMenu != 'Dashboard') {
           setState(() {
@@ -483,36 +513,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       'Logout',
                       style: TextStyle(color: Colors.white, fontSize: 15),
                     ),
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                          title: Text('Logout', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
-                          content: Text('Are you sure you want to logout?', style: GoogleFonts.poppins(fontSize: 14)),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: Text('Cancel', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.pop(context); // Close dialog
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const LoginScreen(isLoggingOut: true),
-                                  ),
-                                );
-                              },
-                              child: Text(
-                                'Logout',
-                                style: GoogleFonts.poppins(color: Colors.red, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
+                    onTap: () async {
+                      final shouldLogout = await _showLogoutDialog();
+                      if (shouldLogout && mounted) {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(isLoggingOut: true),
+                          ),
+                        );
+                      }
                     },
                   ),
                 ),

@@ -33,7 +33,7 @@ void main() async {
 
   await Supabase.initialize(
     url: 'https://vslqselpnkpghtpnxryg.supabase.co',
-    anonKey: 'sb_publishable_qAfWW1fw67Xb85gAtWyBZg_sKB-ISaW',
+    publishableKey: 'sb_publishable_qAfWW1fw67Xb85gAtWyBZg_sKB-ISaW',
   );
 
   // Request Permissions and Get Token (Mobile only)
