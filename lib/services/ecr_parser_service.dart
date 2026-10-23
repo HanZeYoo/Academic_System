@@ -1,8 +1,22 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
 import '../models/ecr_mapping_model.dart';
+
+class EcrParseParams {
+  final Uint8List bytes;
+  final String filename;
+  final String? targetSheetName;
+  final String? gradingPeriod;
+
+  const EcrParseParams({
+    required this.bytes,
+    required this.filename,
+    this.targetSheetName,
+    this.gradingPeriod,
+  });
+}
 
 class EcrParseResult {
   final String filename;
@@ -350,13 +364,43 @@ class EcrParserService {
     return [];
   }
 
-  /// Parses file bytes into grid, resolves merged spans, extracts HPS row, and filters student rows.
+  // ── BACKGROUND ISOLATE PARSER ENTRY ────────────────────────────────────
+
+  static EcrParseResult _computeParseFile(EcrParseParams params) {
+    final parser = EcrParserService();
+    return parser.parseFileSync(
+      params.bytes,
+      params.filename,
+      targetSheetName: params.targetSheetName,
+      gradingPeriod: params.gradingPeriod,
+    );
+  }
+
+  /// Parses file bytes in a background isolate (via compute) to keep UI running at 60/120 FPS.
   Future<EcrParseResult> parseFile(
     Uint8List bytes,
     String filename, {
     String? targetSheetName,
     String? gradingPeriod,
   }) async {
+    return compute(
+      _computeParseFile,
+      EcrParseParams(
+        bytes: bytes,
+        filename: filename,
+        targetSheetName: targetSheetName,
+        gradingPeriod: gradingPeriod,
+      ),
+    );
+  }
+
+  /// Synchronous core parser (executes in background isolate)
+  EcrParseResult parseFileSync(
+    Uint8List bytes,
+    String filename, {
+    String? targetSheetName,
+    String? gradingPeriod,
+  }) {
     final lowerName = filename.toLowerCase();
     List<List<dynamic>> rawGrid = [];
     String selectedSheetName = filename;
@@ -638,25 +682,35 @@ class EcrParserService {
 
     List<List<dynamic>> rawGrid = [];
 
+    final sheetRows = sheet.rows;
+    final int maxCols = sheet.maxColumns;
+
     for (int r = 0; r < sheet.maxRows; r++) {
       List<dynamic> rowValues = [];
-      for (int c = 0; c < sheet.maxColumns; c++) {
-        final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r));
-        dynamic val = cell.value;
-        if (val != null && val is SharedString) {
-          val = val.toString();
-        } else if (val != null && val is TextCellValue) {
-          val = val.value.toString();
-        } else if (val != null && val is IntCellValue) {
-          val = val.value;
-        } else if (val != null && val is DoubleCellValue) {
-          val = val.value;
-        } else if (val != null && val is FormulaCellValue) {
-          val = _resolveFormulaReference(excel, val.formula);
-        } else if (val != null && val is DateCellValue) {
-          val = '${val.year}-${val.month}-${val.day}';
-        } else if (val != null) {
-          val = val.toString();
+      final rowData = r < sheetRows.length ? sheetRows[r] : null;
+
+      for (int c = 0; c < maxCols; c++) {
+        dynamic val = '';
+        if (rowData != null && c < rowData.length) {
+          final cell = rowData[c];
+          final rawVal = cell?.value;
+          if (rawVal != null) {
+            if (rawVal is SharedString) {
+              val = rawVal.toString();
+            } else if (rawVal is TextCellValue) {
+              val = rawVal.value.toString();
+            } else if (rawVal is IntCellValue) {
+              val = rawVal.value;
+            } else if (rawVal is DoubleCellValue) {
+              val = rawVal.value;
+            } else if (rawVal is FormulaCellValue) {
+              val = _resolveFormulaReference(excel, rawVal.formula);
+            } else if (rawVal is DateCellValue) {
+              val = '${rawVal.year}-${rawVal.month}-${rawVal.day}';
+            } else {
+              val = rawVal.toString();
+            }
+          }
         }
         rowValues.add(val ?? '');
       }

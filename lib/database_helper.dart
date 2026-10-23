@@ -1963,7 +1963,7 @@ class DatabaseHelper {
     }
 
     int savedCount = 0;
-    const int chunkSize = 50;
+    const int chunkSize = 150;
 
     // 5. Process updates in chunks
     for (int i = 0; i < toUpdate.length; i += chunkSize) {
