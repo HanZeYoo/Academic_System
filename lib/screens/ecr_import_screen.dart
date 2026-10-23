@@ -724,10 +724,10 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
   Future<void> _handleBackNavigation() async {
     final shouldPop = await _onWillPop();
     if (shouldPop && mounted) {
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
-      } else if (widget.onBackToDashboard != null) {
+      if (widget.onBackToDashboard != null) {
         widget.onBackToDashboard!();
+      } else if (Navigator.canPop(context)) {
+        Navigator.pop(context);
       }
     }
   }
@@ -787,30 +787,35 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     final canPopRoute = Navigator.canPop(context);
 
     return PopScope(
-      canPop: !canPopRoute ? !_isSaving : false,
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
-        if (canPopRoute) {
-          final shouldPop = await _onWillPop();
-          if (shouldPop && context.mounted) {
-            Navigator.pop(context);
-          }
-        } else if (_isSaving) {
+        if (_isSaving) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Please wait for grade import to complete.'),
               backgroundColor: Colors.orange,
             ),
           );
+          return;
+        }
+
+        final shouldPop = await _onWillPop();
+        if (shouldPop && context.mounted) {
+          if (widget.onBackToDashboard != null) {
+            widget.onBackToDashboard!();
+          } else if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
         }
       },
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
-          leading: (canPopRoute || widget.onBackToDashboard != null)
+          leading: (widget.onBackToDashboard != null || canPopRoute)
               ? IconButton(
                   icon: const Icon(Icons.arrow_back, color: Color(0xFF1E293B)),
-                  tooltip: canPopRoute ? 'Back' : 'Back to Dashboard',
+                  tooltip: widget.onBackToDashboard != null ? 'Back to Dashboard' : 'Back',
                   onPressed: _handleBackNavigation,
                 )
               : null,
@@ -2375,10 +2380,10 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                 ),
                 ElevatedButton.icon(
                   onPressed: () {
-                    if (Navigator.canPop(context)) {
-                      Navigator.pop(context);
-                    } else if (widget.onBackToDashboard != null) {
+                    if (widget.onBackToDashboard != null) {
                       widget.onBackToDashboard!();
+                    } else if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
                     }
                   },
                   icon: const Icon(Icons.arrow_back),
