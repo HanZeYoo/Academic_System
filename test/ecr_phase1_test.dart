@@ -115,6 +115,91 @@ void main() {
         isTrue,
       );
     });
+
+    test('Strictly rejects empty template rows (formulas, zeroes, numbers, placeholders)', () {
+      // Row where formula unresolved to "='INPUT DATA'!B16" with 0 scores
+      expect(
+        EcrParserService.isStudentRow(
+          name: "='INPUT DATA'!B16",
+          lrn: "='INPUT DATA'!A16",
+          scores: [0, 0, 0],
+          hasHighFillLrnColumn: false,
+        ),
+        isFalse,
+      );
+
+      // Row where formula evaluated to '0' with 0 scores
+      expect(
+        EcrParserService.isStudentRow(
+          name: '0',
+          lrn: null,
+          scores: [0, 0, 0],
+          hasHighFillLrnColumn: false,
+        ),
+        isFalse,
+      );
+
+      // Row where name is pure row number (e.g. '3')
+      expect(
+        EcrParserService.isStudentRow(
+          name: '3',
+          lrn: null,
+          scores: [0],
+          hasHighFillLrnColumn: false,
+        ),
+        isFalse,
+      );
+
+      // Row where name is blank or dash
+      expect(
+        EcrParserService.isStudentRow(
+          name: '',
+          lrn: null,
+          scores: [25],
+        ),
+        isFalse,
+      );
+      expect(
+        EcrParserService.isStudentRow(
+          name: '-',
+          lrn: null,
+          scores: [25],
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('Phase 1 Pure Helper Units: isValidStudentName', () {
+    test('Validates human student names', () {
+      expect(EcrParserService.isValidStudentName('DELA CRUZ, JUAN A.'), isTrue);
+      expect(EcrParserService.isValidStudentName('Pedro Penduko'), isTrue);
+      expect(EcrParserService.isValidStudentName('Al Santos'), isTrue);
+      expect(EcrParserService.isValidStudentName('Li, Bo'), isTrue);
+    });
+
+    test('Rejects Excel formulas, sheet references, and error codes', () {
+      expect(EcrParserService.isValidStudentName("='INPUT DATA'!B16"), isFalse);
+      expect(EcrParserService.isValidStudentName("'INPUT DATA'!B16"), isFalse);
+      expect(EcrParserService.isValidStudentName("INPUT DATA!B16"), isFalse);
+      expect(EcrParserService.isValidStudentName("=SUM(D14:H14)"), isFalse);
+      expect(EcrParserService.isValidStudentName("#REF!"), isFalse);
+      expect(EcrParserService.isValidStudentName("#VALUE!"), isFalse);
+    });
+
+    test('Rejects numbers, placeholders, single letters, and divider labels', () {
+      expect(EcrParserService.isValidStudentName('0'), isFalse);
+      expect(EcrParserService.isValidStudentName('0.0'), isFalse);
+      expect(EcrParserService.isValidStudentName('1'), isFalse);
+      expect(EcrParserService.isValidStudentName('50'), isFalse);
+      expect(EcrParserService.isValidStudentName('---'), isFalse);
+      expect(EcrParserService.isValidStudentName('N/A'), isFalse);
+      expect(EcrParserService.isValidStudentName('A'), isFalse);
+      expect(EcrParserService.isValidStudentName('MALE'), isFalse);
+      expect(EcrParserService.isValidStudentName('FEMALE'), isFalse);
+      expect(EcrParserService.isValidStudentName('TOTAL MALE'), isFalse);
+      expect(EcrParserService.isValidStudentName("LEARNERS' NAMES"), isFalse);
+    });
   });
 
   group('Phase 1 Pure Helper Units: detectHpsRow', () {
@@ -130,6 +215,74 @@ void main() {
       expect(hpsMap[1], equals(25.0));
       expect(hpsMap[2], equals(30.0));
       expect(hpsMap[3], equals(50.0));
+    });
+  });
+
+  group('Phase 1 Pure Helper Units: detectWeights', () {
+    test('Auto-detects Science and Math weights (40% WW, 40% PT, 20% QA)', () {
+      final headers = [
+        'LRN',
+        'LEARNERS',
+        'WRITTEN WORKS (40%)',
+        'PERFORMANCE TASKS (40%)',
+        'QUARTERLY ASSESSMENT (20%)',
+      ];
+      final weights = EcrParserService.detectWeights([], headers);
+      expect(weights.isDetected, isTrue);
+      expect(weights.wwWeight, equals(40.0));
+      expect(weights.ptWeight, equals(40.0));
+      expect(weights.qaWeight, equals(20.0));
+    });
+
+    test('Auto-detects MAPEH and TLE weights (20% WW, 60% PT, 20% QA)', () {
+      final headers = [
+        'LRN',
+        'LEARNERS',
+        'WRITTEN WORKS (20%)',
+        'PERFORMANCE TASKS (60%)',
+        'QUARTERLY ASSESSMENT (20%)',
+      ];
+      final weights = EcrParserService.detectWeights([], headers);
+      expect(weights.isDetected, isTrue);
+      expect(weights.wwWeight, equals(20.0));
+      expect(weights.ptWeight, equals(60.0));
+      expect(weights.qaWeight, equals(20.0));
+    });
+
+    test('Auto-detects Languages and AP standard DepEd weights (30% WW, 50% PT, 20% QA)', () {
+      final headers = [
+        'LRN',
+        'LEARNERS',
+        'WRITTEN WORKS (30%)',
+        'PERFORMANCE TASKS (50%)',
+        'QUARTERLY ASSESSMENT (20%)',
+      ];
+      final weights = EcrParserService.detectWeights([], headers);
+      expect(weights.isDetected, isTrue);
+      expect(weights.wwWeight, equals(30.0));
+      expect(weights.ptWeight, equals(50.0));
+      expect(weights.qaWeight, equals(20.0));
+    });
+
+    test('Detects weights from top metadata rows when headers have simple names', () {
+      final grid = [
+        ['Class Record', '', '', ''],
+        ['Weights: WW 40% | PT 40% | QA 20%', '', '', ''],
+        ['LRN', 'Name', 'WW1', 'PT1'],
+      ];
+      final weights = EcrParserService.detectWeights(grid, ['LRN', 'Name', 'WW1', 'PT1']);
+      expect(weights.isDetected, isTrue);
+      expect(weights.wwWeight, equals(40.0));
+      expect(weights.ptWeight, equals(40.0));
+      expect(weights.qaWeight, equals(20.0));
+    });
+
+    test('Falls back safely to DepEd standard 30-50-20 when no percentage is specified', () {
+      final weights = EcrParserService.detectWeights([], ['LRN', 'Name', 'WW1', 'PT1', 'Exam']);
+      expect(weights.isDetected, isFalse);
+      expect(weights.wwWeight, equals(30.0));
+      expect(weights.ptWeight, equals(50.0));
+      expect(weights.qaWeight, equals(20.0));
     });
   });
 

@@ -18,6 +18,23 @@ class EcrParseParams {
   });
 }
 
+class EcrWeightPercentages {
+  final double wwWeight;
+  final double ptWeight;
+  final double qaWeight;
+  final bool isDetected;
+
+  const EcrWeightPercentages({
+    required this.wwWeight,
+    required this.ptWeight,
+    required this.qaWeight,
+    this.isDetected = false,
+  });
+
+  @override
+  String toString() => 'WW: ${wwWeight.toInt()}% | PT: ${ptWeight.toInt()}% | QA: ${qaWeight.toInt()}%';
+}
+
 class EcrParseResult {
   final String filename;
   final String sheetName;
@@ -31,6 +48,7 @@ class EcrParseResult {
   final Map<int, double> rowHpsMap; // colIndex -> HPS extracted from HPS row
   final List<EcrExcludedRow> excludedRows;
   final List<EcrSheetSummary> availableSheets;
+  final EcrWeightPercentages detectedWeights;
 
   EcrParseResult({
     required this.filename,
@@ -45,6 +63,12 @@ class EcrParseResult {
     required this.rowHpsMap,
     required this.excludedRows,
     required this.availableSheets,
+    this.detectedWeights = const EcrWeightPercentages(
+      wwWeight: 30.0,
+      ptWeight: 50.0,
+      qaWeight: 20.0,
+      isDetected: false,
+    ),
   });
 }
 
@@ -152,10 +176,11 @@ class EcrParserService {
     return str;
   }
 
-  /// Tests whether a given row represents an actual student vs a divider or subtotal row.
+  /// Tests whether a given row represents an actual student vs a divider, subtotal, or empty template row.
+  /// - Student name must be a plausible human name (not a formula, number, or placeholder).
   /// - If an LRN column exists with high fill rate, a valid 12-digit LRN is required.
-  /// - Keyword blacklist (MALE, FEMALE, TOTAL, etc.) is checked first.
-  /// - Subtotal rows with numeric sums are rejected.
+  /// - Keyword blacklist (MALE, FEMALE, TOTAL, etc.) is checked.
+  /// - Subtotal rows with numeric sums and empty template slots are rejected.
   static bool isStudentRow({
     required String name,
     required String? lrn,
@@ -163,11 +188,10 @@ class EcrParserService {
     bool hasHighFillLrnColumn = false,
   }) {
     final trimmedName = name.trim();
-    final upperName = trimmedName.toUpperCase();
 
-    // 1. Divider and summary blacklist check
+    // 1. Divider, summary blacklist, and valid student name check
     if (trimmedName.isEmpty) return false;
-    if (_isNonStudentLabel(upperName)) return false;
+    if (!isValidStudentName(trimmedName)) return false;
 
     // 2. High-fill LRN enforcement
     if (hasHighFillLrnColumn) {
@@ -190,6 +214,40 @@ class EcrParserService {
     return hasValidLrn || hasScore;
   }
 
+  /// Tests whether a given string is a plausible student name.
+  /// Rejects Excel formulas, sheet references, error codes, pure numbers, and divider labels.
+  static bool isValidStudentName(String? name) {
+    if (name == null) return false;
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return false;
+
+    // Unresolved Excel formula (e.g. "='INPUT DATA'!B14", "=SUM(..)")
+    if (trimmed.startsWith('=')) return false;
+
+    // Sheet references or cross-sheet formula remnants
+    if (trimmed.contains('!') || trimmed.toUpperCase().contains('INPUT DATA')) return false;
+
+    // Excel error codes
+    if (trimmed.startsWith('#') || trimmed.contains('REF!')) return false;
+
+    // Purely numeric, decimals, row numbers, or dashes ("0", "0.0", "1", "50", "-", "--", "---")
+    if (RegExp(r'^[\d\.\-\s]+$').hasMatch(trimmed)) return false;
+
+    // Common non-name placeholder strings
+    final upper = trimmed.toUpperCase();
+    if (upper == '0' || upper == 'N/A' || upper == 'NA' || upper == 'NONE' || upper == 'NULL') {
+      return false;
+    }
+
+    // Divider and summary keywords
+    if (_isNonStudentLabel(upper)) return false;
+
+    // Must contain at least 2 alphabetic letters (allows all real names, e.g. "Al", "Yu", "Dela Cruz")
+    if (!RegExp(r'[A-Za-z].*[A-Za-z]').hasMatch(trimmed)) return false;
+
+    return true;
+  }
+
   static bool _isNonStudentLabel(String upper) {
     return upper == 'MALE' ||
         upper == 'FEMALE' ||
@@ -202,8 +260,75 @@ class EcrParserService {
         upper.startsWith('BOYS') ||
         upper.startsWith('GIRLS') ||
         upper.contains('HIGHEST POSSIBLE SCORE') ||
+        upper == 'HPS' ||
+        upper.contains("LEARNER'S") ||
+        upper.contains("LEARNERS'") ||
+        upper.contains('STUDENT NAME') ||
+        upper.contains('NAME OF') ||
         upper.contains('SUMMARY') ||
         upper.contains('CLASS RECORD');
+  }
+
+  /// Detects DepEd weight percentages from header strings or top metadata rows.
+  /// E.g. "WRITTEN WORKS (40%)", "PERFORMANCE TASKS (40%)", "QUARTERLY ASSESSMENT (20%)".
+  static EcrWeightPercentages detectWeights(List<List<dynamic>> grid, List<String> headers) {
+    double? ww;
+    double? pt;
+    double? qa;
+
+    void checkString(String text) {
+      final upper = text.toUpperCase();
+      if (ww == null) {
+        final match = RegExp(r'(?:WRITTEN(?:\s+WORKS)?|WW)[^\d%]{0,15}(\d+(?:\.\d+)?)\s*%').firstMatch(upper);
+        if (match != null) ww = double.tryParse(match.group(1)!);
+      }
+      if (pt == null) {
+        final match = RegExp(r'(?:PERFORMANCE(?:\s+TASKS)?|PT)[^\d%]{0,15}(\d+(?:\.\d+)?)\s*%').firstMatch(upper);
+        if (match != null) pt = double.tryParse(match.group(1)!);
+      }
+      if (qa == null) {
+        final match = RegExp(r'(?:QUARTERLY(?:\s+ASSESSMENT)?|ASSESSMENT|QA|EXAM)[^\d%]{0,15}(\d+(?:\.\d+)?)\s*%').firstMatch(upper);
+        if (match != null) qa = double.tryParse(match.group(1)!);
+      }
+    }
+
+    // 1. Check all headers
+    for (final h in headers) {
+      checkString(h);
+    }
+
+    // 2. Scan first 15 rows of grid if any component wasn't found
+    if (ww == null || pt == null || qa == null) {
+      final scanLimit = grid.length < 15 ? grid.length : 15;
+      for (int r = 0; r < scanLimit; r++) {
+        for (final cell in grid[r]) {
+          if (cell != null) {
+            checkString(cell.toString());
+          }
+        }
+      }
+    }
+
+    // If all three were detected and sum close to 100%, return them
+    if (ww != null && pt != null && qa != null) {
+      final sum = ww! + pt! + qa!;
+      if ((sum - 100).abs() <= 2.0) {
+        return EcrWeightPercentages(
+          wwWeight: ww!,
+          ptWeight: pt!,
+          qaWeight: qa!,
+          isDetected: true,
+        );
+      }
+    }
+
+    // Fallback standard DepEd default: 30% WW, 50% PT, 20% QA
+    return const EcrWeightPercentages(
+      wwWeight: 30.0,
+      ptWeight: 50.0,
+      qaWeight: 20.0,
+      isDetected: false,
+    );
   }
 
   /// Finds a horizontal row containing "Highest Possible Score" or "HPS"
@@ -487,22 +612,35 @@ class EcrParserService {
     }
     if (nameColIndex == -1) nameColIndex = 1; // Default DepEd Col 1
 
-    // Check if LRN column has high fill rate in the grid
+    // Check if LRN column has high fill rate among rows with valid student names
     bool hasHighFillLrn = false;
     if (lrnColIndex != -1) {
       int nonBlankLrn = 0;
-      int checkedRows = 0;
+      int candidateStudents = 0;
       final start = (hpsRowIdx != null) ? hpsRowIdx + 1 : headerRowIndex + 1;
-      for (int r = start; r < rawGrid.length && checkedRows < 30; r++) {
+      for (int r = start; r < rawGrid.length && candidateStudents < 30; r++) {
         final row = rawGrid[r];
-        if (row.any((cell) => cell != null && cell.toString().trim().isNotEmpty)) {
-          checkedRows++;
+        String candidateName = '';
+        if (nameColIndex < row.length) {
+          candidateName = row[nameColIndex]?.toString().trim() ?? '';
+        }
+        if (!isValidStudentName(candidateName) && row.isNotEmpty) {
+          final c2 = (row.length > 2) ? row[2]?.toString().trim() ?? '' : '';
+          final c0 = row[0]?.toString().trim() ?? '';
+          if (isValidStudentName(c2)) {
+            candidateName = c2;
+          } else if (isValidStudentName(c0)) {
+            candidateName = c0;
+          }
+        }
+        if (isValidStudentName(candidateName)) {
+          candidateStudents++;
           if (lrnColIndex < row.length && cleanLrn(row[lrnColIndex]) != null) {
             nonBlankLrn++;
           }
         }
       }
-      hasHighFillLrn = checkedRows > 0 && (nonBlankLrn / checkedRows) > 0.40;
+      hasHighFillLrn = candidateStudents > 0 && (nonBlankLrn / candidateStudents) > 0.40;
     }
 
     // Filter student rows and record excluded divider/summary rows
@@ -523,13 +661,13 @@ class EcrParserService {
       if (nameColIndex < row.length) {
         nameVal = row[nameColIndex]?.toString().trim() ?? '';
       }
-      // Fallback check col 0 or 2 if nameVal is blank
-      if (nameVal.isEmpty && row.isNotEmpty) {
-        final c0 = row[0]?.toString().trim() ?? '';
+      // Fallback check col 0 or 2 if nameVal is blank or not a plausible student name
+      if (!isValidStudentName(nameVal) && row.isNotEmpty) {
         final c2 = (row.length > 2) ? row[2]?.toString().trim() ?? '' : '';
-        if (RegExp(r'[A-Za-z]').hasMatch(c2)) {
+        final c0 = row[0]?.toString().trim() ?? '';
+        if (isValidStudentName(c2)) {
           nameVal = c2;
-        } else if (RegExp(r'[A-Za-z]').hasMatch(c0)) {
+        } else if (isValidStudentName(c0)) {
           nameVal = c0;
         }
       }
@@ -571,6 +709,8 @@ class EcrParserService {
           reason = 'Summary Average Row';
         } else if (hasHighFillLrn && cleanLrn(lrnVal) == null) {
           reason = 'Non-student row (missing valid 12-digit LRN)';
+        } else if (!isValidStudentName(nameVal)) {
+          reason = 'Empty template row / Unused slot';
         }
 
         excludedRows.add(EcrExcludedRow(
@@ -580,6 +720,8 @@ class EcrParserService {
         ));
       }
     }
+
+    final detectedWeights = detectWeights(rawGrid, headers);
 
     return EcrParseResult(
       filename: filename,
@@ -594,6 +736,7 @@ class EcrParserService {
       rowHpsMap: rowHpsMap,
       excludedRows: excludedRows,
       availableSheets: availableSheets,
+      detectedWeights: detectedWeights,
     );
   }
 
@@ -801,8 +944,17 @@ class EcrParserService {
             }
             return rawVal.toString().trim();
           }
+          // The target cell in INPUT DATA is empty/blank!
+          return '';
         }
+        // Address is outside target sheet's dimensions (blank row in INPUT DATA)
+        return '';
       }
+    }
+
+    // Do not return raw formula string as cell content
+    if (trimmed.startsWith('=')) {
+      return '';
     }
 
     return trimmed;

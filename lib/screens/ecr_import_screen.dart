@@ -6,7 +6,6 @@ import '../database_helper.dart';
 import '../models/ecr_mapping_model.dart';
 import '../services/ecr_mapping_engine.dart';
 import '../services/ecr_parser_service.dart';
-import '../services/ecr_template_service.dart';
 import '../services/ecr_validator.dart';
 import '../utils/dialog_utils.dart';
 
@@ -82,432 +81,6 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       }
       _isLoading = false;
     });
-  }
-
-  // ── CREATE ECR TEMPLATE GENERATOR ────────────────────────────────────────
-
-  Future<void> _showCreateEcrTemplateDialog() async {
-    if (_selectedClassRecord == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a Subject Class before creating an ECR template.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    final subjectCode = _selectedClassRecord!['subject_code']?.toString() ?? 'SUBJ';
-    final subjectName = _selectedClassRecord!['subject_name']?.toString() ?? 'Subject';
-    final gradeLevel = _selectedClassRecord!['grade_level']?.toString() ?? 'Grade';
-    final section = _selectedClassRecord!['section_name']?.toString() ?? 'Section';
-    final schoolYear = _selectedClassRecord!['school_year']?.toString() ?? '2025-2026';
-    final teacherName = _teacherName ?? widget.username;
-
-    int wwCount = 5;
-    double wwHps = 20.0;
-    int ptCount = 5;
-    double ptHps = 50.0;
-    double qaHps = 50.0;
-    String selectedWeightPreset = 'Languages / AP / EsP (WW: 30%, PT: 50%, QA: 20%)';
-    double wwWeight = 30.0;
-    double ptWeight = 50.0;
-    double qaWeight = 20.0;
-    bool includeRoster = true;
-    bool isGenerating = false;
-
-    await showDialog(
-      context: context,
-      barrierDismissible: !isGenerating,
-      builder: (BuildContext dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            void updateWeights(String preset) {
-              setDialogState(() {
-                selectedWeightPreset = preset;
-                if (preset.startsWith('Languages')) {
-                  wwWeight = 30.0;
-                  ptWeight = 50.0;
-                  qaWeight = 20.0;
-                } else if (preset.startsWith('Science')) {
-                  wwWeight = 40.0;
-                  ptWeight = 40.0;
-                  qaWeight = 20.0;
-                } else if (preset.startsWith('MAPEH')) {
-                  wwWeight = 20.0;
-                  ptWeight = 60.0;
-                  qaWeight = 20.0;
-                }
-              });
-            }
-
-            Future<void> handleDownload(String format) async {
-              setDialogState(() => isGenerating = true);
-              try {
-                List<Map<String, dynamic>> students = [];
-                if (includeRoster) {
-                  students = await DatabaseHelper().getStudentsBySection(gradeLevel, section);
-                }
-
-                final config = EcrTemplateConfig(
-                  subjectCode: subjectCode,
-                  subjectName: subjectName,
-                  gradeLevel: gradeLevel,
-                  section: section,
-                  schoolYear: schoolYear,
-                  gradingPeriod: _selectedPeriod,
-                  teacherName: teacherName,
-                  writtenWorksCount: wwCount,
-                  writtenWorkHps: wwHps,
-                  performanceTasksCount: ptCount,
-                  performanceTaskHps: ptHps,
-                  quarterlyAssessmentHps: qaHps,
-                  wwWeight: wwWeight,
-                  ptWeight: ptWeight,
-                  qaWeight: qaWeight,
-                  students: students,
-                );
-
-                Uint8List fileBytes;
-                String extension = format;
-                if (format == 'xlsx') {
-                  fileBytes = EcrTemplateService.generateExcelTemplate(config);
-                } else {
-                  final csvString = EcrTemplateService.generateCsvTemplate(config);
-                  fileBytes = Uint8List.fromList(utf8.encode(csvString));
-                }
-
-                final fileName = 'ECR_${subjectCode}_${gradeLevel}_${section}_${_selectedPeriod.replaceAll(" ", "_")}.$extension';
-                final savedPath = await EcrTemplateService.saveTemplateFile(
-                  fileName: fileName,
-                  bytes: fileBytes,
-                );
-
-                if (dialogContext.mounted) {
-                  Navigator.of(dialogContext).pop();
-                }
-                if (mounted) {
-                  AestheticDialogs.showSuccessDialog(
-                    context,
-                    title: 'Template Ready',
-                    message: savedPath != null
-                        ? 'ECR Template downloaded: $fileName. Encode your grades in Excel and import it back anytime!'
-                        : 'ECR Template generated successfully!',
-                  );
-                }
-              } catch (e) {
-                setDialogState(() => isGenerating = false);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to generate template: $e'), backgroundColor: Colors.red),
-                  );
-                }
-              }
-            }
-
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              titlePadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-              contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
-              actionsOverflowButtonSpacing: 8,
-              actionsOverflowDirection: VerticalDirection.down,
-              title: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.post_add_rounded, color: Color(0xFF2563EB), size: 24),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Create Custom ECR Template',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                    ),
-                  ),
-                ],
-              ),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 540),
-                  child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Target class badge
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.school_outlined, size: 20, color: Color(0xFF64748B)),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '$gradeLevel - $section • $subjectName ($subjectCode)',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                  ),
-                                  Text(
-                                    'Quarter: $_selectedPeriod | SY: $schoolYear',
-                                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // DepEd Weight Preset
-                      const Text(
-                        'DepEd Grading Weight Profile',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFCBD5E1)),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            isExpanded: true,
-                            value: selectedWeightPreset,
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'Languages / AP / EsP (WW: 30%, PT: 50%, QA: 20%)',
-                                child: Text('Languages / AP / EsP (WW: 30%, PT: 50%, QA: 20%)', style: TextStyle(fontSize: 12)),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Science / Math (WW: 40%, PT: 40%, QA: 20%)',
-                                child: Text('Science / Math (WW: 40%, PT: 40%, QA: 20%)', style: TextStyle(fontSize: 12)),
-                              ),
-                              DropdownMenuItem(
-                                value: 'MAPEH / EPP / TLE (WW: 20%, PT: 60%, QA: 20%)',
-                                child: Text('MAPEH / EPP / TLE (WW: 20%, PT: 60%, QA: 20%)', style: TextStyle(fontSize: 12)),
-                              ),
-                            ],
-                            onChanged: (val) {
-                              if (val != null) updateWeights(val);
-                            },
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Assessment Items Configuration
-                      const Text(
-                        'Assessment Components & Items',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
-                      ),
-                      const SizedBox(height: 10),
-
-                      // WW config
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Written Works (WW)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.remove_circle_outline, size: 20),
-                                      onPressed: wwCount > 1 ? () => setDialogState(() => wwCount--) : null,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text('$wwCount Items', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      icon: const Icon(Icons.add_circle_outline, size: 20),
-                                      onPressed: wwCount < 10 ? () => setDialogState(() => wwCount++) : null,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: TextFormField(
-                              initialValue: wwHps.toInt().toString(),
-                              decoration: const InputDecoration(
-                                labelText: 'HPS each',
-                                isDense: true,
-                                border: OutlineInputBorder(),
-                              ),
-                              keyboardType: TextInputType.number,
-                              onChanged: (val) {
-                                final p = double.tryParse(val);
-                                if (p != null && p > 0) wwHps = p;
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 20),
-
-                      // PT config
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Performance Tasks (PT)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.remove_circle_outline, size: 20),
-                                      onPressed: ptCount > 1 ? () => setDialogState(() => ptCount--) : null,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text('$ptCount Items', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      icon: const Icon(Icons.add_circle_outline, size: 20),
-                                      onPressed: ptCount < 10 ? () => setDialogState(() => ptCount++) : null,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: TextFormField(
-                              initialValue: ptHps.toInt().toString(),
-                              decoration: const InputDecoration(
-                                labelText: 'HPS each',
-                                isDense: true,
-                                border: OutlineInputBorder(),
-                              ),
-                              keyboardType: TextInputType.number,
-                              onChanged: (val) {
-                                final p = double.tryParse(val);
-                                if (p != null && p > 0) ptHps = p;
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 20),
-
-                      // QA config
-                      Row(
-                        children: [
-                          const Expanded(
-                            flex: 3,
-                            child: Text(
-                              'Quarterly Assessment (QA / Exam)\n1 Item',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 2,
-                            child: TextFormField(
-                              initialValue: qaHps.toInt().toString(),
-                              decoration: const InputDecoration(
-                                labelText: 'Exam HPS',
-                                isDense: true,
-                                border: OutlineInputBorder(),
-                              ),
-                              keyboardType: TextInputType.number,
-                              onChanged: (val) {
-                                final p = double.tryParse(val);
-                                if (p != null && p > 0) qaHps = p;
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Roster toggle
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text(
-                          'Pre-load Enrolled Student Roster',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: const Text(
-                          'Includes student LRNs, full names, and gender from database',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                        ),
-                        value: includeRoster,
-                        onChanged: (val) => setDialogState(() => includeRoster = val ?? true),
-                        controlAffinity: ListTileControlAffinity.leading,
-                      ),
-
-                      if (isGenerating) ...[
-                        const SizedBox(height: 16),
-                        const Center(
-                          child: Column(
-                            children: [
-                              CircularProgressIndicator(),
-                              SizedBox(height: 8),
-                              Text('Generating customizable ECR template...', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-              actions: [
-                TextButton(
-                  onPressed: isGenerating ? null : () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: isGenerating ? null : () => handleDownload('csv'),
-                  icon: const Icon(Icons.table_view_outlined, size: 18),
-                  label: const Text('Download CSV'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: isGenerating ? null : () => handleDownload('xlsx'),
-                  icon: const Icon(Icons.file_download_outlined, size: 18),
-                  label: const Text('Download Excel (.xlsx)'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF059669),
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   // ── STEP 1: PICK AND PARSE FILE ──────────────────────────────────────────
@@ -905,7 +478,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         }
 
         final categoryName = _getCategoryName(m.target);
-        final itemLabel = _getItemLabel(m.target, wwLabels, ptLabels, teLabels);
+        final itemLabel = _getItemLabel(m.target, wwLabels, ptLabels, teLabels, originalHeader: m.originalHeader);
         final compKey = m.target.component ?? 'WW';
         final totalHps = m.customHps ?? hpsLookup[compKey] ?? 100.0;
 
@@ -944,6 +517,59 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     // Insert scores into Supabase
     final insertedCount = await DatabaseHelper().batchSaveScores(scoresToInsert);
 
+    // Auto-adapt Assessment Setup with detected weights and mapped labels
+    final detectedWeights = _parseResult?.detectedWeights;
+    final int finalWwWeight = (detectedWeights?.isDetected == true)
+        ? detectedWeights!.wwWeight.toInt()
+        : ((savedSetup?['ww_weight'] as int?) ?? 30);
+    final int finalPtWeight = (detectedWeights?.isDetected == true)
+        ? detectedWeights!.ptWeight.toInt()
+        : ((savedSetup?['pt_weight'] as int?) ?? 50);
+    final int finalTeWeight = (detectedWeights?.isDetected == true)
+        ? detectedWeights!.qaWeight.toInt()
+        : ((savedSetup?['te_weight'] as int?) ?? 20);
+
+    // Collect distinct item labels that were actually mapped and inserted
+    final List<String> activeWwLabels = [];
+    final List<String> activePtLabels = [];
+    final List<String> activeTeLabels = [];
+
+    for (final score in scoresToInsert) {
+      final cat = score['category']?.toString() ?? '';
+      final label = score['item_label']?.toString() ?? '';
+      if (cat == 'Written Works' && !activeWwLabels.contains(label)) {
+        activeWwLabels.add(label);
+      } else if (cat == 'Performance Tasks' && !activePtLabels.contains(label)) {
+        activePtLabels.add(label);
+      } else if (cat == 'Term Exams' && !activeTeLabels.contains(label)) {
+        activeTeLabels.add(label);
+      }
+    }
+
+    try {
+      await DatabaseHelper().saveAssessmentSetup({
+        'subject_code': subjectCode,
+        'subject_name': subjectName,
+        'section_name': section,
+        'grade_level': grade,
+        'grading_period': _selectedPeriod,
+        'teacher_name': teacherId,
+        'ww_items': activeWwLabels.isNotEmpty ? activeWwLabels.length : wwCount,
+        'pt_items': activePtLabels.isNotEmpty ? activePtLabels.length : ptCount,
+        'te_items': activeTeLabels.isNotEmpty ? activeTeLabels.length : teCount,
+        'ww_labels': jsonEncode(activeWwLabels.isNotEmpty ? activeWwLabels : wwLabels),
+        'pt_labels': jsonEncode(activePtLabels.isNotEmpty ? activePtLabels : ptLabels),
+        'te_labels': jsonEncode(activeTeLabels.isNotEmpty ? activeTeLabels : teLabels),
+        'ww_weight': finalWwWeight,
+        'pt_weight': finalPtWeight,
+        'te_weight': finalTeWeight,
+        'attendance_weight': (savedSetup?['attendance_weight'] as int?) ?? 0,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Note: Auto-saving assessment setup: $e');
+    }
+
     // Save column mapping template for future pre-filling
     Map<String, String> templateJson = {};
     for (final m in _columnMappings) {
@@ -965,10 +591,13 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     });
 
     if (mounted) {
+      final weightsInfo = (detectedWeights?.isDetected == true)
+          ? '\n\nGrading weights auto-adapted: WW $finalWwWeight% | PT $finalPtWeight% | QA $finalTeWeight%'
+          : '';
       AestheticDialogs.showSuccessDialog(
         context,
         title: 'Grades Imported',
-        message: 'Successfully imported $insertedCount grade records into the system!',
+        message: 'Successfully imported $insertedCount grade records into the system!$weightsInfo',
       );
     }
   }
@@ -984,22 +613,53 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     EcrTargetCategory target,
     List<String> wwLabels,
     List<String> ptLabels,
-    List<String> teLabels,
-  ) {
+    List<String> teLabels, {
+    String? originalHeader,
+  }) {
+    // If spreadsheet column has a descriptive header (e.g., "Quiz 1", "Assignment 1", "Project", "Quarterly Exam")
+    String? meaningfulHeader;
+    if (originalHeader != null && originalHeader.trim().isNotEmpty) {
+      String clean = originalHeader.trim();
+      if (clean.contains(' - ')) {
+        final parts = clean.split(' - ');
+        clean = parts.last.trim();
+      }
+      final lower = clean.toLowerCase();
+      final isGenericNum = RegExp(r'^\d+$').hasMatch(clean);
+      final isGenericCode = RegExp(r'^(?:ww|pt|qa|hps|sw|pet)\s*\d*$', caseSensitive: false).hasMatch(clean);
+      final isTotalOrSummary = lower.contains('total') ||
+          lower.contains('hps') ||
+          lower.contains('highest') ||
+          lower.contains('initial grade') ||
+          lower.contains('weighted');
+
+      if (!isGenericNum && !isGenericCode && !isTotalOrSummary && clean.length > 1 && clean.length <= 40) {
+        meaningfulHeader = clean;
+      }
+    }
+
     if (target.label.startsWith('WW')) {
       final numStr = target.label.substring(2);
       final idx = (int.tryParse(numStr) ?? 1) - 1;
-      if (idx >= 0 && idx < wwLabels.length) return wwLabels[idx];
-      return 'Written Works ${idx + 1}';
+      // Preserve custom non-generic name previously defined in setup if present
+      if (idx >= 0 && idx < wwLabels.length && !wwLabels[idx].startsWith('Written Works')) {
+        return wwLabels[idx];
+      }
+      return meaningfulHeader ?? (idx >= 0 && idx < wwLabels.length ? wwLabels[idx] : 'Written Works ${idx + 1}');
     }
     if (target.label.startsWith('PT')) {
       final numStr = target.label.substring(2);
       final idx = (int.tryParse(numStr) ?? 1) - 1;
-      if (idx >= 0 && idx < ptLabels.length) return ptLabels[idx];
-      return 'Performance Tasks ${idx + 1}';
+      if (idx >= 0 && idx < ptLabels.length && !ptLabels[idx].startsWith('Performance Tasks')) {
+        return ptLabels[idx];
+      }
+      return meaningfulHeader ?? (idx >= 0 && idx < ptLabels.length ? ptLabels[idx] : 'Performance Tasks ${idx + 1}');
     }
     if (target.label == 'QA') {
-      return teLabels.isNotEmpty ? teLabels.first : 'Term Exams 1';
+      if (teLabels.isNotEmpty && !teLabels.first.startsWith('Term Exams')) {
+        return teLabels.first;
+      }
+      return meaningfulHeader ?? (teLabels.isNotEmpty ? teLabels.first : 'Term Exams 1');
     }
     return target.label;
   }
@@ -1168,28 +828,6 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
               ),
             ],
           ),
-          actions: [
-            Padding(
-              padding: EdgeInsets.only(right: isMobile ? 8 : 16),
-              child: isMobile
-                  ? IconButton(
-                      onPressed: _showCreateEcrTemplateDialog,
-                      icon: const Icon(Icons.post_add_rounded, color: Color(0xFF059669)),
-                      tooltip: 'Create ECR Template',
-                    )
-                  : ElevatedButton.icon(
-                      onPressed: _showCreateEcrTemplateDialog,
-                      icon: const Icon(Icons.post_add_rounded, size: 18),
-                      label: const Text('Create ECR Template'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF059669),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-            ),
-          ],
           backgroundColor: Colors.white,
           elevation: 1,
           iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
@@ -1468,33 +1106,16 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
               style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
             ),
             const SizedBox(height: 24),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 12,
-              runSpacing: 10,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _pickAndParseFile,
-                  icon: const Icon(Icons.folder_open),
-                  label: Text(isMobile ? 'Choose ECR File' : 'Choose File from Computer'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: _showCreateEcrTemplateDialog,
-                  icon: const Icon(Icons.post_add_rounded, color: Color(0xFF059669)),
-                  label: const Text('Create ECR Template', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.bold)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF059669), width: 1.5),
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ],
+            ElevatedButton.icon(
+              onPressed: _pickAndParseFile,
+              icon: const Icon(Icons.folder_open),
+              label: Text(isMobile ? 'Choose ECR File' : 'Choose File from Computer'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
             ),
             const SizedBox(height: 28),
             Container(
@@ -1525,7 +1146,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'NotifyED automatically adapts to ANY imported ECR—whether you upload your custom created template, an official DepEd Excel sheet, or a flat CSV with arbitrary activity columns.',
+                          'NotifyED automatically adapts to ANY imported ECR—whether you upload an official DepEd Excel sheet or a flat CSV with arbitrary activity columns.',
                           style: TextStyle(fontSize: 12, color: Color(0xFF15803D), height: 1.3),
                         ),
                       ],
@@ -2366,6 +1987,9 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
           _buildRosterReconciliationCard(_rosterMatchResult!, isMobile),
         ],
 
+        const SizedBox(height: 12),
+        _buildWeightsDetectedCard(),
+
         const SizedBox(height: 16),
 
         if (isMobile) ...[
@@ -2589,6 +2213,90 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
+  Widget _buildWeightsDetectedCard() {
+    final weights = _parseResult?.detectedWeights;
+    final isDetected = weights?.isDetected == true;
+    final ww = weights?.wwWeight.toInt() ?? 30;
+    final pt = weights?.ptWeight.toInt() ?? 50;
+    final qa = weights?.qaWeight.toInt() ?? 20;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: isDetected ? const Color(0xFF6EE7B7) : const Color(0xFFCBD5E1)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      color: isDetected ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+      child: Padding(
+        padding: const EdgeInsets.all(14.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              isDetected ? Icons.auto_awesome : Icons.tune,
+              color: isDetected ? const Color(0xFF059669) : const Color(0xFF64748B),
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      Text(
+                        isDetected ? 'Grading Weights Auto-Detected' : 'Standard DepEd Weights Applied',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: isDetected ? const Color(0xFF065F46) : const Color(0xFF334155),
+                        ),
+                      ),
+                      if (isDetected)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFD1FAE5),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'AUTO-ADAPTED',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF047857)),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Written Works: $ww%  •  Performance Tasks: $pt%  •  Quarterly Exam: $qa%',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDetected ? const Color(0xFF047857) : const Color(0xFF475569),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    isDetected
+                        ? 'The system will automatically configure class grade computation with these weights upon saving.'
+                        : 'No custom weights found in file header. Using standard DepEd 30-50-20 distribution.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDetected ? const Color(0xFF059669) : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── STEP 4: SUCCESS STEP ─────────────────────────────────────────────────
 
   Widget _buildSuccessStep(bool isMobile) {
@@ -2614,6 +2322,37 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(color: Color(0xFF047857)),
             ),
+            if (_parseResult?.detectedWeights != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD1FAE5),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _parseResult!.detectedWeights.isDetected ? Icons.auto_awesome : Icons.check_circle_outline,
+                      color: const Color(0xFF065F46),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        _parseResult!.detectedWeights.isDetected
+                            ? 'Grading Weights Auto-Adapted: WW ${_parseResult!.detectedWeights.wwWeight.toInt()}% | PT ${_parseResult!.detectedWeights.ptWeight.toInt()}% | QA ${_parseResult!.detectedWeights.qaWeight.toInt()}%'
+                            : 'Standard DepEd Weights Applied: WW 30% | PT 50% | QA 20%',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF065F46)),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             Wrap(
               alignment: WrapAlignment.center,
