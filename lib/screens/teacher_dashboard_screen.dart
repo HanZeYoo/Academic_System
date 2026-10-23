@@ -143,13 +143,62 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return result ?? false;
   }
 
+  Future<bool> _showDiscardSectionDialog(String sectionName) async {
+    // Read-only or safe navigation sections can return directly
+    if (sectionName == 'Reports' || sectionName == 'Settings' || sectionName == 'Student Profiling') {
+      return true;
+    }
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+            SizedBox(width: 8),
+            Text('Leave Page?'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to leave $sectionName? Any unsaved input or progress will be lost.',
+          style: GoogleFonts.poppins(fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Stay Here',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: const Color(0xFF0F52BA)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'Leave Page',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         if (_selectedMenu != 'Dashboard') {
+          final shouldLeave = await _showDiscardSectionDialog(_selectedMenu);
+          if (!shouldLeave) return;
           setState(() {
             _selectedMenu = 'Dashboard';
           });

@@ -230,23 +230,84 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF0F4F9),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0F52BA),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+  bool get _hasUnsavedInput {
+    if (widget.existingStudent != null) return true;
+    return _studentIdController.text.isNotEmpty ||
+        _firstNameController.text.isNotEmpty ||
+        _lastNameController.text.isNotEmpty ||
+        _emailController.text.isNotEmpty ||
+        _parentNameController.text.isNotEmpty ||
+        _parentEmailController.text.isNotEmpty;
+  }
+
+  Future<bool> _onWillPop() async {
+    if (!_hasUnsavedInput) return true;
+    final shouldDiscard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+            SizedBox(width: 8),
+            Text('Discard Changes?'),
+          ],
+        ),
+        content: const Text(
+          'You have unsaved student information. Are you sure you want to discard your changes and leave?',
+          style: TextStyle(fontSize: 14),
         ),
         actions: [
-          if (widget.existingStudent != null)
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.white),
-              onPressed: _confirmDelete,
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Stay & Continue Editing', style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
+            child: const Text('Discard', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    return shouldDiscard ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldPop = await _onWillPop();
+        if (shouldPop && context.mounted) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF0F4F9),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF0F52BA),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () async {
+              final shouldPop = await _onWillPop();
+              if (shouldPop && context.mounted) {
+                Navigator.pop(context);
+              }
+            },
+          ),
+          actions: [
+            if (widget.existingStudent != null)
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.white),
+                onPressed: _confirmDelete,
+              ),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: CircleAvatar(
@@ -685,7 +746,12 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () async {
+                        final shouldPop = await _onWillPop();
+                        if (shouldPop && context.mounted) {
+                          Navigator.pop(context);
+                        }
+                      },
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         backgroundColor: Colors.white,
@@ -730,6 +796,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       ),
     ),
   ),
+),
 );
 }
 

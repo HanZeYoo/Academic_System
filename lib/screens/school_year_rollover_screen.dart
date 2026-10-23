@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../database_helper.dart';
 
 class SchoolYearRolloverScreen extends StatefulWidget {
@@ -151,16 +151,29 @@ class _SchoolYearRolloverScreenState extends State<SchoolYearRolloverScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFEAF4FB),
-      appBar: AppBar(
-        title: const Text('End of School Year Rollover',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
-        backgroundColor: const Color(0xFF1E66B4),
-        iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 0,
+    return PopScope(
+      canPop: !_isRollingOver,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _isRollingOver) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please wait for the year-end rollover to complete.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFEAF4FB),
+        appBar: AppBar(
+          title: const Text('End of School Year Rollover',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
+          backgroundColor: const Color(0xFF1E66B4),
+          iconTheme: const IconThemeData(color: Colors.white),
+          elevation: 0,
+        ),
+        body: _isRollingOver ? _buildProgressView() : _buildContent(),
       ),
-      body: _isRollingOver ? _buildProgressView() : _buildContent(),
     );
   }
 

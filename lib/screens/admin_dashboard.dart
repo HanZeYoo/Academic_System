@@ -118,6 +118,48 @@ class _AdminDashboardState extends State<AdminDashboard> {
     return result ?? false;
   }
 
+  Future<bool> _showDiscardSectionDialog(String sectionName) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+            SizedBox(width: 8),
+            Text('Leave Section?'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to return to Overview? Any unsaved changes in $sectionName will be lost.',
+          style: GoogleFonts.poppins(fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              'Stay Here',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: const Color(0xFF1E66B4)),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'Leave Section',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   String _getPortalTitle() {
     final role = _currentRole.toLowerCase();
     if (role == 'principal') return 'Principal Portal';
@@ -527,6 +569,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
           return;
         }
         if (_selectedIndex != 0) {
+          final currentSection = menuItems[_selectedIndex].title;
+          final shouldLeave = await _showDiscardSectionDialog(currentSection);
+          if (!shouldLeave) return;
           setState(() {
             _selectedIndex = 0;
           });
