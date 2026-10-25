@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/avatar_utils.dart';
+import '../services/early_warning_service.dart';
 import 'ecr_import_screen.dart';
 
 class EncodeScoresScreen extends StatefulWidget {
@@ -43,6 +44,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
   final Map<String, Map<String, int>> _draftStudentScores = {};
 
   List<Map<String, dynamic>> _students = [];
+  Map<String, EarlyWarningResult> _earlyWarningResults = {};
 
   // --- Cached CSV Data ---
   List<List<dynamic>>? _cachedCsvData;
@@ -309,7 +311,24 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       _scoreControllers[sid] = ctrl;
     }
 
-    setState(() => _students = students);
+    // SO1: Multi-Criteria Early Warning evaluation
+    final allScores = await DatabaseHelper().getScoresForClass(
+      subjectCode: subjectCode,
+      sectionName: section,
+      gradeLevel: grade,
+      gradingPeriod: _selectedPeriod,
+    );
+    final ewResults = EarlyWarningService.evaluateClassScores(
+      students: students,
+      allScores: allScores,
+      subjectCode: subjectCode,
+      gradingPeriod: _selectedPeriod,
+    );
+
+    setState(() {
+      _students = students;
+      _earlyWarningResults = ewResults;
+    });
 
     // After loading DB data, if we have a cached CSV, apply it over the DB data.
     if (_cachedCsvData != null) {
@@ -423,7 +442,8 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
 
   bool _isPassed(int score) {
     if (_totalScore <= 0) return false;
-    return (score / _totalScore) * 100 >= 65;
+    final rawPct = (score / _totalScore) * 100.0;
+    return DatabaseHelper().transmuteGrade(rawPct) >= 75.0;
   }
 
   int get _encodedCount =>
@@ -513,13 +533,37 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       });
     }
 
-    setState(() => _isSaving = false);
+    // SO1: Immediate O(1) early warning re-evaluation post-save
+    final allClassScores = await DatabaseHelper().getScoresForClass(
+      subjectCode: subjectCode,
+      sectionName: section,
+      gradeLevel: grade,
+      gradingPeriod: _selectedPeriod,
+    );
+    final ewResults = EarlyWarningService.evaluateClassScores(
+      students: _students,
+      allScores: allClassScores,
+      subjectCode: subjectCode,
+      gradingPeriod: _selectedPeriod,
+    );
+
+    setState(() {
+      _earlyWarningResults = ewResults;
+      _isSaving = false;
+    });
+
+    final atRiskList = ewResults.values.where((r) => r.isAtRisk).toList();
+
+    String alertMsg = 'Student scores have been recorded successfully.';
+    if (atRiskList.isNotEmpty) {
+      alertMsg += '\n\nAcademic Notice: ${atRiskList.length} student(s) currently flagged as at-risk. Please check the Academic Evaluation dashboard for early intervention details.';
+    }
 
     if (mounted) {
       AestheticDialogs.showSuccessDialog(
         context,
         title: 'Scores Saved',
-        message: 'Student scores have been recorded successfully!',
+        message: alertMsg,
       );
     }
   }
@@ -941,13 +985,39 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                                           ),
                                           const SizedBox(width: 8),
                                           Expanded(
-                                            child: Text(
-                                              student['name']?.toString() ??
-                                                  'Unknown',
-                                              style: const TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w500),
-                                              overflow: TextOverflow.ellipsis,
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  student['name']?.toString() ??
+                                                      'Unknown',
+                                                  style: const TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w500),
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                                if (_earlyWarningResults[sid]?.isAtRisk ?? false) ...[
+                                                  const SizedBox(height: 2),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFFFEE2E2),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                      border: Border.all(color: const Color(0xFFFCA5A5), width: 0.5),
+                                                    ),
+                                                    child: Text(
+                                                      _earlyWarningResults[sid]!.shortBadgeText,
+                                                      style: const TextStyle(
+                                                        fontSize: 8.5,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Color(0xFFDC2626),
+                                                      ),
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
                                             ),
                                           ),
                                         ],
@@ -1024,17 +1094,23 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                                                 : const Color(0xFFFEF2E8),
                                             borderRadius:
                                                 BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: passed
+                                                  ? const Color(0xFFA7F3D0)
+                                                  : const Color(0xFFFED7AA),
+                                              width: 0.5,
+                                            ),
                                           ),
                                           child: FittedBox(
                                             fit: BoxFit.scaleDown,
                                             child: Text(
-                                              passed ? 'Passed' : 'At-Risk',
+                                              passed ? 'Passed' : 'Below 75',
                                               style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.bold,
                                                 color: passed
-                                                    ? const Color(0xFF198754)
-                                                    : const Color(0xFFE67E22),
+                                                    ? const Color(0xFF16A34A)
+                                                    : const Color(0xFFEA580C),
                                               ),
                                             ),
                                           ),
@@ -1069,7 +1145,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Scores are auto-updated if re-saved. Passing mark is 65%.',
+                    'Scores auto-update when saved. Passing mark is 75 (Base-70 Transmuted). Multi-criteria risk indicators (task completion & grade thresholds) are evaluated in real-time.',
                     style: TextStyle(
                         color: Colors.blue.shade800, fontSize: 12),
                   ),

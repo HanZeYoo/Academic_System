@@ -770,8 +770,10 @@ class DatabaseHelper {
     required String gradeLevel,
     required String gradingPeriod,
     String? schoolYear,
+    bool filterBySetup = true,
   }) async {
     final year = schoolYear ?? await getActiveSchoolYear();
+    List<Map<String, dynamic>> rawScores = [];
     try {
       final results = await Supabase.instance.client.from('scores')
           .select()
@@ -781,7 +783,7 @@ class DatabaseHelper {
           .eq('grading_period', gradingPeriod)
           .eq('school_year', year)
           .order('student_name', ascending: true);
-      return List<Map<String, dynamic>>.from(results);
+      rawScores = List<Map<String, dynamic>>.from(results);
     } catch (e) {
       final results = await Supabase.instance.client.from('scores')
           .select()
@@ -790,11 +792,73 @@ class DatabaseHelper {
           .eq('grade_level', gradeLevel)
           .eq('grading_period', gradingPeriod)
           .order('student_name', ascending: true);
-      return List<Map<String, dynamic>>.from(results);
+      rawScores = List<Map<String, dynamic>>.from(results);
+    }
+
+    if (!filterBySetup) return rawScores;
+
+    try {
+      final setup = await getAssessmentSetup(
+        subjectCode: subjectCode,
+        sectionName: sectionName,
+        gradeLevel: gradeLevel,
+        gradingPeriod: gradingPeriod,
+      );
+      if (setup == null) return rawScores;
+
+      final Set<String> activeLabels = {};
+      void addLabels(dynamic data, int count, String prefix) {
+        if (data != null && data is String) {
+          try {
+            final decoded = jsonDecode(data);
+            if (decoded is List && decoded.isNotEmpty) {
+              activeLabels.addAll(decoded.map((e) => e.toString()));
+              return;
+            }
+          } catch (_) {}
+        } else if (data is List && data.isNotEmpty) {
+          activeLabels.addAll(data.map((e) => e.toString()));
+          return;
+        }
+        for (int i = 1; i <= count; i++) {
+          activeLabels.add('$prefix $i');
+        }
+      }
+
+      final wwCount = (setup['ww_items'] as int?) ?? 10;
+      final ptCount = (setup['pt_items'] as int?) ?? 10;
+      final teCount = (setup['te_items'] as int?) ?? 1;
+
+      addLabels(setup['ww_labels'], wwCount, 'Written Works');
+      addLabels(setup['pt_labels'], ptCount, 'Performance Tasks');
+      addLabels(setup['te_labels'], teCount, 'Term Exams');
+
+      if (activeLabels.isEmpty) return rawScores;
+
+      final filtered = rawScores.where((r) {
+        final label = r['item_label']?.toString() ?? '';
+        return activeLabels.contains(label);
+      }).toList();
+
+      // If orphaned items are detected, prune them from the database in the background
+      if (filtered.length < rawScores.length) {
+        final orphanedIds = rawScores
+            .where((r) => !activeLabels.contains(r['item_label']?.toString() ?? ''))
+            .map((r) => r['id'])
+            .where((id) => id != null)
+            .toList();
+        for (final id in orphanedIds) {
+          Supabase.instance.client.from('scores').delete().eq('id', id).then((_) {}, onError: (_) {});
+        }
+      }
+
+      return filtered;
+    } catch (_) {
+      return rawScores;
     }
   }
 
-  // Save (upsert) assessment setup for a class/period
+  // Save (upsert) assessment setup for a class/period and prune orphaned scores
   Future<void> saveAssessmentSetup(Map<String, dynamic> data) async {
     await Supabase.instance.client.from('assessment_setups')
         .delete()
@@ -804,6 +868,57 @@ class DatabaseHelper {
         .eq('grading_period', data['grading_period']);
     
     await Supabase.instance.client.from('assessment_setups').insert(data);
+
+    // Prune any scores whose item_label is no longer in the newly saved active labels
+    try {
+      final Set<String> activeLabels = {};
+      void addLabels(dynamic field, int count, String prefix) {
+        if (field != null && field is String) {
+          try {
+            final decoded = jsonDecode(field);
+            if (decoded is List && decoded.isNotEmpty) {
+              activeLabels.addAll(decoded.map((e) => e.toString()));
+              return;
+            }
+          } catch (_) {}
+        } else if (field is List && field.isNotEmpty) {
+          activeLabels.addAll(field.map((e) => e.toString()));
+          return;
+        }
+        for (int i = 1; i <= count; i++) {
+          activeLabels.add('$prefix $i');
+        }
+      }
+
+      final wwCount = (data['ww_items'] as int?) ?? 10;
+      final ptCount = (data['pt_items'] as int?) ?? 10;
+      final teCount = (data['te_items'] as int?) ?? 1;
+
+      addLabels(data['ww_labels'], wwCount, 'Written Works');
+      addLabels(data['pt_labels'], ptCount, 'Performance Tasks');
+      addLabels(data['te_labels'], teCount, 'Term Exams');
+
+      if (activeLabels.isNotEmpty) {
+        final existing = await Supabase.instance.client.from('scores')
+            .select('id, item_label')
+            .eq('subject_code', data['subject_code'])
+            .eq('section_name', data['section_name'])
+            .eq('grade_level', data['grade_level'])
+            .eq('grading_period', data['grading_period']);
+
+        final orphanedIds = existing
+            .where((r) => !activeLabels.contains(r['item_label']?.toString() ?? ''))
+            .map((r) => r['id'])
+            .where((id) => id != null)
+            .toList();
+
+        for (final id in orphanedIds) {
+          await Supabase.instance.client.from('scores').delete().eq('id', id);
+        }
+      }
+    } catch (e) {
+      print('Note: saveAssessmentSetup score pruning: $e');
+    }
   }
 
   // Get assessment setup for a specific class and period

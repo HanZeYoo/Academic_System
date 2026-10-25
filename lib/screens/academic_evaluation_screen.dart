@@ -4,6 +4,7 @@ import '../utils/dialog_utils.dart';
 import '../utils/avatar_utils.dart';
 import 'class_evaluation_report_screen.dart';
 import 'student_evaluation_detail_screen.dart';
+import '../services/early_warning_service.dart';
 
 class AcademicEvaluationScreen extends StatefulWidget {
   final String username;
@@ -236,10 +237,23 @@ class _AcademicEvaluationScreenState
             style: TextStyle(fontSize: 16, color: Colors.grey)));
     }
 
+    final subjCode = _selectedClassData?['subject_code']?.toString() ?? '';
+    final ewResults = EarlyWarningService.evaluateClassScores(
+      students: _students,
+      allScores: _allScores,
+      subjectCode: subjCode,
+      gradingPeriod: _selectedPeriod,
+    );
+
     final gradeList = _students.where((s) {
+      final sid = s['student_id'].toString();
+      final ew = ewResults[sid];
+      final isEwAtRisk = ew?.isAtRisk ?? false;
+      final g = _computeGrade(sid);
+      final isGradeAtRisk = g > 0 && g < 75;
+
       if (_showOnlyAtRisk) {
-        final g = _computeGrade(s['student_id'].toString());
-        if (g <= 0 || g > 80) return false;
+        if (!isEwAtRisk && !isGradeAtRisk) return false;
       }
       final q = _searchQuery.toLowerCase();
       return q.isEmpty ||
@@ -248,11 +262,13 @@ class _AcademicEvaluationScreenState
     }).toList();
 
     final int totalStudents = _students.length;
-    final passed = _students.where((s) => _computeGrade(s['student_id'].toString()) >= 75).length;
     final atRisk = _students.where((s) {
-      final g = _computeGrade(s['student_id'].toString());
-      return g > 0 && g < 75;
+      final sid = s['student_id'].toString();
+      final ew = ewResults[sid];
+      final g = _computeGrade(sid);
+      return (ew?.isAtRisk ?? false) || (g > 0 && g < 75);
     }).length;
+    final passed = totalStudents - atRisk;
     double classAvg = 0;
     if (totalStudents > 0) {
       classAvg = _students.fold(0.0, (sum, s) => sum + _computeGrade(s['student_id'].toString())) / totalStudents;
@@ -464,6 +480,11 @@ class _AcademicEvaluationScreenState
                 final tePct = _categoryAvg(sid, 'Term Exams');
                 final isPassed = grade >= 75;
                 final hasScores = grade > 0;
+                final ew = ewResults[sid];
+                final isEwAtRisk = ew?.isAtRisk ?? false;
+                final atRiskStatus = isEwAtRisk ? ew!.shortBadgeText : 'At-Risk';
+                final isFlagged = isEwAtRisk || (!isPassed && hasScores);
+
                 return _buildStudentCard(
                   name: student['name'].toString(),
                   section: student['section'].toString(),
@@ -472,20 +493,23 @@ class _AcademicEvaluationScreenState
                   overallGrade: hasScores ? '${grade.toStringAsFixed(1)}%' : 'N/A',
                   gradeColor: !hasScores
                       ? Colors.grey
-                      : isPassed
+                      : !isFlagged
                           ? const Color(0xFF3B82F6)
                           : const Color(0xFFEF4444),
-                  status: !hasScores ? 'No Data' : isPassed ? 'Passed' : 'At-Risk',
+                  status: !hasScores
+                      ? 'No Data'
+                      : (isFlagged ? atRiskStatus : 'Passed'),
                   statusColor: !hasScores
                       ? Colors.grey
-                      : isPassed
+                      : (!isFlagged
                           ? const Color(0xFF10B981)
-                          : const Color(0xFFEF4444),
+                          : const Color(0xFFEF4444)),
                   statusBgColor: !hasScores
                       ? Colors.grey.shade100
-                      : isPassed
+                      : (!isFlagged
                           ? const Color(0xFFD1FAE5)
-                          : const Color(0xFFFEE2E2),
+                          : const Color(0xFFFEE2E2)),
+                  earlyWarning: ew,
                   wwAvg: wwPct > 0 ? '${wwPct.toStringAsFixed(0)}%' : '--',
                   ptAvg: ptPct > 0 ? '${ptPct.toStringAsFixed(0)}%' : '--',
                   teAvg: tePct > 0 ? '${tePct.toStringAsFixed(0)}%' : '--',
@@ -910,6 +934,7 @@ class _AcademicEvaluationScreenState
     Color wwColor = const Color(0xFF3B82F6),
     Color ptColor = const Color(0xFF3B82F6),
     Color teColor = const Color(0xFF3B82F6),
+    EarlyWarningResult? earlyWarning,
     VoidCallback? onViewDetails,
     VoidCallback? onRemarks,
   }) {
@@ -1100,6 +1125,10 @@ class _AcademicEvaluationScreenState
               _buildPill('WW Avg.', wwAvg, wwColor),
               _buildPill('PT Avg.', ptAvg, ptColor),
               _buildPill('TE Avg.', teAvg, teColor),
+              if (earlyWarning != null && (earlyWarning.missedCount > 0 || earlyWarning.subPassingCount > 0)) ...[
+                _buildPill('Missed', '${earlyWarning.missedCount}', earlyWarning.isRuleATriggered ? const Color(0xFFEF4444) : Colors.grey.shade700),
+                _buildPill('Sub-75', '${earlyWarning.subPassingCount}', earlyWarning.isRuleBTriggered ? const Color(0xFFEF4444) : Colors.grey.shade700),
+              ],
               _buildOutlinedButton(Icons.visibility_outlined, 'View Details', const Color(0xFF3B82F6), onTap: onViewDetails),
               if (onRemarks != null) _buildOutlinedButton(Icons.chat_bubble_outline, 'Remarks', const Color(0xFF3B82F6), onTap: onRemarks),
             ],

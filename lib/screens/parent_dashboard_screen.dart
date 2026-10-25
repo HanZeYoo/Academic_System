@@ -172,6 +172,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       double? finalWwAvg;
       double? finalPtAvg;
       double? finalTeAvg;
+      List<Map<String, dynamic>> activeSubjectScores = subjectScores;
 
       if (subjectScores.isNotEmpty) {
         final setup = await dbHelper.getAssessmentSetup(
@@ -182,6 +183,39 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         );
 
         if (setup != null) {
+          final Set<String> activeLabels = {};
+          void addLabels(dynamic data, int count, String prefix) {
+            if (data != null && data is String) {
+              try {
+                final decoded = jsonDecode(data);
+                if (decoded is List && decoded.isNotEmpty) {
+                  activeLabels.addAll(decoded.map((e) => e.toString()));
+                  return;
+                }
+              } catch (_) {}
+            } else if (data is List && data.isNotEmpty) {
+              activeLabels.addAll(data.map((e) => e.toString()));
+              return;
+            }
+            for (int i = 1; i <= count; i++) {
+              activeLabels.add('$prefix $i');
+            }
+          }
+
+          final wwCount = (setup['ww_items'] as num?)?.toInt() ?? 10;
+          final ptCount = (setup['pt_items'] as num?)?.toInt() ?? 10;
+          final teCount = (setup['te_items'] as num?)?.toInt() ?? 1;
+
+          addLabels(setup['ww_labels'], wwCount, 'Written Works');
+          addLabels(setup['pt_labels'], ptCount, 'Performance Tasks');
+          addLabels(setup['te_labels'], teCount, 'Term Exams');
+
+          if (activeLabels.isNotEmpty) {
+            activeSubjectScores = subjectScores
+                .where((r) => activeLabels.contains(r['item_label']?.toString() ?? ''))
+                .toList();
+          }
+
           double earned = 0.0;
           double totalWeight = 0.0;
           final wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 30;
@@ -190,18 +224,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           final wAttendance = (setup['attendance_weight'] as num?)?.toDouble() ?? 0;
 
           double categoryAvg(String cat) {
-            int maxItems = 999;
-            if (cat.toLowerCase() == 'written works') maxItems = (setup['ww_items'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'performance tasks') maxItems = (setup['pt_items'] as num?)?.toInt() ?? 999;
-            else if (cat.toLowerCase() == 'term exams') maxItems = (setup['te_items'] as num?)?.toInt() ?? 999;
-
-            var filtered = subjectScores.where((r) {
+            var filtered = activeSubjectScores.where((r) {
               final itemCat = r['category']?.toString() ?? '';
-              final itemLabel = r['item_label']?.toString() ?? '';
-              if (itemCat != cat) return false;
-              int? num = int.tryParse(itemLabel.replaceAll(RegExp(r'[^0-9]'), ''));
-              if (num != null && num > maxItems) return false;
-              return true;
+              return itemCat.toLowerCase() == cat.toLowerCase();
             }).toList();
 
             if (filtered.isEmpty) return -1.0;
@@ -278,7 +303,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         'wwAvg': finalWwAvg,
         'ptAvg': finalPtAvg,
         'teAvg': finalTeAvg,
-        'rawScores': subjectScores.map((s) => "${s['item_label']} (${s['category']}): ${s['score']}/${s['total_score']}").toList(),
+        'rawScores': activeSubjectScores.map((s) => "${s['item_label']} (${s['category']}): ${s['score']}/${s['total_score']}").toList(),
       });
     }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'parent_notification_screen.dart';
 import '../database_helper.dart';
 import '../utils/avatar_utils.dart';
+import '../services/early_warning_service.dart';
 
 class StudentEvaluationDetailScreen extends StatelessWidget {
   final Map<String, dynamic> student;
@@ -85,6 +86,16 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
     final isPassed = overallGrade >= 75;
     final hasScores = scores.isNotEmpty;
 
+    final sid = student['student_id']?.toString() ?? '';
+    final sname = student['name']?.toString() ?? 'Student';
+    final earlyWarning = EarlyWarningService.evaluateScores(
+      studentId: sid,
+      studentName: sname,
+      subjectCode: subjectName,
+      gradingPeriod: gradingPeriod,
+      studentScores: scores,
+    );
+
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9), // Slate 100
       appBar: AppBar(
@@ -99,19 +110,56 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            _buildHeader(overallGrade, isPassed, hasScores),
+            _buildHeader(overallGrade, isPassed, hasScores, earlyWarning),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F52BA).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.analytics_outlined, size: 20, color: Color(0xFF0F52BA)),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Early Warning Performance Analytics',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1E293B),
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Academic risk evaluation & performance matrix',
+                              style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildEarlyWarningSection(earlyWarning),
+                  const SizedBox(height: 24),
                   const Text('Performance Breakdown', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
                   const SizedBox(height: 12),
                   _buildBreakdownCard(),
                   const SizedBox(height: 24),
                   const Text('Academic Snapshot', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
                   const SizedBox(height: 12),
-                  _buildAcademicSnapshot(isPassed),
+                  _buildAcademicSnapshot(isPassed, earlyWarning),
                   const SizedBox(height: 32),
                   SizedBox(
                     width: double.infinity,
@@ -160,7 +208,7 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(double overallGrade, bool isPassed, bool hasScores) {
+  Widget _buildHeader(double overallGrade, bool isPassed, bool hasScores, EarlyWarningResult earlyWarning) {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -199,25 +247,48 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                       decoration: BoxDecoration(
                         color: !hasScores
-                            ? Colors.grey.withOpacity(0.4)
-                            : isPassed
-                                ? Colors.greenAccent.withOpacity(0.2)
-                                : Colors.redAccent.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
+                            ? Colors.white.withOpacity(0.15)
+                            : earlyWarning.isAtRisk
+                                ? const Color(0xFFEF4444).withOpacity(0.25)
+                                : const Color(0xFF10B981).withOpacity(0.22),
+                        borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: !hasScores ? Colors.grey : isPassed ? Colors.greenAccent : Colors.redAccent,
-                        )
-                      ),
-                      child: Text(
-                        !hasScores ? 'No Data' : isPassed ? 'Passed' : 'At-Risk',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: !hasScores ? Colors.white : isPassed ? Colors.greenAccent : Colors.redAccent,
+                          color: !hasScores
+                              ? Colors.white38
+                              : earlyWarning.isAtRisk
+                                  ? const Color(0xFFFCA5A5)
+                                  : const Color(0xFF86EFAC),
+                          width: 1,
                         ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            !hasScores
+                                ? Icons.info_outline
+                                : earlyWarning.isAtRisk
+                                    ? Icons.warning_amber_rounded
+                                    : Icons.verified_rounded,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            !hasScores
+                                ? 'No Data'
+                                : (earlyWarning.isAtRisk ? earlyWarning.shortBadgeText : 'Compliant (On-Track)'),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -257,13 +328,22 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(subjectName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F52BA))),
-                    const SizedBox(height: 4),
-                    Text(gradingPeriod, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B))),
-                  ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        subjectName,
+                        textAlign: TextAlign.right,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F52BA)),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(gradingPeriod, textAlign: TextAlign.right, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B))),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -337,8 +417,9 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAcademicSnapshot(bool isPassed) {
+  Widget _buildAcademicSnapshot(bool isPassed, EarlyWarningResult earlyWarning) {
     final attendanceStr = '${attendancePct.toStringAsFixed(1)}%';
+    final isAtRisk = earlyWarning.isAtRisk;
     
     return Row(
       children: [
@@ -348,6 +429,7 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
               boxShadow: [
                 BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
               ],
@@ -360,17 +442,19 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: const Color(0xFF0F52BA).withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.event_available, color: Colors.blue, size: 20),
+                      child: const Icon(Icons.event_available_outlined, color: Color(0xFF0F52BA), size: 18),
                     ),
                     const SizedBox(width: 8),
-                    const Text('Attendance', style: TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                    const Text('Attendance', style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Text(attendanceStr, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+                const SizedBox(height: 4),
+                const Text('Formative engagement', style: TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
               ],
             ),
           ),
@@ -382,6 +466,7 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isAtRisk ? const Color(0xFFFECACA) : const Color(0xFFE2E8F0)),
               boxShadow: [
                 BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
               ],
@@ -394,26 +479,64 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: isPassed ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                        color: !isAtRisk ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        isPassed ? Icons.check_circle_outline : Icons.warning_amber_rounded,
-                        color: isPassed ? Colors.green : Colors.red,
-                        size: 20,
+                        !isAtRisk ? Icons.verified_outlined : Icons.warning_amber_rounded,
+                        color: !isAtRisk ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                        size: 18,
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text('Risk Status', style: TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                    const Text('Risk Status', style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
                   ],
                 ),
                 const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        !isAtRisk ? 'On-Track' : 'At-Risk',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: !isAtRisk ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: !isAtRisk ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: !isAtRisk ? const Color(0xFF86EFAC) : const Color(0xFFFCA5A5),
+                        ),
+                      ),
+                      child: Text(
+                        !isAtRisk ? 'Normal' : 'Flagged',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: !isAtRisk ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Text(
-                  isPassed ? 'On-Track' : 'At-Risk',
+                  !isAtRisk ? 'Academic Benchmark Safe' : earlyWarning.shortBadgeText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: isPassed ? Colors.green : Colors.red,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: !isAtRisk ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
                   ),
                 ),
               ],
@@ -421,6 +544,429 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEarlyWarningSection(EarlyWarningResult ew) {
+    final isAtRisk = ew.isAtRisk;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isAtRisk ? const Color(0xFFFCA5A5).withOpacity(0.8) : const Color(0xFFE2E8F0),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withOpacity(0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+          if (isAtRisk)
+            BoxShadow(
+              color: const Color(0xFFDC2626).withOpacity(0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Executive Status Banner ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: isAtRisk ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isAtRisk ? const Color(0xFFFECACA) : const Color(0xFFBBF7D0),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isAtRisk ? const Color(0xFFFEE2E2) : const Color(0xFFDCFCE7),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isAtRisk ? const Color(0xFFFCA5A5) : const Color(0xFF86EFAC),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Icon(
+                    isAtRisk ? Icons.warning_amber_rounded : Icons.verified_user_outlined,
+                    color: isAtRisk ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isAtRisk ? const Color(0xFFDC2626) : const Color(0xFF16A34A),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              isAtRisk ? 'STATUS: INTERVENTION REQUIRED' : 'STATUS: ACADEMICALLY COMPLIANT',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                                color: isAtRisk ? const Color(0xFF991B1B) : const Color(0xFF166534),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        isAtRisk
+                            ? 'At-Risk: ${ew.ruleTriggered}'
+                            : 'Satisfactory (Within Safe Thresholds)',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: isAtRisk ? const Color(0xFF991B1B) : const Color(0xFF14532D),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Criteria Subheader ──
+          Row(
+            children: [
+              Container(
+                width: 3,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F52BA),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'ACADEMIC PERFORMANCE MATRIX',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // ── Task Submission Compliance Card ──
+          _buildCriterionCard(
+            title: 'Task Submission Compliance',
+            subtitle: 'Evaluates learner participation, formative turn-in & engagement',
+            currentCount: ew.missedCount,
+            unitLabel: 'unrecorded / missed assessment(s)',
+            thresholdFormula: 'Threshold: Max 2 (Breached at > 2)',
+            isTriggered: ew.isRuleATriggered,
+            icon: ew.isRuleATriggered ? Icons.assignment_late_outlined : Icons.assignment_turned_in_outlined,
+            progressValue: (ew.missedCount / 3.0).clamp(0.0, 1.0),
+            safeLabel: '0 - 2 Missed (Safe)',
+            breachedLabel: '> 2 (At-Risk)',
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Grade Benchmark Performance Card ──
+          _buildCriterionCard(
+            title: 'Grade Benchmark Performance',
+            subtitle: 'Evaluates score distribution against the 75 passing standard',
+            currentCount: ew.subPassingCount,
+            unitLabel: 'assessment score(s) transmuted below 75.0',
+            thresholdFormula: 'Threshold: Max 2 (Breached at ≥ 3)',
+            isTriggered: ew.isRuleBTriggered,
+            icon: ew.isRuleBTriggered ? Icons.trending_down_rounded : Icons.trending_up_rounded,
+            progressValue: (ew.subPassingCount / 3.0).clamp(0.0, 1.0),
+            safeLabel: '0 - 2 Sub-75 (Safe)',
+            breachedLabel: '≥ 3 (At-Risk)',
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Pedagogical Action Directive Card (Overflow-Proof) ──
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isAtRisk ? const Color(0xFFFFFBEB) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isAtRisk ? const Color(0xFFFDE68A) : const Color(0xFFE2E8F0),
+                width: 1.2,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.school_outlined,
+                      size: 18,
+                      color: isAtRisk ? const Color(0xFFD97706) : const Color(0xFF0F52BA),
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Pedagogical Action Directive',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isAtRisk ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Profile: ${ew.riskProfile}',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: isAtRisk ? const Color(0xFFB45309) : const Color(0xFF475569),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isAtRisk
+                      ? 'Action Directive: Proactive pedagogical intervention required. Initiate parent alignment through the NotifyEd SMS/push notification module and schedule targeted remedial activities before quarterly grade finalization.'
+                      : 'Status: Learner demonstrates steady academic pacing and submission diligence. Standard instructional monitoring continues.',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.45,
+                    color: isAtRisk ? const Color(0xFF92400E) : const Color(0xFF475569),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Academic Intelligence Footer Tag ──
+          const Center(
+            child: Text(
+              'NotifyEd Academic Intelligence • Academic Performance Matrix',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF94A3B8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCriterionCard({
+    required String title,
+    required String subtitle,
+    required int currentCount,
+    required String unitLabel,
+    required String thresholdFormula,
+    required bool isTriggered,
+    required IconData icon,
+    required double progressValue,
+    required String safeLabel,
+    required String breachedLabel,
+  }) {
+    final statusColor = isTriggered ? const Color(0xFFDC2626) : const Color(0xFF16A34A);
+    final statusBg = isTriggered ? const Color(0xFFFEE2E2) : const Color(0xFFDCFCE7);
+    final statusBorder = isTriggered ? const Color(0xFFFCA5A5) : const Color(0xFF86EFAC);
+    final tileBg = isTriggered ? const Color(0xFFFFF7F7) : const Color(0xFFF8FAFC);
+    final tileBorder = isTriggered ? const Color(0xFFFECACA) : const Color(0xFFE2E8F0);
+
+    // Color progress bar depending on severity
+    Color progressColor;
+    if (isTriggered) {
+      progressColor = const Color(0xFFDC2626);
+    } else if (currentCount == 2) {
+      progressColor = const Color(0xFFF59E0B); // Pre-warning verge
+    } else if (currentCount > 0) {
+      progressColor = const Color(0xFF3B82F6);
+    } else {
+      progressColor = const Color(0xFFCBD5E1);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: tileBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: tileBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isTriggered ? const Color(0xFFFEE2E2) : const Color(0xFFE2E8F0).withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 18, color: statusColor),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: statusBg,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: statusBorder),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 5,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: statusColor,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      isTriggered ? 'Breached' : 'Compliant',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: statusColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                '$currentCount',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: isTriggered ? const Color(0xFFDC2626) : const Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  unitLabel,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isTriggered ? const Color(0xFFDC2626) : const Color(0xFF475569),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            thresholdFormula,
+            style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progressValue == 0 ? 0.04 : progressValue,
+              minHeight: 6,
+              backgroundColor: const Color(0xFFE2E8F0),
+              color: progressColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Text(
+                  safeLabel,
+                  style: const TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8)),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                breachedLabel,
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.bold,
+                  color: isTriggered ? const Color(0xFFDC2626) : const Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
