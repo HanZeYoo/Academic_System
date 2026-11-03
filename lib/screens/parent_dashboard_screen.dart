@@ -1113,20 +1113,48 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF224A60))),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                    child: _statCard('Average', avgStr,
-                        Icons.emoji_events_rounded, Colors.orange)),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: _statCard('Attendance', attStr,
-                        Icons.check_circle_rounded, Colors.green)),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: _statCard('Subjects', '${_schedule.length}',
-                        Icons.menu_book_rounded, Colors.blue)),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 420) {
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 130,
+                          child: _statCard('Average', avgStr, Icons.emoji_events_rounded, Colors.orange),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 130,
+                          child: _statCard('Attendance', attStr, Icons.check_circle_rounded, Colors.green),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 130,
+                          child: _statCard('Subjects', '${_schedule.length}', Icons.menu_book_rounded, Colors.blue),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(
+                        child: _statCard('Average', avgStr,
+                            Icons.emoji_events_rounded, Colors.orange)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child: _statCard('Attendance', attStr,
+                            Icons.check_circle_rounded, Colors.green)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child: _statCard('Subjects', '${_schedule.length}',
+                            Icons.menu_book_rounded, Colors.blue)),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 24),
 
