@@ -626,54 +626,100 @@ class _ParentNotificationScreenState
                 final student = _students.firstWhere((s) => s['student_id'].toString() == studentIdToSend);
                 final parentEmail = student['parent_email']?.toString() ?? '';
 
-                // Clear the form to simulate immediate processing
-                setState(() {
-                  _selectedStudentId = null;
-                  _selectedReason = null;
-                  _messageController.clear();
-                  _selectedTab = 'History';
-                });
-
-                bool isCancelled = false;
-
                 // Hide keyboard if visible
                 FocusScope.of(context).unfocus();
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Sending notification...'),
-                    duration: const Duration(seconds: 4),
-                    backgroundColor: Colors.black87,
-                    action: SnackBarAction(
-                      label: 'UNDO',
-                      textColor: Colors.orangeAccent,
-                      onPressed: () {
-                        isCancelled = true;
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                          setState(() {
-                            _selectedStudentId = studentIdToSend;
-                            _selectedReason = reasonToSend;
-                            _messageController.text = messageToSend;
-                            _selectedTab = 'Compose';
-                          });
-                        }
-                      },
+                final studentName = student['name']?.toString() ?? 'Unknown Student';
+                final parentName = student['parent_name']?.toString() ?? 'Parent';
+
+                // Confirmation Dialog for Teacher
+                final bool? confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    title: const Row(
+                      children: [
+                        Icon(Icons.mark_email_read_outlined, color: Color(0xFF1664C5)),
+                        SizedBox(width: 8),
+                        Text('Confirm Notification', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Are you sure you want to send this notification?',
+                          style: TextStyle(fontSize: 13, color: Colors.black87),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF7F9FB),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Student: $studentName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              const SizedBox(height: 4),
+                              Text('Parent: $parentName', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                              Text(
+                                'Email: ${parentEmail.isNotEmpty ? parentEmail : 'No email provided (In-app only)'}',
+                                style: TextStyle(fontSize: 12, color: parentEmail.isNotEmpty ? const Color(0xFF1664C5) : Colors.orange),
+                              ),
+                              const SizedBox(height: 4),
+                              Text('Subject: $reasonToSend', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: const Text('Cancel / Review', style: TextStyle(color: Colors.black54)),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        icon: const Icon(Icons.send, size: 16),
+                        label: const Text('Yes, Send Now'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF3383B3),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirmed != true) return;
+
+                // Show loading indicator dialog
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (ctx) => const Center(
+                    child: Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(width: 20),
+                            Text("Sending notification...", style: TextStyle(fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 );
 
-                // Wait for the duration of the SnackBar
-                await Future.delayed(const Duration(seconds: 4));
-
-                if (isCancelled) return;
-
-                // Explicitly hide the Undo snackbar before doing the actual sending
-                if (mounted) {
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                }
-
-                // If not cancelled, actually send to database and email/push
                 try {
                   String dateNow = "${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}";
                   
@@ -687,22 +733,24 @@ class _ParentNotificationScreenState
                     'status': 'Sent'
                   });
 
+                  bool emailSent = false;
                   if (viaEmail && parentEmail.isNotEmpty) {
-                    await EmailService.sendEmail(
+                    emailSent = await EmailService.sendEmail(
                       toEmail: parentEmail,
                       subject: 'Academic System: $reasonToSend',
                       messageText: messageToSend,
                     );
                   }
 
-                  // Send Push Notification via Supabase Edge Function
+                  // Send Push Notification via Supabase Edge Function (with timeout)
                   if (parentEmail.isNotEmpty) {
                     try {
                       final parentUser = await Supabase.instance.client
                           .from('users')
                           .select('fcm_token')
                           .eq('username', parentEmail)
-                          .maybeSingle();
+                          .maybeSingle()
+                          .timeout(const Duration(seconds: 5));
                       
                       final fcmToken = parentUser?['fcm_token'];
                       if (fcmToken != null && fcmToken.toString().isNotEmpty) {
@@ -713,27 +761,49 @@ class _ParentNotificationScreenState
                           'data': {
                             'route': 'notifications',
                           },
-                        });
+                        }).timeout(const Duration(seconds: 5));
                       }
                     } catch (e) {
-                      print('Error sending push notification: $e');
+                      print('Push notification error (skipped): $e');
                     }
                   }
 
                   if (mounted) {
+                    // Close loading dialog
+                    Navigator.of(context, rootNavigator: true).pop();
+
+                    setState(() {
+                      _selectedStudentId = null;
+                      _selectedReason = null;
+                      _messageController.clear();
+                      _selectedTab = 'History';
+                    });
+
+                    String messageFeedback;
+                    if (!viaEmail) {
+                      messageFeedback = 'Notification saved! (In-app only)';
+                    } else if (parentEmail.isEmpty) {
+                      messageFeedback = 'Notification saved! (Parent has no registered email)';
+                    } else if (emailSent) {
+                      messageFeedback = 'Notification sent successfully via In-app and Email!';
+                    } else {
+                      messageFeedback = 'In-app notification saved, but Email failed to send (check credentials/network).';
+                    }
+
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(viaEmail 
-                            ? (parentEmail.isEmpty ? 'Notification saved! (Parent has no email)' : 'Notification sent! (In-app + Email sent)') 
-                            : 'Notification sent! (In-app only)'),
-                        backgroundColor: const Color(0xFF198754),
-                        duration: const Duration(seconds: 2),
+                        content: Text(messageFeedback),
+                        backgroundColor: (viaEmail && parentEmail.isNotEmpty && !emailSent)
+                            ? Colors.orange.shade800
+                            : const Color(0xFF198754),
+                        duration: const Duration(seconds: 4),
                       ),
                     );
                     await _loadHistory();
                   }
                 } catch (e) {
                   if (mounted) {
+                    Navigator.of(context, rootNavigator: true).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Failed to send: $e'), backgroundColor: Colors.red),
                     );

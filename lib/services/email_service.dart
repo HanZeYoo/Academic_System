@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class EmailService {
   // User's provided App Password
-  static const String _appPassword = 'rulf qnwu pwhp ojre';
+  static const String _appPassword = 'hgtp knjw qgsa chlk';
   
   // TODO: Put your actual Gmail address here
   static const String _emailAddress = 'jaymar.riveral@neu.edu.ph'; 
@@ -38,12 +38,17 @@ class EmailService {
         ..subject = subject
         ..html = _buildHtmlContent(subject, messageText);
 
-      // Send email
-      final sendReport = await send(message, smtpServer);
+      // Send email with timeout to prevent infinite hanging
+      final sendReport = await send(message, smtpServer).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw Exception('Email sending timed out after 15 seconds. Check SMTP network connection or firewall.');
+        },
+      );
       print('Message sent: ${sendReport.toString()}');
       return true;
     } on MailerException catch (e) {
-      print('Message not sent. \n${e.toString()}');
+      print('MailerException: Message not sent. \n${e.toString()}');
       for (var p in e.problems) {
         print('Problem: ${p.code}: ${p.msg}');
       }

@@ -541,20 +541,26 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
-              Text(
-                'Subject Performance & Mastery Rates',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
+              Expanded(
+                child: Text(
+                  'Subject Performance & Mastery Rates',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
                 ),
               ),
+              SizedBox(width: 8),
               Icon(Icons.insights_rounded, color: Color(0xFF2563EB), size: 20),
             ],
           ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const SizedBox(height: 6),
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
               const Text(
                 'Learners meeting competency standards (≥75%)',
@@ -601,14 +607,18 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
   Widget _buildMasteryBar(String subject, double value, String percentageStr, Color barColor, Color percentColor) {
     return Row(
       children: [
-        SizedBox(
-          width: 100,
+        Expanded(
+          flex: 4,
           child: Text(
             subject,
             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
+        const SizedBox(width: 8),
         Expanded(
+          flex: 6,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
@@ -619,9 +629,9 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         SizedBox(
-          width: 44,
+          width: 48,
           child: Text(
             percentageStr,
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: percentColor),
