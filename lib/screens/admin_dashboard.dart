@@ -498,7 +498,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Widget _buildBody(List<_DashboardMenuItem> menuItems) {
     if (_isProfileOpen) {
-      return SharedProfileScreen(username: widget.username, role: UserRole.admin);
+      return SharedProfileScreen(
+        username: widget.username,
+        role: UserRole.admin,
+        adminRoleTitle: _currentRole,
+      );
     }
     if (_selectedIndex >= 0 && _selectedIndex < menuItems.length) {
       return menuItems[_selectedIndex].builder();

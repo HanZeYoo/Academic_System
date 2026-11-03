@@ -54,119 +54,225 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(18.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Search bar
-          TextField(
-            controller: _searchController,
-            onChanged: (val) {
-              setState(() {
-                _searchQuery = val;
-              });
-            },
-            decoration: InputDecoration(
-              hintText: 'Search by teacher name, ID, department, or email...',
-              prefixIcon: const Icon(Icons.search, color: Colors.black87),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, size: 20, color: Colors.black54),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() {
-                          _searchQuery = '';
-                        });
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: BorderSide.none,
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (val) {
+                setState(() {
+                  _searchQuery = val;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Search by teacher name, ID, department, or email...',
+                hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B)),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18, color: Color(0xFF64748B)),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchQuery = '';
+                          });
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.transparent,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
               ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // Title and Add button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Teacher List',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AddTeacherScreen(),
+          // Title and Add button row
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 560;
+              if (isNarrow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Faculty Directory',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.3,
+                      ),
                     ),
-                  );
-                  if (result == true) {
-                    _loadTeachers();
-                  }
-                },
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add Teacher'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1664C5),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Manage teaching faculty, departments & teaching loads',
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AddTeacherScreen(),
+                            ),
+                          );
+                          if (result == true) {
+                            _loadTeachers();
+                          }
+                        },
+                        icon: const Icon(Icons.person_add_rounded, size: 18),
+                        label: const Text('Add Teacher'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1664C5),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Faculty Directory',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Manage teaching faculty, departments & teaching loads',
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                      ),
+                    ],
                   ),
-                ),
-              ),
-            ],
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AddTeacherScreen(),
+                        ),
+                      );
+                      if (result == true) {
+                        _loadTeachers();
+                      }
+                    },
+                    icon: const Icon(Icons.person_add_rounded, size: 18),
+                    label: const Text('Add Teacher'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1664C5),
+                      foregroundColor: Colors.white,
+                      elevation: 2,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
           // Stats
           Row(
             children: [
               Expanded(
                 child: _buildStatCard(
-                  icon: Icons.people,
-                  iconBgColor: const Color(0xFFCBEAFB),
+                  icon: Icons.badge_rounded,
+                  iconBgColor: const Color(0xFFDBEAFE),
                   iconColor: const Color(0xFF1664C5),
-                  title: _searchQuery.isNotEmpty ? 'Matching Teachers' : 'Total Teachers',
+                  title: _searchQuery.isNotEmpty ? 'Matching Teachers' : 'Total Faculty',
                   value: _isLoading ? '-' : (_searchQuery.isNotEmpty ? _filteredTeachers.length.toString() : _teachers.length.toString()),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
-                  icon: Icons.person_add,
-                  iconBgColor: const Color(0xFFE2F6E7),
-                  iconColor: const Color(0xFF00A364),
-                  title: 'New Teachers',
-                  value: '0',
+                  icon: Icons.domain_rounded,
+                  iconBgColor: const Color(0xFFEDE9FE),
+                  iconColor: const Color(0xFF7C3AED),
+                  title: 'Departments',
+                  value: _isLoading ? '-' : _teachers.map((e) => e['department']?.toString() ?? '').toSet().where((x) => x.isNotEmpty).length.toString(),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 18),
 
           // List
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _teachers.isEmpty
-                    ? const Center(child: Text('No teachers found.'))
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.co_present_rounded, size: 48, color: Color(0xFF94A3B8)),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No teachers registered yet',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Tap "Add Teacher" to add faculty members.',
+                              style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      )
                     : _filteredTeachers.isEmpty
                         ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.search_off, size: 64, color: Colors.black26),
+                                const Icon(Icons.search_off_rounded, size: 54, color: Color(0xFF94A3B8)),
                                 const SizedBox(height: 12),
                                 Text(
                                   'No teachers found matching "$_searchQuery"',
-                                  style: const TextStyle(color: Colors.black54, fontSize: 15),
+                                  style: const TextStyle(color: Color(0xFF475569), fontSize: 15, fontWeight: FontWeight.w500),
                                 ),
                                 const SizedBox(height: 8),
                                 TextButton(
@@ -206,38 +312,52 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
     required String value,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: iconBgColor,
-            radius: 24,
-            child: Icon(icon, color: iconColor, size: 28),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 22),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  title,
+                  value,
                   style: const TextStyle(
-                    fontSize: 10,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
                 Text(
-                  value,
-                  style: const TextStyle(fontSize: 18, color: Colors.black87),
+                  title,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF64748B),
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -252,16 +372,23 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
   Widget _buildTeacherCard(BuildContext context, Map<String, dynamic> teacher) {
     final name = teacher['name']?.toString() ?? 'Unknown';
     final id = 'ID: ${teacher['teacher_id']}';
-    final department = teacher['department']?.toString() ?? 'No Department';
-    final email = teacher['email']?.toString() ?? 'No email found';
+    final department = teacher['department']?.toString() ?? 'General Faculty';
+    final email = teacher['email']?.toString() ?? 'No email';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -280,43 +407,65 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
                 Text(
                   name,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: Color(0xFF0F172A),
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  id,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        id,
+                        style: const TextStyle(
+                          color: Color(0xFF475569),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7C3AED).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        department,
+                        style: const TextStyle(
+                          color: Color(0xFF6D28D9),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  department,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+                if (email.isNotEmpty && email != 'No email') ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    email,
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  email,
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                ],
               ],
             ),
           ),
           IconButton(
+            tooltip: 'View Profile',
             icon: const Icon(
               Icons.remove_red_eye_outlined,
               color: Color(0xFF1664C5),
@@ -330,23 +479,24 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
               );
             },
           ),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        AddTeacherScreen(teacherToEdit: teacher),
-                  ),
-                );
-                if (result == true) {
-                  _loadTeachers();
-                }
-              },
-            ),
-          ],
-        ),
-      );
-    }
+          IconButton(
+            tooltip: 'Edit Details',
+            icon: const Icon(Icons.edit_outlined, color: Color(0xFF64748B)),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      AddTeacherScreen(teacherToEdit: teacher),
+                ),
+              );
+              if (result == true) {
+                _loadTeachers();
+              }
+            },
+          ),
+        ],
+      ),
+    );
   }
+}

@@ -133,37 +133,37 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
     await _loadStudents();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Status updated to '), backgroundColor: Colors.blue),
+        SnackBar(content: Text('Status updated to $newStatus'), backgroundColor: Colors.blue),
       );
     }
   }
 
   Color _statusColor(String status) {
     switch (status) {
-      case 'Enrolled': return Colors.green;
-      case 'Not Enrolled': return Colors.orange;
-      case 'Transferred Out': return Colors.blueGrey;
-      case 'Dropped': return Colors.red;
-      case 'Graduated': return const Color(0xFF6A0DAD);
-      case 'Conditional': return Colors.deepOrange;
-      default: return Colors.grey;
+      case 'Enrolled': return const Color(0xFF10B981);
+      case 'Not Enrolled': return const Color(0xFFF59E0B);
+      case 'Transferred Out': return const Color(0xFF64748B);
+      case 'Dropped': return const Color(0xFFEF4444);
+      case 'Graduated': return const Color(0xFF8B5CF6);
+      case 'Conditional': return const Color(0xFFEA580C);
+      default: return const Color(0xFF94A3B8);
     }
   }
 
   Color _promotionColor(String? status) {
     switch (status) {
-      case 'Promoted': return Colors.green;
-      case 'Graduated': return const Color(0xFF6A0DAD);
-      case 'Conditional': return Colors.orange;
-      case 'Retained': return Colors.red;
-      default: return Colors.grey;
+      case 'Promoted': return const Color(0xFF10B981);
+      case 'Graduated': return const Color(0xFF8B5CF6);
+      case 'Conditional': return const Color(0xFFF59E0B);
+      case 'Retained': return const Color(0xFFEF4444);
+      default: return const Color(0xFF94A3B8);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(18.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -171,6 +171,7 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
           Wrap(
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
             runSpacing: 12,
             children: [
               Column(
@@ -179,90 +180,126 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
                   Text(
                     'Enrollment Management',
                     style: TextStyle(
-                        fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                      letterSpacing: -0.3,
+                    ),
                   ),
                   SizedBox(height: 2),
                   Text(
                     'Manage student enrollment statuses for the active school year',
-                    style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+                    style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                   ),
                 ],
               ),
               ElevatedButton.icon(
                 onPressed: _isLoading ? null : _loadStudents,
-                icon: const Icon(Icons.refresh, size: 18),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
                 label: const Text('Refresh'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF1664C5),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // Stats Cards
-          Row(
-            children: [
-              Expanded(child: _buildStatCard(Icons.people, const Color(0xFFCBEAFB), const Color(0xFF1664C5), 'Total Students', _allStudents.length.toString())),
-              const SizedBox(width: 12),
-              Expanded(child: _buildStatCard(Icons.check_circle, const Color(0xFFE2F6E7), const Color(0xFF00A364), 'Enrolled', (_statusCounts['Enrolled'] ?? 0).toString())),
-              const SizedBox(width: 12),
-              Expanded(child: _buildStatCard(Icons.hourglass_empty, Colors.orange.shade100, Colors.orange.shade800, 'Pending', (_statusCounts['Not Enrolled'] ?? 0).toString())),
-              const SizedBox(width: 12),
-              Expanded(child: _buildStatCard(Icons.school, Colors.purple.shade100, Colors.purple.shade700, 'Graduated', (_statusCounts['Graduated'] ?? 0).toString())),
-            ],
-          ),
-          const SizedBox(height: 24),
+          // Responsive Stats Cards (Adapts smoothly from mobile 2x2 to desktop 4-in-a-row)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final isDesktop = width >= 860;
+              final cardWidth = isDesktop ? (width - 36) / 4 : (width - 12) / 2;
 
-          // Search and Tabs row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                flex: 2,
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search by name, ID, or grade...',
-                    prefixIcon: const Icon(Icons.search, color: Colors.black87),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide.none,
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  SizedBox(
+                    width: cardWidth,
+                    child: _buildStatCard(
+                      Icons.people_alt_rounded,
+                      const Color(0xFFDBEAFE),
+                      const Color(0xFF1664C5),
+                      'Total Students',
+                      _allStudents.length.toString(),
+                      isCompact: !isDesktop,
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
                   ),
-                  onChanged: (v) {
-                    setState(() { _searchQuery = v; });
-                  },
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                flex: 3,
-                child: Container(
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
+                  SizedBox(
+                    width: cardWidth,
+                    child: _buildStatCard(
+                      Icons.check_circle_rounded,
+                      const Color(0xFFDCFCE7),
+                      const Color(0xFF10B981),
+                      'Enrolled',
+                      (_statusCounts['Enrolled'] ?? 0).toString(),
+                      isCompact: !isDesktop,
+                    ),
                   ),
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    labelColor: const Color(0xFF1664C5),
-                    unselectedLabelColor: Colors.grey.shade600,
-                    indicatorColor: const Color(0xFF1664C5),
-                    indicatorWeight: 3,
-                    labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                    tabs: _tabs.map((t) => Tab(text: t)).toList(),
+                  SizedBox(
+                    width: cardWidth,
+                    child: _buildStatCard(
+                      Icons.hourglass_empty_rounded,
+                      const Color(0xFFFEF3C7),
+                      const Color(0xFFD97706),
+                      'Pending',
+                      (_statusCounts['Not Enrolled'] ?? 0).toString(),
+                      isCompact: !isDesktop,
+                    ),
                   ),
-                ),
-              ),
-            ],
+                  SizedBox(
+                    width: cardWidth,
+                    child: _buildStatCard(
+                      Icons.school_rounded,
+                      const Color(0xFFEDE9FE),
+                      const Color(0xFF7C3AED),
+                      'Graduated',
+                      (_statusCounts['Graduated'] ?? 0).toString(),
+                      isCompact: !isDesktop,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+
+          // Search and Tabs (Stack vertically on narrow screens, row on desktop)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isDesktop = constraints.maxWidth >= 720;
+              if (isDesktop) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: _buildSearchBar(),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      flex: 3,
+                      child: _buildTabBar(),
+                    ),
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  _buildSearchBar(),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildTabBar(),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 16),
 
@@ -279,14 +316,15 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: const [
-                              Icon(Icons.inbox, size: 64, color: Colors.black26),
+                              Icon(Icons.inbox_rounded, size: 54, color: Color(0xFF94A3B8)),
                               SizedBox(height: 12),
-                              Text('No students found.', style: TextStyle(color: Colors.black45)),
+                              Text('No students found in this category.', style: TextStyle(color: Color(0xFF64748B), fontSize: 14)),
                             ],
                           ),
                         );
                       }
                       return ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
                         itemCount: students.length,
                         itemBuilder: (_, i) => _buildStudentCard(students[i]),
                       );
@@ -298,33 +336,128 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
     );
   }
 
-  Widget _buildStatCard(IconData icon, Color iconBgColor, Color iconColor, String title, String value) {
+  Widget _buildSearchBar() {
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextField(
+        decoration: InputDecoration(
+          hintText: 'Search by name, ID, or grade level...',
+          hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+          prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B), size: 20),
+          filled: true,
+          fillColor: Colors.transparent,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        ),
+        onChanged: (v) {
+          setState(() { _searchQuery = v; });
+        },
+      ),
+    );
+  }
+
+  Widget _buildTabBar() {
+    return Container(
+      height: 42,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TabBar(
+        controller: _tabController,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        labelColor: const Color(0xFF1664C5),
+        unselectedLabelColor: const Color(0xFF64748B),
+        indicatorColor: const Color(0xFF1664C5),
+        indicatorWeight: 3,
+        indicatorSize: TabBarIndicatorSize.tab,
+        dividerColor: Colors.transparent,
+        labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+        tabs: _tabs.map((t) => Tab(text: t)).toList(),
+      ),
+    );
+  }
+
+  Widget _buildStatCard(
+    IconData icon,
+    Color iconBgColor,
+    Color iconColor,
+    String title,
+    String value, {
+    bool isCompact = false,
+  }) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 12 : 16,
+        vertical: isCompact ? 12 : 14,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: iconBgColor,
-            radius: 24,
-            child: Icon(icon, color: iconColor, size: 28),
+          Container(
+            padding: EdgeInsets.all(isCompact ? 8 : 10),
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: isCompact ? 20 : 24),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: isCompact ? 10 : 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  title,
-                  style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+                  value,
+                  style: TextStyle(
+                    fontSize: isCompact ? 18 : 22,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF0F172A),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  value,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                  title,
+                  style: TextStyle(
+                    fontSize: isCompact ? 11 : 13,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF64748B),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -338,101 +471,216 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
     final enrollStatus = student['enrollment_status'] ?? 'Not Enrolled';
     final promotionStatus = student['promotion_status']?.toString();
     final statusColor = _statusColor(enrollStatus);
+    final studentName = student['name'] ?? 'Unknown';
+    final studentId = student['student_id'] ?? '';
+    final gradeLevel = student['grade_level'] ?? '';
+    final section = student['section'] ?? '';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          )
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: const Color(0xFFCBEAFB),
-              child: Text(
-                (student['name'] ?? 'S').toString().substring(0, 1).toUpperCase(),
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1664C5), fontSize: 20),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(student['name'] ?? 'Unknown',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Text('  •    •  ',
-                      style: const TextStyle(fontSize: 13, color: Colors.grey)),
-                  if (promotionStatus != null) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(Icons.trending_up, size: 14, color: _promotionColor(promotionStatus)),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Promotion: ',
-                          style: TextStyle(fontSize: 12, color: _promotionColor(promotionStatus), fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            // Enrollment Status badge
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: statusColor.withValues(alpha: 0.2)),
-              ),
-              child: Text(
-                enrollStatus,
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: statusColor),
-              ),
-            ),
-            const SizedBox(width: 16),
-            // Actions
-            if (enrollStatus == 'Not Enrolled' || enrollStatus == 'Conditional') ...[
-              ElevatedButton.icon(
-                onPressed: () => _enroll(student),
-                icon: const Icon(Icons.how_to_reg, size: 16),
-                label: const Text('Enroll'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1664C5),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-              const SizedBox(width: 8),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 620;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              )
             ],
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.grey),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'Enrolled', child: Text('Mark as Enrolled')),
-                const PopupMenuItem(value: 'Not Enrolled', child: Text('Mark as Not Enrolled')),
-                const PopupMenuItem(value: 'Transferred Out', child: Text('Transferred Out')),
-                const PopupMenuItem(value: 'Dropped', child: Text('Dropped')),
-              ],
-              onSelected: (status) => _changeStatus(student, status),
-            ),
-          ],
-        ),
-      ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: isNarrow
+                // Mobile layout: Avatar + Name on top, tags and actions below
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 22,
+                            backgroundColor: const Color(0xFFDBEAFE),
+                            child: Text(
+                              studentName.toString().substring(0, 1).toUpperCase(),
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1664C5), fontSize: 17),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  studentName,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'LRN: $studentId  •  $gradeLevel ${section.isNotEmpty ? "- $section" : ""}',
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuButton<String>(
+                            icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF64748B)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            itemBuilder: (_) => [
+                              const PopupMenuItem(value: 'Enrolled', child: Text('Mark as Enrolled')),
+                              const PopupMenuItem(value: 'Not Enrolled', child: Text('Mark as Not Enrolled')),
+                              const PopupMenuItem(value: 'Transferred Out', child: Text('Transferred Out')),
+                              const PopupMenuItem(value: 'Dropped', child: Text('Dropped')),
+                            ],
+                            onSelected: (status) => _changeStatus(student, status),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: statusColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              enrollStatus,
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor),
+                            ),
+                          ),
+                          if (promotionStatus != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _promotionColor(promotionStatus).withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'Promotion: $promotionStatus',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: _promotionColor(promotionStatus),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          if (enrollStatus == 'Not Enrolled' || enrollStatus == 'Conditional')
+                            ElevatedButton.icon(
+                              onPressed: () => _enroll(student),
+                              icon: const Icon(Icons.how_to_reg_rounded, size: 15),
+                              label: const Text('Enroll', style: TextStyle(fontSize: 12)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1664C5),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  )
+                // Desktop layout: Horizontal row
+                : Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: const Color(0xFFDBEAFE),
+                        child: Text(
+                          studentName.toString().substring(0, 1).toUpperCase(),
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1664C5), fontSize: 18),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              studentName,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A)),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'LRN: $studentId  •  $gradeLevel ${section.isNotEmpty ? "- $section" : ""}',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                            ),
+                            if (promotionStatus != null) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(Icons.trending_up, size: 14, color: _promotionColor(promotionStatus)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Promotion: $promotionStatus',
+                                    style: TextStyle(fontSize: 12, color: _promotionColor(promotionStatus), fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: statusColor.withValues(alpha: 0.2)),
+                        ),
+                        child: Text(
+                          enrollStatus,
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: statusColor),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      if (enrollStatus == 'Not Enrolled' || enrollStatus == 'Conditional') ...[
+                        ElevatedButton.icon(
+                          onPressed: () => _enroll(student),
+                          icon: const Icon(Icons.how_to_reg, size: 16),
+                          label: const Text('Enroll'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1664C5),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert, color: Colors.grey),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(value: 'Enrolled', child: Text('Mark as Enrolled')),
+                          const PopupMenuItem(value: 'Not Enrolled', child: Text('Mark as Not Enrolled')),
+                          const PopupMenuItem(value: 'Transferred Out', child: Text('Transferred Out')),
+                          const PopupMenuItem(value: 'Dropped', child: Text('Dropped')),
+                        ],
+                        onSelected: (status) => _changeStatus(student, status),
+                      ),
+                    ],
+                  ),
+          ),
+        );
+      },
     );
   }
 }

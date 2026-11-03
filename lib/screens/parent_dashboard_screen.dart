@@ -368,7 +368,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
-            Icon(Icons.refresh_rounded, color: Color(0xFF3383B3)),
+            Icon(Icons.refresh_rounded, color: Color(0xFF2B81B7)),
             SizedBox(width: 8),
             Text('Start New Chat?'),
           ],
@@ -381,7 +381,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF3383B3),
+              backgroundColor: const Color(0xFF2B81B7),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () => Navigator.pop(context, true),
@@ -830,7 +830,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF3383B3)
+                        ? const Color(0xFF2B81B7)
                         : Colors.white,
                     borderRadius: BorderRadius.circular(14),
                     border: isSelected
@@ -852,10 +852,10 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         radius: 20,
                         backgroundColor: isSelected
                             ? Colors.white.withOpacity(0.2)
-                            : const Color(0xFF3383B3).withOpacity(0.1),
+                            : const Color(0xFF2B81B7).withOpacity(0.1),
                         foregroundColor: isSelected
                             ? Colors.white
-                            : const Color(0xFF3383B3),
+                            : const Color(0xFF2B81B7),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -947,14 +947,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF3383B3), Color(0xFF224A60)],
+                  colors: [Color(0xFF358FC5), Color(0xFF1F5E87)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF3383B3).withOpacity(0.3),
+                    color: const Color(0xFF2B81B7).withOpacity(0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 5),
                   ),
@@ -1032,7 +1032,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: bannerBgColor,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: bannerColor.withOpacity(0.3)),
                     boxShadow: [
                       BoxShadow(
@@ -1142,7 +1142,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 TextButton(
                   onPressed: () => setState(() => _selectedMenu = 'Grades'),
                   child: const Text('View All',
-                      style: TextStyle(color: Color(0xFF3383B3))),
+                      style: TextStyle(color: Color(0xFF2B81B7))),
                 ),
               ],
             ),
@@ -1188,14 +1188,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF3383B3), Color(0xFF224A60)],
+                  colors: [Color(0xFF358FC5), Color(0xFF1F5E87)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF3383B3).withOpacity(0.3),
+                    color: const Color(0xFF2B81B7).withOpacity(0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 5),
                   ),
@@ -1385,10 +1385,10 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3383B3).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: const Color(0xFF2B81B7).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(Icons.notifications_rounded, color: Color(0xFF3383B3), size: 26),
+                  child: const Icon(Icons.notifications_rounded, color: Color(0xFF2B81B7), size: 26),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1472,8 +1472,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: const Color(0xFF3383B3).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.grade_rounded, color: Color(0xFF3383B3), size: 26),
+                  decoration: BoxDecoration(color: const Color(0xFF2B81B7).withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.grade_rounded, color: Color(0xFF2B81B7), size: 26),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1496,7 +1496,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF3383B3), Color(0xFF224A60)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                gradient: const LinearGradient(colors: [Color(0xFF358FC5), Color(0xFF1F5E87)], begin: Alignment.topLeft, end: Alignment.bottomRight),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Row(
@@ -1666,7 +1666,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
               color: Colors.grey.withOpacity(0.1),
@@ -1676,7 +1677,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 26),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
           const SizedBox(height: 6),
           Text(value,
               style: const TextStyle(
@@ -1843,7 +1851,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
               color: Colors.grey.withOpacity(0.07),
@@ -1854,7 +1863,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           onTap: () => _showGradeBreakdownDialog(subject),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -1974,7 +1983,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Icon(icon, size: 18, color: const Color(0xFF3383B3)),
+          Icon(icon, size: 18, color: const Color(0xFF2B81B7)),
           const SizedBox(width: 12),
           SizedBox(
             width: 100,
@@ -2045,7 +2054,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               children: [
                 const Row(
                   children: [
-                    Icon(Icons.psychology, color: Color(0xFF3383B3), size: 28),
+                    Icon(Icons.psychology, color: Color(0xFF2B81B7), size: 28),
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -2079,7 +2088,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3383B3),
+                      backgroundColor: const Color(0xFF2B81B7),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -2097,7 +2106,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF3383B3).withOpacity(0.3), width: 1),
+                border: Border.all(color: const Color(0xFF2B81B7).withOpacity(0.3), width: 1),
                 boxShadow: [
                   BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 10)
                 ],
@@ -2121,7 +2130,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                               styleSheet: MarkdownStyleSheet(
                                 p: const TextStyle(fontSize: 15, height: 1.5, color: Colors.black87),
                                 h3: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF224A60)),
-                                listBullet: const TextStyle(color: Color(0xFF3383B3)),
+                                listBullet: const TextStyle(color: Color(0xFF2B81B7)),
                               ),
                               selectable: true,
                             ),
@@ -2159,14 +2168,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       },
                       icon: Icon(
                         _isInterventionExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                        color: const Color(0xFF3383B3),
+                        color: const Color(0xFF2B81B7),
                       ),
                       label: Text(
                         _isInterventionExpanded ? 'Show Less' : 'Show More',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF3383B3)),
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2B81B7)),
                       ),
                       style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFF3383B3).withOpacity(0.1),
+                        backgroundColor: const Color(0xFF2B81B7).withOpacity(0.1),
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       ),
@@ -2192,7 +2201,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               const Expanded(
                 child: Row(
                   children: [
-                    Icon(Icons.forum_outlined, color: Color(0xFF3383B3), size: 22),
+                    Icon(Icons.forum_outlined, color: Color(0xFF2B81B7), size: 22),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -2208,13 +2217,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               if (_chatHistory.isNotEmpty)
                 TextButton.icon(
                   onPressed: _clearChatHistory,
-                  icon: const Icon(Icons.refresh_rounded, size: 16, color: Color(0xFF3383B3)),
+                  icon: const Icon(Icons.refresh_rounded, size: 16, color: Color(0xFF2B81B7)),
                   label: const Text(
                     'New Chat',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF3383B3)),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF2B81B7)),
                   ),
                   style: TextButton.styleFrom(
-                    backgroundColor: const Color(0xFF3383B3).withValues(alpha: 0.1),
+                    backgroundColor: const Color(0xFF2B81B7).withValues(alpha: 0.1),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
@@ -2249,8 +2258,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isUser ? const Color(0xFF3383B3) : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
+                          color: isUser ? const Color(0xFF2B81B7) : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(16),
                         ),
                         child: MarkdownBody(
                           data: msg['text'] ?? '',
@@ -2274,9 +2283,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.auto_awesome, size: 14, color: Color(0xFF3383B3)),
+                            Icon(Icons.auto_awesome, size: 14, color: Color(0xFF2B81B7)),
                             SizedBox(width: 8),
-                            _TypingDotsIndicator(color: Color(0xFF3383B3)),
+                            _TypingDotsIndicator(color: Color(0xFF2B81B7)),
                           ],
                         ),
                       ),
@@ -2300,7 +2309,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                       IconButton(
                         onPressed: _isChatLoading ? null : _sendChatMessage,
                         icon: const Icon(Icons.send),
-                        color: const Color(0xFF3383B3),
+                        color: const Color(0xFF2B81B7),
                       ),
                     ],
                   ),
@@ -2584,11 +2593,11 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3383B3).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  color: const Color(0xFF2B81B7).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(Icons.assignment_turned_in_rounded,
-                    color: Color(0xFF3383B3), size: 26),
+                    color: Color(0xFF2B81B7), size: 26),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2619,7 +2628,7 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF3383B3), Color(0xFF224A60)],
+                colors: [Color(0xFF358FC5), Color(0xFF1F5E87)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -2702,7 +2711,7 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: statusColor.withOpacity(0.15)),
                   boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.06), blurRadius: 5, offset: const Offset(0, 3))],
                 ),
@@ -2769,7 +2778,8 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.08), blurRadius: 5, offset: const Offset(0, 3))],
       ),
       child: Column(
@@ -2791,7 +2801,7 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
 
 class _TypingDotsIndicator extends StatefulWidget {
   final Color color;
-  const _TypingDotsIndicator({this.color = const Color(0xFF3383B3)});
+  const _TypingDotsIndicator({this.color = const Color(0xFF2B81B7)});
 
   @override
   State<_TypingDotsIndicator> createState() => _TypingDotsIndicatorState();

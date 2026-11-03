@@ -181,75 +181,95 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(18.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Search bar
-          TextField(
-            controller: _searchController,
-            onChanged: (val) {
-              setState(() {
-                _searchQuery = val;
-              });
-            },
-            decoration: InputDecoration(
-              hintText: 'Search by student name, LRN, grade, or section...',
-              prefixIcon: const Icon(Icons.search, color: Colors.black87),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, size: 20, color: Colors.black54),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() {
-                          _searchQuery = '';
-                        });
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: BorderSide.none,
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (val) {
+                setState(() {
+                  _searchQuery = val;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Search by student name, LRN, grade, or section...',
+                hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B)),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 18, color: Color(0xFF64748B)),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchQuery = '';
+                          });
+                        },
+                      )
+                    : null,
+                filled: true,
+                fillColor: Colors.transparent,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
               ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // Title and Add button
+          // Title and Add button row
           LayoutBuilder(
             builder: (context, constraints) {
-              final isNarrow = constraints.maxWidth < 480;
+              final isNarrow = constraints.maxWidth < 560;
               if (isNarrow) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Student List',
-                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      'Student Directory',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.3,
+                      ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Manage enrolled learners, section assignments & profiles',
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(height: 14),
                     Row(
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: _importCSV,
-                            icon: const Icon(Icons.upload_file, size: 18),
-                            label: const FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text('Import CSV'),
-                            ),
+                            icon: const Icon(Icons.upload_file_rounded, size: 18),
+                            label: const Text('Import CSV'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: const Color(0xFF1664C5),
-                              side: const BorderSide(color: Color(0xFF1664C5)),
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              side: const BorderSide(color: Color(0xFFCBD5E1)),
+                              backgroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: ElevatedButton.icon(
                             onPressed: () async {
@@ -261,16 +281,13 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                                 _loadStudents();
                               }
                             },
-                            icon: const Icon(Icons.add, size: 18),
-                            label: const FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text('Add Student'),
-                            ),
+                            icon: const Icon(Icons.person_add_rounded, size: 18),
+                            label: const Text('Add Student'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF1664C5),
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                             ),
                           ),
                         ),
@@ -282,21 +299,37 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
               return Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Student List',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Student Directory',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Manage enrolled learners, section assignments & profiles',
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                      ),
+                    ],
                   ),
                   Row(
                     children: [
                       OutlinedButton.icon(
                         onPressed: _importCSV,
-                        icon: const Icon(Icons.upload_file, size: 18),
+                        icon: const Icon(Icons.upload_file_rounded, size: 18),
                         label: const Text('Import CSV'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF1664C5),
-                          side: const BorderSide(color: Color(0xFF1664C5)),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          backgroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -310,13 +343,14 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                             _loadStudents();
                           }
                         },
-                        icon: const Icon(Icons.add, size: 18),
+                        icon: const Icon(Icons.person_add_rounded, size: 18),
                         label: const Text('Add Student'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1664C5),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 2,
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
                     ],
@@ -325,15 +359,15 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
               );
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
           // Stats Row
           Row(
             children: [
               Expanded(
                 child: _buildStatCard(
-                  icon: Icons.people,
-                  iconBgColor: const Color(0xFFCBEAFB),
+                  icon: Icons.people_alt_rounded,
+                  iconBgColor: const Color(0xFFDBEAFE),
                   iconColor: const Color(0xFF1664C5),
                   title: _searchQuery.isNotEmpty ? 'Matching Students' : 'Total Students',
                   value: _isLoading ? '-' : (_searchQuery.isNotEmpty ? _filteredStudents.length.toString() : _students.length.toString()),
@@ -342,16 +376,16 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
-                  icon: Icons.person_add,
-                  iconBgColor: const Color(0xFFE2F6E7),
-                  iconColor: const Color(0xFF00A364),
-                  title: 'New Students',
-                  value: '0',
+                  icon: Icons.school_rounded,
+                  iconBgColor: const Color(0xFFDCFCE7),
+                  iconColor: const Color(0xFF10B981),
+                  title: 'Grade Levels Active',
+                  value: _isLoading ? '-' : _students.map((e) => e['grade_level']?.toString() ?? '').toSet().where((x) => x.isNotEmpty).length.toString(),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
           // List
           Expanded(
@@ -361,11 +395,25 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.people_outline, size: 64, color: Colors.black26),
-                            SizedBox(height: 12),
-                            Text('No students yet.', style: TextStyle(color: Colors.black45)),
-                            Text('Tap "Add Student" to get started.', style: TextStyle(color: Colors.black38, fontSize: 13)),
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.people_outline, size: 48, color: Color(0xFF94A3B8)),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No students registered yet',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1E293B)),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Tap "Add Student" or "Import CSV" to get started.',
+                              style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                            ),
                           ],
                         ),
                       )
@@ -374,11 +422,11 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.search_off, size: 64, color: Colors.black26),
+                                const Icon(Icons.search_off_rounded, size: 54, color: Color(0xFF94A3B8)),
                                 const SizedBox(height: 12),
                                 Text(
                                   'No students found matching "$_searchQuery"',
-                                  style: const TextStyle(color: Colors.black54, fontSize: 15),
+                                  style: const TextStyle(color: Color(0xFF475569), fontSize: 15, fontWeight: FontWeight.w500),
                                 ),
                                 const SizedBox(height: 8),
                                 TextButton(
@@ -418,35 +466,52 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
     required String value,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: iconBgColor,
-            radius: 24,
-            child: Icon(icon, color: iconColor, size: 28),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: iconColor, size: 22),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  title,
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                  value,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
                 Text(
-                  value,
-                  style: const TextStyle(fontSize: 18, color: Colors.black87),
+                  title,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF64748B),
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -465,11 +530,18 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -487,16 +559,54 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    color: Color(0xFF0F172A),
+                  ),
                 ),
                 const SizedBox(height: 4),
-                Text(id, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                const SizedBox(height: 2),
-                Text(section, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        id,
+                        style: const TextStyle(
+                          color: Color(0xFF475569),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1664C5).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        section,
+                        style: const TextStyle(
+                          color: Color(0xFF1664C5),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
           IconButton(
+            tooltip: 'View Profile',
             icon: const Icon(Icons.remove_red_eye_outlined, color: Color(0xFF1664C5)),
             onPressed: () {
               Navigator.push(
@@ -507,22 +617,23 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
               );
             },
           ),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, color: Color(0xFF1664C5)),
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AddStudentScreen(existingStudent: student),
-                  ),
-                );
-                if (result == true) {
-                  _loadStudents();
-                }
-              },
-            ),
-          ],
-        ),
-      );
-    }
+          IconButton(
+            tooltip: 'Edit Details',
+            icon: const Icon(Icons.edit_outlined, color: Color(0xFF64748B)),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AddStudentScreen(existingStudent: student),
+                ),
+              );
+              if (result == true) {
+                _loadStudents();
+              }
+            },
+          ),
+        ],
+      ),
+    );
   }
+}
