@@ -415,5 +415,53 @@ void main() {
       expect(adaptTotalFor('Term Exams', 'Term Exams 1'), equals(100));
       expect(adaptTotalFor('Term Exams', 'Term Exams 2'), equals(100));
     });
+
+    test('ECR import correctly detects per-column HPS without defaulting to 100', () async {
+      final file = File('test/fixtures/populated_computer_7.xlsx');
+      final bytes = await file.readAsBytes();
+      final result = parser.parseFileSync(bytes, 'populated_computer_7.xlsx', gradingPeriod: '1st Term');
+
+      final mappings = engine.autoDetectMappings(
+        headers: result.headers,
+        previewRows: result.dataRows,
+        rowHpsMap: result.rowHpsMap,
+      );
+
+      final ww1 = mappings.firstWhere((m) => m.target == EcrTargetCategory.ww1);
+      final ww2 = mappings.firstWhere((m) => m.target == EcrTargetCategory.ww2);
+      final pt1 = mappings.firstWhere((m) => m.target == EcrTargetCategory.pt1);
+      final pt3 = mappings.firstWhere((m) => m.target == EcrTargetCategory.pt3);
+
+      expect(ww1.detectedRowHps, equals(20.0));
+      expect(ww1.assumedHps, isFalse);
+      expect(ww2.detectedRowHps, equals(25.0));
+      expect(ww2.assumedHps, isFalse);
+      expect(pt1.detectedRowHps, equals(50.0));
+      expect(pt1.assumedHps, isFalse);
+      expect(pt3.detectedRowHps, equals(40.0));
+      expect(pt3.assumedHps, isFalse);
+
+      // Verify the simulated totalHps logic
+      for (final m in mappings.where((m) => m.target.isNumeric && !m.target.isHps)) {
+        final detected = m.detectedRowHps ?? result.rowHpsMap[m.columnIndex];
+        final compKey = m.target.component ?? 'WW';
+        final totalHps = detected ??
+            (m.assumedHps ? null : m.customHps) ??
+            (compKey == 'WW' ? 20.0 : (compKey == 'PT' ? 50.0 : 100.0));
+
+        if (m.target == EcrTargetCategory.ww1) {
+          expect(totalHps, equals(20.0), reason: 'Written Works 1 HPS must be 20, not 100');
+        }
+        if (m.target == EcrTargetCategory.ww2) {
+          expect(totalHps, equals(25.0), reason: 'Written Works 2 HPS must be 25, not 100');
+        }
+        if (m.target == EcrTargetCategory.pt1) {
+          expect(totalHps, equals(50.0), reason: 'Performance Task 1 HPS must be 50, not 100');
+        }
+        if (m.target == EcrTargetCategory.pt3) {
+          expect(totalHps, equals(40.0), reason: 'Performance Task 3 HPS must be 40, not 100');
+        }
+      }
+    });
   });
 }

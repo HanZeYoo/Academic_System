@@ -307,9 +307,6 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
         _draftTotalScores[draftKey] = dbTotal;
         _categoryTotalScores[_selectedCategory] = dbTotal;
       }
-    } else if (_categoryTotalScores.containsKey(_selectedCategory)) {
-      _totalScore = _categoryTotalScores[_selectedCategory]!;
-      _totalScoreController.text = _totalScore.toString();
     } else {
       // Adapt from any existing item in this class/period under the SAME component category
       int? peerCatTotal;
@@ -328,6 +325,9 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
         _totalScore = peerCatTotal;
         _totalScoreController.text = peerCatTotal.toString();
         _categoryTotalScores[_selectedCategory] = peerCatTotal;
+      } else if (_categoryTotalScores.containsKey(_selectedCategory)) {
+        _totalScore = _categoryTotalScores[_selectedCategory]!;
+        _totalScoreController.text = _totalScore.toString();
       } else {
         // Fallback to component baseline (Written Works: 20, Performance Tasks: 50, Term Exams/Tests: 100)
         final defaultHps = _defaultHpsForCategory(_selectedCategory);
@@ -475,6 +475,27 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       final row = _cachedCsvData![i];
       if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
       
+      final firstCell = row[0].toString().trim().toUpperCase();
+      if (firstCell == 'PERFECT_SCORE' ||
+          firstCell == 'PERFECT SCORE' ||
+          firstCell == 'HPS' ||
+          firstCell == 'HIGHEST POSSIBLE SCORE' ||
+          firstCell == 'TOTAL SCORE' ||
+          firstCell == 'TOTAL') {
+        if (targetColIdx < row.length) {
+          final totalVal = int.tryParse(row[targetColIdx].toString().trim());
+          if (totalVal != null && totalVal > 0) {
+            setState(() {
+              _totalScore = totalVal;
+              _totalScoreController.text = totalVal.toString();
+              _draftTotalScores['${_selectedCategory}_$_selectedItem'] = totalVal;
+              _categoryTotalScores[_selectedCategory] = totalVal;
+            });
+          }
+        }
+        continue;
+      }
+
       final csvStudentId = row[0].toString().trim();
       
       if (targetColIdx < row.length) {
@@ -768,6 +789,9 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                           val,
                       orElse: () => _assignedClasses.first,
                     );
+                    _draftTotalScores.clear();
+                    _categoryTotalScores.clear();
+                    _draftStudentScores.clear();
                     setState(() => _selectedClassRecord = found);
                     await _loadStudentsAndScores();
                   },
@@ -791,6 +815,9 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                           '3rd Term',
                         ],
                         onChanged: (val) {
+                          _draftTotalScores.clear();
+                          _categoryTotalScores.clear();
+                          _draftStudentScores.clear();
                           setState(() => _selectedPeriod = val!);
                           _onFilterChanged();
                         },
@@ -900,13 +927,17 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
+                        onPressed: () async {
+                          await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => EcrImportScreen(username: widget.username),
                             ),
                           );
+                          _draftTotalScores.clear();
+                          _categoryTotalScores.clear();
+                          _draftStudentScores.clear();
+                          await _loadData();
                         },
                         icon: const Icon(Icons.drive_folder_upload_rounded, size: 18),
                         label: const Text('Open ECR Import'),

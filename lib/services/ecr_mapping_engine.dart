@@ -79,8 +79,8 @@ class EcrMappingEngine {
   double defaultQaHps;
 
   EcrMappingEngine({
-    this.defaultWwHps = 100.0,
-    this.defaultPtHps = 100.0,
+    this.defaultWwHps = 20.0,
+    this.defaultPtHps = 50.0,
     this.defaultQaHps = 100.0,
   });
 
@@ -538,20 +538,20 @@ class EcrMappingEngine {
   }
 
   void _applyHpsFallbacks(List<EcrColumnMapping> mappings) {
-    bool hasWwHps = mappings.any((m) => m.target == EcrTargetCategory.hpsWw || (m.detectedRowHps != null && m.target.component == 'WW'));
-    bool hasPtHps = mappings.any((m) => m.target == EcrTargetCategory.hpsPt || (m.detectedRowHps != null && m.target.component == 'PT'));
-    bool hasQaHps = mappings.any((m) => m.target == EcrTargetCategory.hpsQa || (m.detectedRowHps != null && m.target.component == 'QA'));
-
     for (final m in mappings) {
-      if (m.target.component == 'WW' && !m.target.isHps && !hasWwHps) {
+      if (m.detectedRowHps != null && m.detectedRowHps! > 0) {
+        m.assumedHps = false;
+        continue;
+      }
+      if (m.target.component == 'WW' && !m.target.isHps) {
         m.assumedHps = true;
         m.customHps ??= defaultWwHps;
       }
-      if (m.target.component == 'PT' && !m.target.isHps && !hasPtHps) {
+      if (m.target.component == 'PT' && !m.target.isHps) {
         m.assumedHps = true;
         m.customHps ??= defaultPtHps;
       }
-      if (m.target.component == 'QA' && !m.target.isHps && !hasQaHps) {
+      if (m.target.component == 'QA' && !m.target.isHps) {
         m.assumedHps = true;
         m.customHps ??= defaultQaHps;
       }

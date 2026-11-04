@@ -607,9 +607,9 @@ class DatabaseHelper {
   static List<String> getItemAliases(String category, String itemLabel) {
     final Set<String> aliases = {itemLabel.trim()};
     final numMatch = RegExp(r'\d+').firstMatch(itemLabel);
+    final catLower = category.toLowerCase().trim();
     if (numMatch != null) {
       final num = numMatch.group(0)!;
-      final catLower = category.toLowerCase().trim();
       if (catLower.contains('written') || catLower == 'ww' || catLower == 'quiz') {
         aliases.addAll([
           'Written Works $num',
@@ -639,6 +639,41 @@ class DatabaseHelper {
           'Quarterly Assessment',
           'Summative Test$num',
           'Summative Test $num',
+        ]);
+      }
+    } else {
+      if (catLower.contains('written') || catLower == 'ww' || catLower == 'quiz') {
+        aliases.addAll([
+          'Written Works 1',
+          'Written Work 1',
+          'WW1',
+          'WW 1',
+          'Quiz 1',
+          'Written Works',
+          'Written Work',
+        ]);
+      } else if (catLower.contains('performance') || catLower == 'pt') {
+        aliases.addAll([
+          'Performance Tasks 1',
+          'Performance Task 1',
+          'PT1',
+          'PT 1',
+          'Performance Tasks',
+          'Performance Task',
+        ]);
+      } else if (catLower.contains('exam') || catLower.contains('test') || catLower.contains('quarterly') || catLower == 'qa') {
+        aliases.addAll([
+          'Term Exams 1',
+          'Term Exam 1',
+          'QA1',
+          'QA 1',
+          'Quarterly Assessment 1',
+          'Quarterly Exam 1',
+          'Quarterly Exam',
+          'Quarterly Assessment',
+          'Term Exam',
+          'Term Exams',
+          'QA',
         ]);
       }
     }
@@ -948,15 +983,21 @@ class DatabaseHelper {
 
       if (activeLabels.isEmpty) return rawScores;
 
+      final Set<String> activeAliases = {};
+      for (final l in activeLabels) {
+        activeAliases.add(l.toLowerCase().trim());
+        activeAliases.addAll(getItemAliases('', l).map((a) => a.toLowerCase().trim()));
+      }
+
       final filtered = rawScores.where((r) {
-        final label = r['item_label']?.toString() ?? '';
-        return activeLabels.contains(label);
+        final label = (r['item_label']?.toString() ?? '').toLowerCase().trim();
+        return activeAliases.contains(label);
       }).toList();
 
       // If orphaned items are detected, prune them from the database in the background
       if (filtered.length < rawScores.length) {
         final orphanedIds = rawScores
-            .where((r) => !activeLabels.contains(r['item_label']?.toString() ?? ''))
+            .where((r) => !activeAliases.contains((r['item_label']?.toString() ?? '').toLowerCase().trim()))
             .map((r) => r['id'])
             .where((id) => id != null)
             .toList();

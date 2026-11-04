@@ -380,17 +380,26 @@ class EcrParserService {
   static Map<int, double> detectHpsRow(List<List<dynamic>> grid, int headerRowIndex) {
     final Map<int, double> hpsMap = {};
 
-    // Scan up to 5 rows around/below the header row
-    final scanEnd = (headerRowIndex + 5 < grid.length) ? headerRowIndex + 5 : grid.length;
+    // Scan up to 6 rows around/below the header row
+    final scanEnd = (headerRowIndex + 6 < grid.length) ? headerRowIndex + 6 : grid.length;
 
     for (int r = headerRowIndex; r < scanEnd; r++) {
       final row = grid[r];
       bool isHpsRow = false;
 
-      // Check first 4 columns for HPS keyword
-      for (int c = 0; c < (row.length < 4 ? row.length : 4); c++) {
+      // Check first 10 columns for HPS keyword
+      final checkLimit = row.length < 10 ? row.length : 10;
+      for (int c = 0; c < checkLimit; c++) {
         final cellStr = row[c]?.toString().toUpperCase().trim() ?? '';
-        if (cellStr.contains('HIGHEST POSSIBLE SCORE') || cellStr == 'HPS') {
+        if (cellStr.contains('HIGHEST POSSIBLE SCORE') ||
+            cellStr.contains('HIGHEST SCORE') ||
+            cellStr == 'HPS' ||
+            cellStr.contains('PERFECT SCORE') ||
+            cellStr.contains('MAXIMUM SCORE') ||
+            cellStr == 'MAX SCORE' ||
+            cellStr == 'TOTAL SCORE' ||
+            cellStr.contains('PINAKAMATAAS') ||
+            cellStr.contains('KABUUANG ISKOR')) {
           isHpsRow = true;
           break;
         }
@@ -652,10 +661,19 @@ class EcrParserService {
     // Detect horizontal HPS row
     final rowHpsMap = detectHpsRow(rawGrid, headerRowIndex);
     int? hpsRowIdx;
-    for (int r = headerRowIndex; r < (headerRowIndex + 5 < rawGrid.length ? headerRowIndex + 5 : rawGrid.length); r++) {
-      for (int c = 0; c < (rawGrid[r].length < 4 ? rawGrid[r].length : 4); c++) {
+    for (int r = headerRowIndex; r < (headerRowIndex + 6 < rawGrid.length ? headerRowIndex + 6 : rawGrid.length); r++) {
+      final checkLimit = rawGrid[r].length < 10 ? rawGrid[r].length : 10;
+      for (int c = 0; c < checkLimit; c++) {
         final str = rawGrid[r][c]?.toString().toUpperCase().trim() ?? '';
-        if (str.contains('HIGHEST POSSIBLE SCORE') || str == 'HPS') {
+        if (str.contains('HIGHEST POSSIBLE SCORE') ||
+            str.contains('HIGHEST SCORE') ||
+            str == 'HPS' ||
+            str.contains('PERFECT SCORE') ||
+            str.contains('MAXIMUM SCORE') ||
+            str == 'MAX SCORE' ||
+            str == 'TOTAL SCORE' ||
+            str.contains('PINAKAMATAAS') ||
+            str.contains('KABUUANG ISKOR')) {
           hpsRowIdx = r;
           break;
         }

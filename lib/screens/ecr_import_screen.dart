@@ -51,8 +51,8 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
   EcrRosterMatchResult? _rosterMatchResult;
 
   // Configurable Defaults
-  double _defaultWwHps = 100.0;
-  double _defaultPtHps = 100.0;
+  double _defaultWwHps = 20.0;
+  double _defaultPtHps = 50.0;
   double _defaultQaHps = 100.0;
 
   // Filter for Validation Issues Table
@@ -208,12 +208,14 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       headers: parseRes.headers,
       previewRows: previewRows,
       savedTemplate: template,
+      rowHpsMap: parseRes.rowHpsMap,
     );
 
     // Propagate detected horizontal row HPS to mappings
     for (final m in mappings) {
       if (parseRes.rowHpsMap.containsKey(m.columnIndex)) {
         m.detectedRowHps = parseRes.rowHpsMap[m.columnIndex];
+        m.assumedHps = false;
       }
     }
 
@@ -238,11 +240,13 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     final newMappings = _mappingEngine.autoDetectMappings(
       headers: _parseResult!.headers,
       previewRows: previewRows,
+      rowHpsMap: _parseResult!.rowHpsMap,
     );
 
     for (final m in newMappings) {
       if (_parseResult!.rowHpsMap.containsKey(m.columnIndex)) {
         m.detectedRowHps = _parseResult!.rowHpsMap[m.columnIndex];
+        m.assumedHps = false;
       }
     }
 
@@ -499,11 +503,12 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         final categoryName = _getCategoryName(m.target);
         final itemLabel = _getItemLabel(m.target, wwLabels, ptLabels, teLabels, originalHeader: m.originalHeader);
         final compKey = m.target.component ?? 'WW';
-        final totalHps = m.customHps ??
-            m.detectedRowHps ??
-            (_parseResult?.rowHpsMap[m.columnIndex]) ??
+        final detectedHps = m.detectedRowHps ?? (_parseResult?.rowHpsMap[m.columnIndex]);
+        final totalHps = detectedHps ??
+            (m.assumedHps ? null : m.customHps) ??
             hpsLookup[compKey] ??
-            100.0;
+            m.customHps ??
+            (compKey == 'WW' ? 20.0 : (compKey == 'PT' ? 50.0 : 100.0));
 
         final record = {
           'student_id': officialStudentId,
