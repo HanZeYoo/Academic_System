@@ -431,10 +431,31 @@ class DatabaseHelper {
     return null;
   }
 
-  // Get a single student by student_id
+  // Get a single student by student_id (dash-insensitive for NEU format)
   Future<Map<String, dynamic>?> getStudentByStudentId(String studentId) async {
-    final results = await Supabase.instance.client.from('students').select().eq('student_id', studentId).limit(1);
+    final raw = studentId.trim();
+    if (raw.isEmpty) return null;
+
+    // 1. Direct query
+    final results = await Supabase.instance.client.from('students').select().eq('student_id', raw).limit(1);
     if (results.isNotEmpty) return results.first as Map<String, dynamic>;
+
+    // 2. Dash-insensitive alternate query for NEU 9-digit IDs
+    final clean = raw.replaceAll(RegExp(r'[\s\-]'), '');
+    String? alternate;
+    if (clean.length == 9 && RegExp(r'^\d{9}$').hasMatch(clean)) {
+      if (raw.contains('-')) {
+        alternate = clean; // raw has dashes -> try continuous 9 digits
+      } else {
+        alternate = '\-\-'; // raw is continuous 9 digits -> try ##-####-###
+      }
+    }
+
+    if (alternate != null && alternate != raw) {
+      final altResults = await Supabase.instance.client.from('students').select().eq('student_id', alternate).limit(1);
+      if (altResults.isNotEmpty) return altResults.first as Map<String, dynamic>;
+    }
+
     return null;
   }
 
@@ -520,20 +541,111 @@ class DatabaseHelper {
     required String gradingPeriod,
     String? schoolYear,
   }) async {
-    final year = schoolYear ?? await getActiveSchoolYear();
-    await Supabase.instance.client.from('scores')
-        .delete()
-        .eq('student_id', studentId)
-        .eq('subject_code', subjectCode)
-        .eq('section_name', sectionName)
-        .eq('grade_level', gradeLevel)
-        .eq('category', category)
-        .eq('item_label', itemLabel)
-        .eq('grading_period', gradingPeriod)
-        .eq('school_year', year);
+    final aliases = getPeriodAliases(gradingPeriod);
+    final rawSid = studentId.trim();
+    final cleanSid = rawSid.replaceAll(RegExp(r'[\s\-]'), '');
+    final altSid = (cleanSid.length == 9 && RegExp(r'^\d{9}$').hasMatch(cleanSid))
+        ? '${cleanSid.substring(0, 2)}-${cleanSid.substring(2, 6)}-${cleanSid.substring(6)}'
+        : cleanSid;
+    final idCandidates = {rawSid, cleanSid, altSid}.where((s) => s.isNotEmpty).toList();
+
+    for (final p in aliases) {
+      for (final sid in idCandidates) {
+        try {
+          var query = Supabase.instance.client.from('scores')
+              .delete()
+              .eq('student_id', sid)
+              .eq('subject_code', subjectCode)
+              .eq('section_name', sectionName)
+              .eq('grade_level', gradeLevel)
+              .eq('category', category)
+              .eq('item_label', itemLabel)
+              .eq('grading_period', p);
+          if (schoolYear != null && schoolYear.isNotEmpty) {
+            query = query.eq('school_year', schoolYear);
+          }
+          await query;
+        } catch (e) {
+          print('Note: deleteScore: ');
+        }
+      }
+    }
   }
 
-  // Clear scores for class before batch import to prevent duplicates on re-import
+  /// Returns all equivalent naming aliases for a grading period.
+  /// (e.g., '1st Term' <-> '1st Quarter', '2nd Term' <-> '2nd Quarter')
+  static List<String> getPeriodAliases(String period) {
+    final lower = period.toLowerCase().trim();
+    if (lower.contains('1st') || lower.contains('first') || lower.contains('q1')) {
+      return ['1st Term', '1st Quarter'];
+    } else if (lower.contains('2nd') || lower.contains('second') || lower.contains('q2')) {
+      return ['2nd Term', '2nd Quarter'];
+    } else if (lower.contains('3rd') || lower.contains('third') || lower.contains('q3')) {
+      return ['3rd Term', '3rd Quarter'];
+    } else if (lower.contains('4th') || lower.contains('fourth') || lower.contains('q4')) {
+      return ['4th Term', '4th Quarter'];
+    }
+    return [period];
+  }
+
+  /// Returns all equivalent naming aliases for an assessment category.
+  static List<String> getCategoryAliases(String category) {
+    final catLower = category.toLowerCase().trim();
+    if (catLower.contains('written') || catLower == 'ww' || catLower == 'quiz' || catLower == 'seatwork') {
+      return ['Written Works', 'Written Work', 'Written Tasks', 'Written Task', 'WW', 'Quiz', 'Seatwork'];
+    }
+    if (catLower.contains('performance') || catLower == 'pt' || catLower.contains('task')) {
+      return ['Performance Tasks', 'Performance Task', 'PT', 'Performance', 'Gawaing Pagganap'];
+    }
+    if (catLower.contains('exam') || catLower.contains('test') || catLower.contains('quarterly') || catLower == 'qa') {
+      return ['Term Exams', 'Term Exam', 'Quarterly Assessment', 'QA', 'Quarterly Exam', 'Tests', 'Summative Test'];
+    }
+    return [category];
+  }
+
+  /// Returns all equivalent naming aliases for an item label within a category.
+  static List<String> getItemAliases(String category, String itemLabel) {
+    final Set<String> aliases = {itemLabel.trim()};
+    final numMatch = RegExp(r'\d+').firstMatch(itemLabel);
+    if (numMatch != null) {
+      final num = numMatch.group(0)!;
+      final catLower = category.toLowerCase().trim();
+      if (catLower.contains('written') || catLower == 'ww' || catLower == 'quiz') {
+        aliases.addAll([
+          'Written Works $num',
+          'Written Work $num',
+          'Written Tasks $num',
+          'Written Task $num',
+          'WW$num',
+          'WW $num',
+          'Quiz $num',
+        ]);
+      } else if (catLower.contains('performance') || catLower == 'pt') {
+        aliases.addAll([
+          'Performance Tasks $num',
+          'Performance Task $num',
+          'PT$num',
+          'PT $num',
+        ]);
+      } else if (catLower.contains('exam') || catLower.contains('test') || catLower.contains('quarterly') || catLower == 'qa') {
+        aliases.addAll([
+          'Term Exams $num',
+          'Term Exam $num',
+          'QA$num',
+          'QA $num',
+          'Quarterly Assessment $num',
+          'Quarterly Exam $num',
+          'Quarterly Exam',
+          'Quarterly Assessment',
+          'Summative Test$num',
+          'Summative Test $num',
+        ]);
+      }
+    }
+    return aliases.toList();
+  }
+
+  // Clear scores for class before batch import to guarantee clean overwrite on re-import
   Future<void> clearScoresForClassPeriod({
     required String subjectCode,
     required String sectionName,
@@ -541,23 +653,18 @@ class DatabaseHelper {
     required String gradingPeriod,
     String? schoolYear,
   }) async {
-    final year = schoolYear ?? await getActiveSchoolYear();
-    try {
-      await Supabase.instance.client.from('scores')
-          .delete()
-          .eq('subject_code', subjectCode)
-          .eq('section_name', sectionName)
-          .eq('grade_level', gradeLevel)
-          .eq('grading_period', gradingPeriod)
-          .eq('school_year', year);
-    } catch (e) {
-      // Fallback without school_year filter
-      await Supabase.instance.client.from('scores')
-          .delete()
-          .eq('subject_code', subjectCode)
-          .eq('section_name', sectionName)
-          .eq('grade_level', gradeLevel)
-          .eq('grading_period', gradingPeriod);
+    final aliases = getPeriodAliases(gradingPeriod);
+    for (final p in aliases) {
+      try {
+        await Supabase.instance.client.from('scores')
+            .delete()
+            .eq('subject_code', subjectCode)
+            .eq('section_name', sectionName)
+            .eq('grade_level', gradeLevel)
+            .eq('grading_period', p);
+      } catch (e) {
+        print('Note: clearScoresForClassPeriod delete: $e');
+      }
     }
   }
 
@@ -582,20 +689,34 @@ class DatabaseHelper {
     return [];
   }
 
-  // Get scores for a specific class/subject/category/item/period
+  // Get scores for a specific class/subject/category/item/period (with alias fallback)
   Future<List<Map<String, dynamic>>> getScores({
     required String subjectCode,
     required String category,
     required String itemLabel,
     required String gradingPeriod,
+    String? sectionName,
+    String? gradeLevel,
   }) async {
-    final results = await Supabase.instance.client.from('scores')
+    final periodAliases = getPeriodAliases(gradingPeriod);
+    final catAliases = getCategoryAliases(category);
+    final itmAliases = getItemAliases(category, itemLabel);
+
+    var query = Supabase.instance.client.from('scores')
         .select()
         .eq('subject_code', subjectCode)
-        .eq('category', category)
-        .eq('item_label', itemLabel)
-        .eq('grading_period', gradingPeriod)
-        .order('student_name', ascending: true);
+        .inFilter('category', catAliases)
+        .inFilter('item_label', itmAliases)
+        .inFilter('grading_period', periodAliases);
+
+    if (sectionName != null && sectionName.isNotEmpty) {
+      query = query.eq('section_name', sectionName);
+    }
+    if (gradeLevel != null && gradeLevel.isNotEmpty) {
+      query = query.eq('grade_level', gradeLevel);
+    }
+
+    final results = await query.order('student_name', ascending: true);
     return List<Map<String, dynamic>>.from(results);
   }
 
@@ -772,7 +893,7 @@ class DatabaseHelper {
     String? schoolYear,
     bool filterBySetup = true,
   }) async {
-    final year = schoolYear ?? await getActiveSchoolYear();
+    final aliases = getPeriodAliases(gradingPeriod);
     List<Map<String, dynamic>> rawScores = [];
     try {
       final results = await Supabase.instance.client.from('scores')
@@ -780,19 +901,11 @@ class DatabaseHelper {
           .eq('subject_code', subjectCode)
           .eq('section_name', sectionName)
           .eq('grade_level', gradeLevel)
-          .eq('grading_period', gradingPeriod)
-          .eq('school_year', year)
+          .inFilter('grading_period', aliases)
           .order('student_name', ascending: true);
       rawScores = List<Map<String, dynamic>>.from(results);
     } catch (e) {
-      final results = await Supabase.instance.client.from('scores')
-          .select()
-          .eq('subject_code', subjectCode)
-          .eq('section_name', sectionName)
-          .eq('grade_level', gradeLevel)
-          .eq('grading_period', gradingPeriod)
-          .order('student_name', ascending: true);
-      rawScores = List<Map<String, dynamic>>.from(results);
+      print('Note: getScoresForClass query: $e');
     }
 
     if (!filterBySetup) return rawScores;
@@ -825,9 +938,9 @@ class DatabaseHelper {
         }
       }
 
-      final wwCount = (setup['ww_items'] as int?) ?? 10;
-      final ptCount = (setup['pt_items'] as int?) ?? 10;
-      final teCount = (setup['te_items'] as int?) ?? 1;
+      final wwCount = (setup['ww_items'] as num?)?.toInt() ?? 10;
+      final ptCount = (setup['pt_items'] as num?)?.toInt() ?? 10;
+      final teCount = (setup['te_items'] as num?)?.toInt() ?? 1;
 
       addLabels(setup['ww_labels'], wwCount, 'Written Works');
       addLabels(setup['pt_labels'], ptCount, 'Performance Tasks');
@@ -860,12 +973,19 @@ class DatabaseHelper {
 
   // Save (upsert) assessment setup for a class/period and prune orphaned scores
   Future<void> saveAssessmentSetup(Map<String, dynamic> data) async {
-    await Supabase.instance.client.from('assessment_setups')
-        .delete()
-        .eq('subject_code', data['subject_code'])
-        .eq('section_name', data['section_name'])
-        .eq('grade_level', data['grade_level'])
-        .eq('grading_period', data['grading_period']);
+    final aliases = getPeriodAliases(data['grading_period']?.toString() ?? '');
+    for (final p in aliases) {
+      try {
+        await Supabase.instance.client.from('assessment_setups')
+            .delete()
+            .eq('subject_code', data['subject_code'])
+            .eq('section_name', data['section_name'])
+            .eq('grade_level', data['grade_level'])
+            .eq('grading_period', p);
+      } catch (e) {
+        print('Note: saveAssessmentSetup delete alias $p: $e');
+      }
+    }
     
     await Supabase.instance.client.from('assessment_setups').insert(data);
 
@@ -890,9 +1010,9 @@ class DatabaseHelper {
         }
       }
 
-      final wwCount = (data['ww_items'] as int?) ?? 10;
-      final ptCount = (data['pt_items'] as int?) ?? 10;
-      final teCount = (data['te_items'] as int?) ?? 1;
+      final wwCount = (data['ww_items'] as num?)?.toInt() ?? 10;
+      final ptCount = (data['pt_items'] as num?)?.toInt() ?? 10;
+      final teCount = (data['te_items'] as num?)?.toInt() ?? 1;
 
       addLabels(data['ww_labels'], wwCount, 'Written Works');
       addLabels(data['pt_labels'], ptCount, 'Performance Tasks');
@@ -928,12 +1048,14 @@ class DatabaseHelper {
     required String gradeLevel,
     required String gradingPeriod,
   }) async {
+    final aliases = getPeriodAliases(gradingPeriod);
     final results = await Supabase.instance.client.from('assessment_setups')
         .select()
         .eq('subject_code', subjectCode)
         .eq('section_name', sectionName)
         .eq('grade_level', gradeLevel)
-        .eq('grading_period', gradingPeriod)
+        .inFilter('grading_period', aliases)
+        .order('created_at', ascending: false)
         .limit(1);
     return results.isNotEmpty ? results.first as Map<String, dynamic> : null;
   }
@@ -2015,16 +2137,13 @@ class DatabaseHelper {
 
     try {
       while (hasMore) {
+        final aliases = getPeriodAliases(gradingPeriod);
         var query = Supabase.instance.client
             .from('scores')
             .select('id, student_id, subject_code, category, item_label, grading_period, school_year')
             .eq('subject_code', subjectCode)
             .eq('section_name', sectionName)
-            .eq('grading_period', gradingPeriod);
-
-        if (schoolYear != null && schoolYear.isNotEmpty) {
-          query = query.eq('school_year', schoolYear);
-        }
+            .inFilter('grading_period', aliases);
 
         final pageResults = await query.range(page * pageSize, (page + 1) * pageSize - 1);
         final list = List<Map<String, dynamic>>.from(pageResults);
@@ -2124,7 +2243,19 @@ class DatabaseHelper {
     required String gradingPeriod,
     String? schoolYear,
   }) {
-    return '$studentId|$subjectCode|$category|$itemLabel|$gradingPeriod|${schoolYear ?? ''}';
+    final cleanId = studentId.replaceAll(RegExp(r'[\s\-]'), '').toLowerCase();
+    final cleanLabel = itemLabel.replaceAll(RegExp(r'\s+'), ' ').trim().toLowerCase();
+    final lowerPeriod = gradingPeriod.toLowerCase();
+    final periodNorm = lowerPeriod.contains('1st') || lowerPeriod.contains('q1')
+        ? 'q1'
+        : (lowerPeriod.contains('2nd') || lowerPeriod.contains('q2')
+            ? 'q2'
+            : (lowerPeriod.contains('3rd') || lowerPeriod.contains('q3')
+                ? 'q3'
+                : (lowerPeriod.contains('4th') || lowerPeriod.contains('q4')
+                    ? 'q4'
+                    : lowerPeriod)));
+    return '$cleanId|\${subjectCode.toLowerCase()}|\${category.toLowerCase()}|$cleanLabel|$periodNorm';
   }
 
   Future<Map<String, dynamic>> getGradeBreakdown({

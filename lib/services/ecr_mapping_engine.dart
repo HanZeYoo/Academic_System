@@ -17,12 +17,30 @@ class EcrMappingEngine {
       'name of learner',
       'learners\' names',
       'learner\'s names',
-      'pangalan ng mag-aaral'
+      'pangalan ng mag-aaral',
+      'name of student',
+      'name of students',
+      'name (lastname, firstname mi)',
+      '(lastname, firstname, mi)',
     ],
     'Last Name': ['last name', 'lastname', 'apelyido', 'surname'],
     'First Name': ['first name', 'firstname', 'given name', 'pangalan'],
     'Middle Initial': ['middle initial', 'mi', 'm.i.', 'gitnang inisyal'],
-    'LRN': ['lrn', 'learner reference number', 'learner ref', 'ref no', 'id no', 'student id'],
+    'LRN': [
+      'lrn',
+      'learner reference number',
+      'learner ref',
+      'ref no',
+      'id no',
+      'student id',
+      'studno',
+      'studno.',
+      'stud no',
+      'stud no.',
+      'student no',
+      'student no.',
+      'student number',
+    ],
     'Written Work': ['written work', 'written works', 'written', 'ww', 'quiz', 'pagsusulit', 'sw', 'seatwork'],
     'Performance Task': ['performance task', 'performance tasks', 'performance', 'pt', 'output', 'gawain', 'pet'],
     'Quarterly Assessment': [
@@ -30,6 +48,10 @@ class EcrMappingEngine {
       'quarterly',
       'qa',
       'exam',
+      'examinations',
+      'examination',
+      'summative test',
+      'quarterly exam',
       'q1 exam',
       'q2 exam',
       'q3 exam',
@@ -45,7 +67,9 @@ class EcrMappingEngine {
       'initial grade',
       'transmuted grade',
       'markahang marka',
-      'general average'
+      'general average',
+      'periodic grade',
+      'remarks',
     ],
   };
 
@@ -65,6 +89,7 @@ class EcrMappingEngine {
     required List<String> headers,
     required List<List<dynamic>> previewRows,
     EcrMappingTemplate? savedTemplate,
+    Map<int, double>? rowHpsMap,
   }) {
     List<EcrColumnMapping> mappings = [];
 
@@ -129,6 +154,19 @@ class EcrMappingEngine {
       confidence = (confidence + profileResult.scoreModifier).clamp(0.0, 1.0);
       reasons.addAll(profileResult.notes);
 
+      // If column is ignore and has explicitly empty data in previewRows, treat as clean unused slot
+      final bool isExplicitlyEmptyInPreview = previewRows.isNotEmpty &&
+          !previewRows.any((row) =>
+              colIndex < row.length &&
+              row[colIndex] != null &&
+              row[colIndex].toString().trim().isNotEmpty &&
+              row[colIndex].toString().trim() != '0');
+      if (target == EcrTargetCategory.ignore && isExplicitlyEmptyInPreview) {
+        reasons.clear();
+        reasons.add('Unused template slot');
+        confidence = 0.80;
+      }
+
       final hasWarning = reasons.any((r) => r.contains('Warning') || r.contains('exceeds'));
       final isLowConfidence = hasWarning || (confidence < reviewThreshold && target != EcrTargetCategory.ignore);
 
@@ -141,6 +179,7 @@ class EcrMappingEngine {
         hasTypeMismatch: profileResult.hasTypeMismatch,
         parentBlock: parentBlock,
         reasons: reasons,
+        detectedRowHps: rowHpsMap?[colIndex],
       ));
     }
 
@@ -170,11 +209,16 @@ class EcrMappingEngine {
         lower.contains('task') || lower.contains('activity') || lower.contains('project') || lower.contains('output')) {
       return 'PT';
     }
+    final lowerNoSpaces = lower.replaceAll(' ', '');
     if (lower.contains('quarterly assessment') ||
         lower.contains('quarter assessment') ||
         lower.contains('qa') ||
         lower.contains('periodical') ||
+        lower.contains('examinations') ||
+        lower.contains('examination') ||
+        lowerNoSpaces.contains('examinations') ||
         lower.contains('exam') ||
+        lower.contains('summative test') ||
         lower.contains('markahan') ||
         (lower.contains('quarterly') && !lower.contains('grade')) ||
         (lower.contains('assessment') && !lower.contains('grade'))) {
@@ -218,6 +262,7 @@ class EcrMappingEngine {
         childToken == 'ws' ||
         childToken.contains('percentage') ||
         childToken.contains('percent score') ||
+        childToken.contains('%age') ||
         childToken.contains('weighted') ||
         childToken.contains('weighted score')) {
       reasons.add('DepEd calculated formula column ($childToken) ignored from raw scores');
@@ -252,20 +297,24 @@ class EcrMappingEngine {
       return _RoleResolution(EcrTargetCategory.qa, 0.90, reasons);
     }
 
-    if (detectedNumber <= 10) {
+    if (detectedNumber <= 20) {
       final label = '$parentBlock$detectedNumber';
       final target = EcrTargetCategory.fromLabel(label);
+      if (detectedNumber > 10) {
+        reasons.add(
+          'Warning: $parentBlock exceeds standard 10 items (Item $detectedNumber)',
+        );
+        return _RoleResolution(target != EcrTargetCategory.ignore ? target : EcrTargetCategory.ww1, 0.65, reasons);
+      }
       reasons.add('Mapped to $label by position in $parentBlock block');
       return _RoleResolution(target != EcrTargetCategory.ignore ? target : EcrTargetCategory.ww1, 0.90, reasons);
     } else {
-      // OVERFLOW: Component exceeds standard 10 items
       reasons.add(
-        'Warning: $parentBlock exceeds standard 10 items (Item $detectedNumber). Consider consolidating or mapping manually.',
+        'Warning: $parentBlock exceeds maximum 20 items (Item $detectedNumber). Consider consolidating or mapping manually.',
       );
       return _RoleResolution(EcrTargetCategory.ignore, 0.50, reasons);
     }
   }
-
   /// Evaluates independent columns outside any component block
   _RoleResolution _evaluateIndependentColumn(String headerLower) {
     if (headerLower.isEmpty) {
@@ -356,7 +405,7 @@ class EcrMappingEngine {
     final wwMatch = RegExp(r'^(?:ww|quiz|sw|seatwork|pagsusulit|written(?: work)?)\s*[-_:]?\s*(\d+)$').firstMatch(headerLower);
     if (wwMatch != null) {
       final num = int.tryParse(wwMatch.group(1)!) ?? 1;
-      if (num >= 1 && num <= 10) {
+      if (num >= 1 && num <= 20) {
         final target = EcrTargetCategory.fromLabel('WW$num');
         return _RoleResolution(target, 0.92, ['Adaptive match: Standalone Written Work activity item $num']);
       }
@@ -369,7 +418,7 @@ class EcrMappingEngine {
     final ptMatch = RegExp(r'^(?:pt|act|activity|task|output|project|gawain|performance(?: task)?)\s*[-_:]?\s*(\d+)$').firstMatch(headerLower);
     if (ptMatch != null) {
       final num = int.tryParse(ptMatch.group(1)!) ?? 1;
-      if (num >= 1 && num <= 10) {
+      if (num >= 1 && num <= 20) {
         final target = EcrTargetCategory.fromLabel('PT$num');
         return _RoleResolution(target, 0.92, ['Adaptive match: Standalone Performance Task activity item $num']);
       }
@@ -432,8 +481,9 @@ class EcrMappingEngine {
         formulaCount++;
       }
 
-      // Check 12-digit integer
-      if (RegExp(r'^\d{12}$').hasMatch(str)) {
+      // Check 12-digit LRN or 9-digit NEU Student ID (with or without dashes)
+      final clean = str.replaceAll(RegExp(r'[\s\-]'), '');
+      if (RegExp(r'^\d{12}$').hasMatch(clean) || RegExp(r'^\d{9}$').hasMatch(clean) || RegExp(r'^\d{2}-\d{4}-\d{3}$').hasMatch(str)) {
         twelveDigitCount++;
       }
 

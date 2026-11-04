@@ -242,6 +242,15 @@ class EcrValidator {
   }
 
   /// Normalizes a name string for fuzzy comparison (case-insensitive, trims, strips punctuation)
+  /// Formats a 9-digit NEU student ID to '##-####-###' or returns raw string
+  static String formatStudentId(String id) {
+    final clean = id.replaceAll(RegExp(r'[\s\-]'), '');
+    if (clean.length == 9 && RegExp(r'^\d{9}$').hasMatch(clean)) {
+      return '${clean.substring(0, 2)}-${clean.substring(2, 6)}-${clean.substring(6)}';
+    }
+    return id.trim();
+  }
+
   static String normalizeFuzzyName(String name) {
     String clean = name.toLowerCase()
         .replaceAll(RegExp(r'[,.\-_]'), ' ')
@@ -274,6 +283,12 @@ class EcrValidator {
       final sName = s['name']?.toString().trim() ?? '';
       if (sLrn != null && sLrn.isNotEmpty) {
         enrolledByLrn[sLrn] = s;
+        final cleanLrn = sLrn.replaceAll(RegExp(r'[\s\-]'), '');
+        enrolledByLrn[cleanLrn] = s;
+        if (cleanLrn.length == 9 && RegExp(r'^\d{9}$').hasMatch(cleanLrn)) {
+          final formatted = '${cleanLrn.substring(0, 2)}-${cleanLrn.substring(2, 6)}-${cleanLrn.substring(6)}';
+          enrolledByLrn[formatted] = s;
+        }
       }
       if (sName.isNotEmpty) {
         enrolledByName[normalizeFuzzyName(sName)] = s;
@@ -307,9 +322,16 @@ class EcrValidator {
 
       Map<String, dynamic>? match;
 
-      // 1. Primary match by LRN
-      if (rowLrn.isNotEmpty && enrolledByLrn.containsKey(rowLrn)) {
-        match = enrolledByLrn[rowLrn];
+      // 1. Primary match by Student ID / LRN (dash-insensitive for NEU format)
+      if (rowLrn.isNotEmpty) {
+        if (enrolledByLrn.containsKey(rowLrn)) {
+          match = enrolledByLrn[rowLrn];
+        } else {
+          final cleanRow = rowLrn.replaceAll(RegExp(r'[\s\-]'), '');
+          if (cleanRow.isNotEmpty && enrolledByLrn.containsKey(cleanRow)) {
+            match = enrolledByLrn[cleanRow];
+          }
+        }
       }
 
       // 2. Secondary fuzzy match by Name

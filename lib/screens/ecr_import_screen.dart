@@ -240,6 +240,12 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       previewRows: previewRows,
     );
 
+    for (final m in newMappings) {
+      if (_parseResult!.rowHpsMap.containsKey(m.columnIndex)) {
+        m.detectedRowHps = _parseResult!.rowHpsMap[m.columnIndex];
+      }
+    }
+
     setState(() {
       _columnMappings = newMappings;
     });
@@ -359,9 +365,9 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       return fallbackCount > 0 ? List.generate(fallbackCount, (i) => '$prefix ${i + 1}') : ['$prefix 1'];
     }
 
-    int wwCount = (savedSetup?['ww_items'] as int?) ?? 10;
-    int ptCount = (savedSetup?['pt_items'] as int?) ?? 10;
-    int teCount = (savedSetup?['te_items'] as int?) ?? 1;
+    int wwCount = (savedSetup?['ww_items'] as num?)?.toInt() ?? 10;
+    int ptCount = (savedSetup?['pt_items'] as num?)?.toInt() ?? 10;
+    int teCount = (savedSetup?['te_items'] as num?)?.toInt() ?? 1;
 
     final wwLabels = parseLabels(savedSetup?['ww_labels'], wwCount, 'Written Works');
     final ptLabels = parseLabels(savedSetup?['pt_labels'], ptCount, 'Performance Tasks');
@@ -380,6 +386,12 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       final sName = s['name']?.toString().trim() ?? '';
       if (sLrn != null && sLrn.isNotEmpty) {
         enrolledByLrn[sLrn] = sLrn;
+        final cleanLrn = sLrn.replaceAll(RegExp(r'[\s\-]'), '');
+        enrolledByLrn[cleanLrn] = sLrn; // Always maps back to official database sLrn!
+        if (cleanLrn.length == 9 && RegExp(r'^\d{9}$').hasMatch(cleanLrn)) {
+          final formatted = '${cleanLrn.substring(0, 2)}-${cleanLrn.substring(2, 6)}-${cleanLrn.substring(6)}';
+          enrolledByLrn[formatted] = sLrn;
+        }
       }
       if (sName.isNotEmpty) {
         final norm = EcrValidator.normalizeFuzzyName(sName);
@@ -442,10 +454,17 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         studentId = row[lrnCol]?.toString().trim() ?? '';
       }
 
-      // Reconcile with official enrolled roster student_id
+      // Reconcile with official enrolled roster student_id (dash-insensitive for NEU format)
       String officialStudentId = studentId;
-      if (studentId.isNotEmpty && enrolledByLrn.containsKey(studentId)) {
-        officialStudentId = enrolledByLrn[studentId]!;
+      if (studentId.isNotEmpty) {
+        if (enrolledByLrn.containsKey(studentId)) {
+          officialStudentId = enrolledByLrn[studentId]!;
+        } else {
+          final cleanId = studentId.replaceAll(RegExp(r'[\s\-]'), '');
+          if (enrolledByLrn.containsKey(cleanId)) {
+            officialStudentId = enrolledByLrn[cleanId]!;
+          }
+        }
       } else if (studentName.isNotEmpty) {
         final norm = EcrValidator.normalizeFuzzyName(studentName);
         if (enrolledByName.containsKey(norm)) {
@@ -480,7 +499,11 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         final categoryName = _getCategoryName(m.target);
         final itemLabel = _getItemLabel(m.target, wwLabels, ptLabels, teLabels, originalHeader: m.originalHeader);
         final compKey = m.target.component ?? 'WW';
-        final totalHps = m.customHps ?? hpsLookup[compKey] ?? 100.0;
+        final totalHps = m.customHps ??
+            m.detectedRowHps ??
+            (_parseResult?.rowHpsMap[m.columnIndex]) ??
+            hpsLookup[compKey] ??
+            100.0;
 
         final record = {
           'student_id': officialStudentId,
@@ -521,13 +544,13 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     final detectedWeights = _parseResult?.detectedWeights;
     final int finalWwWeight = (detectedWeights?.isDetected == true)
         ? detectedWeights!.wwWeight.toInt()
-        : ((savedSetup?['ww_weight'] as int?) ?? 30);
+        : ((savedSetup?['ww_weight'] as num?)?.toInt() ?? 30);
     final int finalPtWeight = (detectedWeights?.isDetected == true)
         ? detectedWeights!.ptWeight.toInt()
-        : ((savedSetup?['pt_weight'] as int?) ?? 50);
+        : ((savedSetup?['pt_weight'] as num?)?.toInt() ?? 50);
     final int finalTeWeight = (detectedWeights?.isDetected == true)
         ? detectedWeights!.qaWeight.toInt()
-        : ((savedSetup?['te_weight'] as int?) ?? 20);
+        : ((savedSetup?['te_weight'] as num?)?.toInt() ?? 20);
 
     // Collect distinct item labels that were actually mapped and inserted
     final List<String> activeWwLabels = [];
@@ -563,7 +586,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         'ww_weight': finalWwWeight,
         'pt_weight': finalPtWeight,
         'te_weight': finalTeWeight,
-        'attendance_weight': (savedSetup?['attendance_weight'] as int?) ?? 0,
+        'attendance_weight': (savedSetup?['attendance_weight'] as num?)?.toInt() ?? 0,
         'created_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {

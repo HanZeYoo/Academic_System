@@ -1,3 +1,4 @@
+import '../services/ecr_validator.dart';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
@@ -22,7 +23,7 @@ class _AcademicEvaluationScreenState
   bool _isLoading = true;
   List<Map<String, dynamic>> _classes = [];
   Map<String, dynamic>? _selectedClassData;
-  String _selectedPeriod = '1st Term';
+  String _selectedPeriod = '1st Quarter';
   String _searchQuery = '';
   bool _showOnlyAtRisk = false;
   final _searchController = TextEditingController();
@@ -33,9 +34,13 @@ class _AcademicEvaluationScreenState
   Map<String, dynamic>? _assessmentSetup;
 
   static const _periods = [
+    '1st Quarter',
+    '2nd Quarter',
+    '3rd Quarter',
+    '4th Quarter',
     '1st Term',
     '2nd Term',
-    '3rd Term'
+    '3rd Term',
   ];
 
   @override
@@ -136,28 +141,68 @@ class _AcademicEvaluationScreenState
     return (points / totalDays) * 100;
   }
 
-  double _computeGrade(String studentId) {
+  bool _isStudentMatch(dynamic scoreSid, String targetSid) {
+    final s1 = (scoreSid?.toString() ?? '').replaceAll(RegExp(r'[\s\-]'), '').toLowerCase();
+    final s2 = targetSid.replaceAll(RegExp(r'[\s\-]'), '').toLowerCase();
+    return s1.isNotEmpty && s1 == s2;
+  }
+
+  bool _isStudentOrNameMatch(Map<String, dynamic> row, String targetSid, [String? targetName]) {
+    if (_isStudentMatch(row['student_id'], targetSid)) return true;
+    if (targetName != null && targetName.isNotEmpty) {
+      final n1 = (row['student_name']?.toString() ?? '').toLowerCase().trim();
+      final n2 = targetName.toLowerCase().trim();
+      if (n1.isNotEmpty && (n1 == n2 || EcrValidator.normalizeFuzzyName(n1) == EcrValidator.normalizeFuzzyName(n2))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Map<String, dynamic> _categoryStats(String studentId, String category, [String? studentName]) {
+    final s = _allScores.where((r) => 
+      _isStudentOrNameMatch(r, studentId, studentName) && 
+      r['category'].toString().toLowerCase() == category.toLowerCase()
+    ).toList();
+
+    if (s.isEmpty) return {'earned': 0.0, 'total': 0.0, 'pct': 0.0, 'hasData': false};
+    double total = 0, max = 0;
+    for (final r in s) {
+      total += (r['score'] as num?)?.toDouble() ?? 0;
+      max   += (r['total_score'] as num?)?.toDouble() ?? 0;
+    }
+    double pct = max > 0 ? (total / max) * 100 : 0.0;
+    return {'earned': total, 'total': max, 'pct': pct, 'hasData': true};
+  }
+
+  bool _studentHasScores(String studentId, [String? studentName]) {
+    return _allScores.any((r) => _isStudentOrNameMatch(r, studentId, studentName));
+  }
+
+  double _computeGrade(String studentId, [String? studentName]) {
+    if (!_studentHasScores(studentId, studentName)) return 0.0;
+
+    final wwStats = _categoryStats(studentId, 'Written Works', studentName);
+    final ptStats = _categoryStats(studentId, 'Performance Tasks', studentName);
+    final teStats = _categoryStats(studentId, 'Term Exams', studentName);
+    final attAvg = _attendancePct(studentId);
+
+    // Require at least one academic assessment category to have data
+    final hasAssessmentData = wwStats['hasData'] == true || ptStats['hasData'] == true || teStats['hasData'] == true;
+    if (!hasAssessmentData) return 0.0;
+
     if (_assessmentSetup != null) {
       final wWW = (_assessmentSetup!['ww_weight'] as num?)?.toDouble() ?? 30;
       final wPT = (_assessmentSetup!['pt_weight'] as num?)?.toDouble() ?? 50;
       final wTE = (_assessmentSetup!['te_weight'] as num?)?.toDouble() ?? 20;
       final wAttendance = (_assessmentSetup!['attendance_weight'] as num?)?.toDouble() ?? 0;
 
-      final wwAvg = _categoryAvg(studentId, 'Written Works');
-      final ptAvg = _categoryAvg(studentId, 'Performance Tasks');
-      final teAvg = _categoryAvg(studentId, 'Term Exams');
-      final attAvg = _attendancePct(studentId);
-
       double totalWeight = 0;
       double earned = 0;
 
-      bool hasWW = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'written works');
-      bool hasPT = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'performance tasks');
-      bool hasTE = _allScores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'term exams');
-
-      if (hasWW) { earned += wwAvg * (wWW / 100); totalWeight += (wWW / 100); }
-      if (hasPT) { earned += ptAvg * (wPT / 100); totalWeight += (wPT / 100); }
-      if (hasTE) { earned += teAvg * (wTE / 100); totalWeight += (wTE / 100); }
+      if (wwStats['hasData'] == true) { earned += (wwStats['pct'] as double) * (wWW / 100); totalWeight += (wWW / 100); }
+      if (ptStats['hasData'] == true) { earned += (ptStats['pct'] as double) * (wPT / 100); totalWeight += (wPT / 100); }
+      if (teStats['hasData'] == true) { earned += (teStats['pct'] as double) * (wTE / 100); totalWeight += (wTE / 100); }
       
       if (wAttendance > 0) {
         earned += attAvg * (wAttendance / 100);
@@ -169,7 +214,7 @@ class _AcademicEvaluationScreenState
       return DatabaseHelper().transmuteGrade(initialGrade);
     }
 
-    final s = _allScores.where((r) => r['student_id'].toString() == studentId).toList();
+    final s = _allScores.where((r) => _isStudentOrNameMatch(r, studentId, studentName)).toList();
     if (s.isEmpty) return 0.0;
     double total = 0, max = 0;
     for (final r in s) {
@@ -181,20 +226,9 @@ class _AcademicEvaluationScreenState
     return DatabaseHelper().transmuteGrade(initialGrade);
   }
 
-  double _categoryAvg(String studentId, String category) {
-    final s = _allScores.where((r) => 
-      r['student_id'].toString() == studentId && 
-      r['category'].toString().toLowerCase() == category.toLowerCase()
-    ).toList();
-
-    if (s.isEmpty) return 0.0;
-    double total = 0, max = 0;
-    for (final r in s) {
-      total += (r['score'] as num?)?.toDouble() ?? 0;
-      max   += (r['total_score'] as num?)?.toDouble() ?? 0;
-    }
-    if (max == 0) return 0.0;
-    return (total / max) * 100;
+  double _categoryAvg(String studentId, String category, [String? studentName]) {
+    final stats = _categoryStats(studentId, category, studentName);
+    return stats['pct'] as double;
   }
 
   double _classCategoryAvg(String category) {
@@ -247,10 +281,12 @@ class _AcademicEvaluationScreenState
 
     final gradeList = _students.where((s) {
       final sid = s['student_id'].toString();
+      final sName = s['name']?.toString();
       final ew = ewResults[sid];
       final isEwAtRisk = ew?.isAtRisk ?? false;
-      final g = _computeGrade(sid);
-      final isGradeAtRisk = g > 0 && g < 75;
+      final g = _computeGrade(sid, sName);
+      final hasScores = _studentHasScores(sid, sName);
+      final isGradeAtRisk = hasScores && g < 75;
 
       if (_showOnlyAtRisk) {
         if (!isEwAtRisk && !isGradeAtRisk) return false;
@@ -262,25 +298,45 @@ class _AcademicEvaluationScreenState
     }).toList();
 
     final int totalStudents = _students.length;
-    final atRisk = _students.where((s) {
+    final evaluatedStudents = _students.where((s) {
       final sid = s['student_id'].toString();
+      final sName = s['name']?.toString();
+      return _studentHasScores(sid, sName);
+    }).toList();
+    final int totalEvaluated = evaluatedStudents.length;
+
+    final atRisk = evaluatedStudents.where((s) {
+      final sid = s['student_id'].toString();
+      final sName = s['name']?.toString();
       final ew = ewResults[sid];
-      final g = _computeGrade(sid);
-      return (ew?.isAtRisk ?? false) || (g > 0 && g < 75);
+      final g = _computeGrade(sid, sName);
+      return (ew?.isAtRisk ?? false) || g < 75;
     }).length;
-    final passed = totalStudents - atRisk;
+
+    final passed = evaluatedStudents.where((s) {
+      final sid = s['student_id'].toString();
+      final sName = s['name']?.toString();
+      final g = _computeGrade(sid, sName);
+      return g >= 75;
+    }).length;
+
     double classAvg = 0;
-    if (totalStudents > 0) {
-      classAvg = _students.fold(0.0, (sum, s) => sum + _computeGrade(s['student_id'].toString())) / totalStudents;
+    if (totalEvaluated > 0) {
+      classAvg = evaluatedStudents.fold(0.0, (sum, s) =>
+        sum + _computeGrade(s['student_id'].toString(), s['name']?.toString())
+      ) / totalEvaluated;
     }
 
     final List<Map<String, dynamic>> studentGradesForReport = gradeList.map((s) {
-      final grade = _computeGrade(s['student_id'].toString());
+      final sid = s['student_id'].toString();
+      final sName = s['name']?.toString();
+      final hasScores = _studentHasScores(sid, sName);
+      final grade = hasScores ? _computeGrade(sid, sName) : 0.0;
       return {
         'name': s['name'].toString(),
-        'id': s['student_id'].toString(),
+        'id': sid,
         'grade': grade,
-        'isPassed': grade >= 75,
+        'isPassed': hasScores && grade >= 75,
       };
     }).toList();
 
@@ -294,22 +350,39 @@ class _AcademicEvaluationScreenState
             _buildSearchBar(),
             const SizedBox(height: 24),
 
-            const Text(
-              'Academic Evaluation',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1A2B4C),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'View overall student performance across all classes',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.blueGrey.shade400,
-                fontWeight: FontWeight.w500,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Academic Evaluation',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1A2B4C),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'View overall student performance across all classes',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.blueGrey.shade400,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Refresh data from database',
+                  icon: const Icon(Icons.refresh, color: Color(0xFF3B82F6)),
+                  onPressed: _loadStudentData,
+                ),
+              ],
             ),
             const SizedBox(height: 24),
 
@@ -372,9 +445,9 @@ class _AcademicEvaluationScreenState
                       iconColor: const Color(0xFF10B981),
                       title: 'Passed',
                       value: '$passed',
-                      trend: totalStudents > 0 ? '${(passed / totalStudents * 100).toStringAsFixed(0)}%' : '0%',
+                      trend: totalEvaluated > 0 ? '${(passed / totalEvaluated * 100).toStringAsFixed(0)}%' : '--',
                       trendColor: const Color(0xFF111827),
-                      subtitle: ' of class',
+                      subtitle: totalEvaluated > 0 ? ' of $totalEvaluated evaluated' : 'no scores recorded',
                     ),
                     _buildStatCard(
                       constraints.maxWidth,
@@ -383,9 +456,9 @@ class _AcademicEvaluationScreenState
                       iconColor: const Color(0xFFF59E0B),
                       title: 'At-Risk',
                       value: '$atRisk',
-                      trend: totalStudents > 0 ? '${(atRisk / totalStudents * 100).toStringAsFixed(0)}%' : '0%',
+                      trend: totalEvaluated > 0 ? '${(atRisk / totalEvaluated * 100).toStringAsFixed(0)}%' : '--',
                       trendColor: const Color(0xFF111827),
-                      subtitle: ' of class',
+                      subtitle: totalEvaluated > 0 ? ' of $totalEvaluated evaluated' : 'no scores recorded',
                     ),
                   ],
                 );
@@ -474,16 +547,30 @@ class _AcademicEvaluationScreenState
             else
               ...gradeList.map((student) {
                 final sid = student['student_id'].toString();
-                final grade = _computeGrade(sid);
-                final wwPct = _categoryAvg(sid, 'Written Works');
-                final ptPct = _categoryAvg(sid, 'Performance Tasks');
-                final tePct = _categoryAvg(sid, 'Term Exams');
-                final isPassed = grade >= 75;
-                final hasScores = grade > 0;
+                final sName = student['name']?.toString();
+                final hasScores = _studentHasScores(sid, sName);
+                final grade = hasScores ? _computeGrade(sid, sName) : 0.0;
+                final wwStats = _categoryStats(sid, 'Written Works', sName);
+                final ptStats = _categoryStats(sid, 'Performance Tasks', sName);
+                final teStats = _categoryStats(sid, 'Term Exams', sName);
+                final double wwPct = wwStats['pct'] as double;
+                final double ptPct = ptStats['pct'] as double;
+                final double tePct = teStats['pct'] as double;
+                final isPassed = hasScores && grade >= 75;
                 final ew = ewResults[sid];
-                final isEwAtRisk = ew?.isAtRisk ?? false;
+                final isEwAtRisk = hasScores && (ew?.isAtRisk ?? false);
                 final atRiskStatus = isEwAtRisk ? ew!.shortBadgeText : 'At-Risk';
-                final isFlagged = isEwAtRisk || (!isPassed && hasScores);
+                final isFlagged = isEwAtRisk || (hasScores && !isPassed);
+
+                String formatScorePill(Map<String, dynamic> stats) {
+                  if (stats['hasData'] != true) return '--';
+                  final earned = stats['earned'] as double;
+                  final total = stats['total'] as double;
+                  final pct = stats['pct'] as double;
+                  final earnedStr = earned % 1 == 0 ? earned.toInt().toString() : earned.toStringAsFixed(1);
+                  final totalStr = total.toInt().toString();
+                  return '$earnedStr/$totalStr (${pct.toStringAsFixed(0)}%)';
+                }
 
                 return _buildStudentCard(
                   name: student['name'].toString(),
@@ -510,9 +597,9 @@ class _AcademicEvaluationScreenState
                           ? const Color(0xFFD1FAE5)
                           : const Color(0xFFFEE2E2)),
                   earlyWarning: ew,
-                  wwAvg: wwPct > 0 ? '${wwPct.toStringAsFixed(0)}%' : '--',
-                  ptAvg: ptPct > 0 ? '${ptPct.toStringAsFixed(0)}%' : '--',
-                  teAvg: tePct > 0 ? '${tePct.toStringAsFixed(0)}%' : '--',
+                  wwAvg: formatScorePill(wwStats),
+                  ptAvg: formatScorePill(ptStats),
+                  teAvg: formatScorePill(teStats),
                   wwColor: wwPct > 0 && wwPct < 75
                       ? const Color(0xFFEF4444)
                       : const Color(0xFF3B82F6),
@@ -527,7 +614,7 @@ class _AcademicEvaluationScreenState
                   } : null,
                   onViewDetails: () {
                     final studentScores = _allScores
-                        .where((r) => r['student_id'].toString() == sid)
+                        .where((r) => _isStudentOrNameMatch(r, sid, sName))
                         .toList();
                     Navigator.push(
                       context,
@@ -809,13 +896,56 @@ class _AcademicEvaluationScreenState
                     ),
                   ],
                 ),
-                SizedBox(
-                  height: 80,
-                  width: 150,
-                  child: CustomPaint(
-                    painter: _MockChartPainter(),
+                if (classAvg > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: classAvg >= 75 ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: classAvg >= 75 ? const Color(0xFFA7F3D0) : const Color(0xFFFECACA),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          classAvg >= 75 ? Icons.trending_up : Icons.trending_down,
+                          color: classAvg >= 75 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          classAvg >= 75 ? 'Passing Standard Met' : 'Needs Academic Attention',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: classAvg >= 75 ? const Color(0xFF065F46) : const Color(0xFF991B1B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.insert_chart_outlined, color: Color(0xFF94A3B8), size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'No Scores Recorded',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -1122,9 +1252,9 @@ class _AcademicEvaluationScreenState
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              _buildPill('WW Avg.', wwAvg, wwColor),
-              _buildPill('PT Avg.', ptAvg, ptColor),
-              _buildPill('TE Avg.', teAvg, teColor),
+              _buildPill('WW', wwAvg, wwColor),
+              _buildPill('PT', ptAvg, ptColor),
+              _buildPill('TE', teAvg, teColor),
               if (earlyWarning != null && (earlyWarning.missedCount > 0 || earlyWarning.subPassingCount > 0)) ...[
                 _buildPill('Missed', '${earlyWarning.missedCount}', earlyWarning.isRuleATriggered ? const Color(0xFFEF4444) : Colors.grey.shade700),
                 _buildPill('Sub-75', '${earlyWarning.subPassingCount}', earlyWarning.isRuleBTriggered ? const Color(0xFFEF4444) : Colors.grey.shade700),
@@ -1196,9 +1326,18 @@ class _AcademicEvaluationScreenState
   }
 
   Widget _buildAttentionCard({required int atRisk, required int totalStudents}) {
-    final highRisk = _students.where((s) => _computeGrade(s['student_id'].toString()) > 0 && _computeGrade(s['student_id'].toString()) < 75).length;
+    final highRisk = _students.where((s) {
+      final sid = s['student_id'].toString();
+      final sName = s['name']?.toString();
+      if (!_studentHasScores(sid, sName)) return false;
+      final g = _computeGrade(sid, sName);
+      return g < 75;
+    }).length;
     final mediumRisk = _students.where((s) {
-      final g = _computeGrade(s['student_id'].toString());
+      final sid = s['student_id'].toString();
+      final sName = s['name']?.toString();
+      if (!_studentHasScores(sid, sName)) return false;
+      final g = _computeGrade(sid, sName);
       return g >= 75 && g <= 80;
     }).length;
     if (highRisk == 0 && mediumRisk == 0) return const SizedBox.shrink();
@@ -1414,50 +1553,6 @@ class _AcademicEvaluationScreenState
   }
 }
 
-class _MockChartPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF3B82F6)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
 
-    final path = Path();
-    path.moveTo(0, size.height * 0.8);
-    path.quadraticBezierTo(
-        size.width * 0.2, size.height * 0.8, size.width * 0.4, size.height * 0.6);
-    path.quadraticBezierTo(
-        size.width * 0.6, size.height * 0.4, size.width * 0.8, size.height * 0.3);
-    path.quadraticBezierTo(
-        size.width * 0.9, size.height * 0.25, size.width, size.height * 0.1);
-
-    canvas.drawPath(path, paint);
-
-    final dotPaint = Paint()
-      ..color = const Color(0xFF3B82F6)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(Offset(size.width, size.height * 0.1), 4, dotPaint);
-
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          const Color(0xFF3B82F6).withOpacity(0.2),
-          Colors.white.withOpacity(0.0),
-        ],
-      ).createShader(Rect.fromLTRB(0, 0, size.width, size.height));
-
-    final fillPath = Path.from(path);
-    fillPath.lineTo(size.width, size.height);
-    fillPath.lineTo(0, size.height);
-    fillPath.close();
-
-    canvas.drawPath(fillPath, fillPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
 
 

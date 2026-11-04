@@ -27,21 +27,38 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
   List<Map<String, dynamic>> _assignedClasses = [];
   Map<String, dynamic>? _selectedClassRecord;
 
-  String _selectedPeriod = '1st Term';
-  String _selectedCategory = 'Quiz';
-  String _selectedItem = 'Quiz 1';
-  int _totalScore = 50;
+  String _selectedPeriod = '1st Quarter';
+  String _selectedCategory = 'Written Works';
+  String _selectedItem = 'Written Works 1';
+  int _totalScore = 20;
 
   final TextEditingController _totalScoreController =
-      TextEditingController(text: '50');
+      TextEditingController(text: '20');
   // student_id -> score value (from text controllers)
   final Map<String, TextEditingController> _scoreControllers = {};
   
   // category_item -> drafted total score
   final Map<String, int> _draftTotalScores = {};
+
+  // category -> last adapted/chosen total score for this category
+  final Map<String, int> _categoryTotalScores = {};
   
   // category_item -> { student_id -> drafted score }
   final Map<String, Map<String, int>> _draftStudentScores = {};
+
+  int _defaultHpsForCategory(String category) {
+    final catLower = category.toLowerCase().trim();
+    if (catLower.contains('written') || catLower == 'ww' || catLower == 'quiz') {
+      return 20;
+    }
+    if (catLower.contains('performance') || catLower == 'pt') {
+      return 50;
+    }
+    if (catLower.contains('exam') || catLower.contains('test') || catLower.contains('quarterly') || catLower == 'qa') {
+      return 100;
+    }
+    return 20;
+  }
 
   List<Map<String, dynamic>> _students = [];
   Map<String, EarlyWarningResult> _earlyWarningResults = {};
@@ -140,6 +157,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     if (v != null && v > 0) {
       setState(() => _totalScore = v);
       _draftTotalScores['${_selectedCategory}_$_selectedItem'] = v;
+      _categoryTotalScores[_selectedCategory] = v;
     }
   }
 
@@ -219,9 +237,9 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     List<String> teLabels = [];
 
     if (savedSetup != null) {
-      ww = (savedSetup['ww_items'] as int?) ?? 10;
-      pt = (savedSetup['pt_items'] as int?) ?? 10;
-      te = (savedSetup['te_items'] as int?) ?? 1;
+      ww = (savedSetup['ww_items'] as num?)?.toInt() ?? 10;
+      pt = (savedSetup['pt_items'] as num?)?.toInt() ?? 10;
+      te = (savedSetup['te_items'] as num?)?.toInt() ?? 1;
 
       wwLabels = parseLabels(savedSetup['ww_labels'], ww, 'Written Works');
       ptLabels = parseLabels(savedSetup['pt_labels'], pt, 'Performance Tasks');
@@ -247,15 +265,36 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       _selectedItem = _currentItems.first;
     }
 
-    // Get existing scores for current filter
-    final existingScores = await DatabaseHelper().getScores(
+    // Pre-load all class scores for this grading period to allow instant cross-item total score adaptation
+    final allScores = await DatabaseHelper().getScoresForClass(
       subjectCode: subjectCode,
-      category: _selectedCategory,
-      itemLabel: _selectedItem,
+      sectionName: section,
+      gradeLevel: grade,
       gradingPeriod: _selectedPeriod,
     );
 
-    // Restore Total Score if existing records found
+    // Filter existing scores for current category and item using robust aliases
+    final catAliases = DatabaseHelper.getCategoryAliases(_selectedCategory).map((c) => c.toLowerCase()).toSet();
+    final itmAliases = DatabaseHelper.getItemAliases(_selectedCategory, _selectedItem).map((i) => i.toLowerCase()).toSet();
+
+    List<Map<String, dynamic>> existingScores = allScores.where((s) {
+      final c = (s['category']?.toString() ?? '').toLowerCase();
+      final it = (s['item_label']?.toString() ?? '').toLowerCase();
+      return catAliases.contains(c) && itmAliases.contains(it);
+    }).toList();
+
+    if (existingScores.isEmpty) {
+      existingScores = await DatabaseHelper().getScores(
+        subjectCode: subjectCode,
+        category: _selectedCategory,
+        itemLabel: _selectedItem,
+        gradingPeriod: _selectedPeriod,
+        sectionName: section,
+        gradeLevel: grade,
+      );
+    }
+
+    // Adapt Total Score (HPS) dynamically
     final draftKey = '${_selectedCategory}_$_selectedItem';
     if (_draftTotalScores.containsKey(draftKey)) {
       _totalScore = _draftTotalScores[draftKey]!;
@@ -265,25 +304,61 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       if (dbTotal != null && dbTotal > 0) {
         _totalScore = dbTotal;
         _totalScoreController.text = dbTotal.toString();
-        // Also save to draft so it's consistent
         _draftTotalScores[draftKey] = dbTotal;
+        _categoryTotalScores[_selectedCategory] = dbTotal;
       }
+    } else if (_categoryTotalScores.containsKey(_selectedCategory)) {
+      _totalScore = _categoryTotalScores[_selectedCategory]!;
+      _totalScoreController.text = _totalScore.toString();
     } else {
-      _totalScore = 50;
-      _totalScoreController.text = '50';
+      // Adapt from any existing item in this class/period under the SAME component category
+      int? peerCatTotal;
+      for (final s in allScores) {
+        final c = (s['category']?.toString() ?? '').toLowerCase();
+        if (catAliases.contains(c)) {
+          final t = (s['total_score'] as num?)?.toInt();
+          if (t != null && t > 0) {
+            peerCatTotal = t;
+            break;
+          }
+        }
+      }
+
+      if (peerCatTotal != null) {
+        _totalScore = peerCatTotal;
+        _totalScoreController.text = peerCatTotal.toString();
+        _categoryTotalScores[_selectedCategory] = peerCatTotal;
+      } else {
+        // Fallback to component baseline (Written Works: 20, Performance Tasks: 50, Term Exams/Tests: 100)
+        final defaultHps = _defaultHpsForCategory(_selectedCategory);
+        _totalScore = defaultHps;
+        _totalScoreController.text = defaultHps.toString();
+      }
     }
 
-    // Map student_id -> score
+    // Map student_id and student_name -> score (dash-insensitive)
     final scoreMap = <String, double>{};
+    final scoreByName = <String, double>{};
     for (final s in existingScores) {
-      scoreMap[s['student_id']?.toString() ?? ''] =
-          (s['score'] as num?)?.toDouble() ?? 0;
+      final rawSid = s['student_id']?.toString() ?? '';
+      final cleanSid = rawSid.replaceAll(RegExp(r'[\s\-]'), '').toLowerCase();
+      final scoreVal = (s['score'] as num?)?.toDouble() ?? 0;
+      if (rawSid.isNotEmpty) scoreMap[rawSid] = scoreVal;
+      if (cleanSid.isNotEmpty) scoreMap[cleanSid] = scoreVal;
+
+      final sName = (s['student_name'] ?? '').toString().trim().toLowerCase();
+      if (sName.isNotEmpty) {
+        scoreByName[sName] = scoreVal;
+      }
     }
 
     // Override with any drafted student scores for this item
     if (_draftStudentScores.containsKey(draftKey)) {
       _draftStudentScores[draftKey]!.forEach((sid, draftScore) {
-        scoreMap[sid] = draftScore.toDouble();
+        final rawSid = sid;
+        final cleanSid = rawSid.replaceAll(RegExp(r'[\s\-]'), '').toLowerCase();
+        scoreMap[rawSid] = draftScore.toDouble();
+        scoreMap[cleanSid] = draftScore.toDouble();
       });
     }
 
@@ -295,9 +370,11 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
 
     for (final student in students) {
       final sid = student['student_id']?.toString() ?? '';
-      final existing = scoreMap[sid] ?? 0;
+      final cleanSid = sid.replaceAll(RegExp(r'[\s\-]'), '').toLowerCase();
+      final sName = (student['name'] ?? '').toString().trim().toLowerCase();
+      final existing = scoreMap[sid] ?? scoreMap[cleanSid] ?? scoreByName[sName] ?? 0;
       final ctrl = TextEditingController(
-          text: existing > 0 ? existing.toInt().toString() : '');
+          text: existing > 0 ? (existing % 1 == 0 ? existing.toInt().toString() : existing.toString()) : '');
       
       // Save changes to draft on typing
       ctrl.addListener(() {
@@ -312,12 +389,6 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     }
 
     // SO1: Multi-Criteria Early Warning evaluation
-    final allScores = await DatabaseHelper().getScoresForClass(
-      subjectCode: subjectCode,
-      sectionName: section,
-      gradeLevel: grade,
-      gradingPeriod: _selectedPeriod,
-    );
     final ewResults = EarlyWarningService.evaluateClassScores(
       students: students,
       allScores: allScores,
@@ -711,9 +782,13 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                         icon: Icons.calendar_today_outlined,
                         iconColor: const Color(0xFF0D6EFD),
                         items: const [
+                          '1st Quarter',
+                          '2nd Quarter',
+                          '3rd Quarter',
+                          '4th Quarter',
                           '1st Term',
                           '2nd Term',
-                          '3rd Term'
+                          '3rd Term',
                         ],
                         onChanged: (val) {
                           setState(() => _selectedPeriod = val!);
@@ -788,6 +863,8 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                                 setState(() {
                                   _totalScore = int.tryParse(val) ?? 1;
                                   if (_totalScore <= 0) _totalScore = 1;
+                                  _draftTotalScores['${_selectedCategory}_$_selectedItem'] = _totalScore;
+                                  _categoryTotalScores[_selectedCategory] = _totalScore;
                                 });
                                 // Revalidate student scores against new total
                                 for (var ctrl in _scoreControllers.values) {

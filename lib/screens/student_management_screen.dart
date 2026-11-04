@@ -32,13 +32,20 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
   List<Map<String, dynamic>> get _filteredStudents {
     if (_searchQuery.trim().isEmpty) return _students;
     final q = _searchQuery.toLowerCase().trim();
+    final cleanQ = q.replaceAll(RegExp(r'[\s\-]'), '');
     return _students.where((s) {
       final name = (s['name'] ?? '').toString().toLowerCase();
       final id = (s['student_id'] ?? '').toString().toLowerCase();
+      final cleanId = id.replaceAll(RegExp(r'[\s\-]'), '');
       final grade = (s['grade_level'] ?? '').toString().toLowerCase();
       final section = (s['section'] ?? '').toString().toLowerCase();
       final gender = (s['gender'] ?? '').toString().toLowerCase();
-      return name.contains(q) || id.contains(q) || grade.contains(q) || section.contains(q) || gender.contains(q);
+      return name.contains(q) ||
+          id.contains(q) ||
+          (cleanQ.isNotEmpty && cleanId.contains(cleanQ)) ||
+          grade.contains(q) ||
+          section.contains(q) ||
+          gender.contains(q);
     }).toList();
   }
 
@@ -207,7 +214,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                 });
               },
               decoration: InputDecoration(
-                hintText: 'Search by student name, LRN, grade, or section...',
+                hintText: 'Search by student name, ID / LRN, grade, or section...',
                 hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
                 prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B)),
                 suffixIcon: _searchQuery.isNotEmpty
@@ -525,7 +532,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
 
   Widget _buildStudentCard(BuildContext context, Map<String, dynamic> student) {
     final name = student['name'] ?? 'Unknown';
-    final id = 'LRN: ${student['student_id']}';
+    final id = 'ID: ${student['student_id']}';
     final section = '${student['grade_level']} - ${student['section']}';
 
     return Container(

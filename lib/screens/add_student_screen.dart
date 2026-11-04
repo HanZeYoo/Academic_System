@@ -71,10 +71,18 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       return;
     }
 
-    if (_studentIdController.text.length != 12) {
+    final rawStudentId = _studentIdController.text.trim();
+    final cleanStudentId = rawStudentId.replaceAll(RegExp(r'[\s\-]'), '');
+    final isValidNeuId = RegExp(r'^\d{2}-\d{4}-\d{3}$').hasMatch(rawStudentId) || RegExp(r'^\d{9}$').hasMatch(cleanStudentId);
+    final isValidLrn = RegExp(r'^\d{12}$').hasMatch(cleanStudentId);
+
+    if (!isValidNeuId && !isValidLrn) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Student LRN must be exactly 12 digits.', style: TextStyle(color: Colors.white)),
+          content: Text(
+            'Student ID must be a 9-digit NEU ID (e.g. 24-1234-567 or 241234567) or a 12-digit DepEd LRN.',
+            style: TextStyle(color: Colors.white),
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -461,14 +469,14 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                     ),
                     const SizedBox(height: 20),
                     _buildTextField(
-                      label: 'Student LRN',
-                      hint: 'Enter 12-digit student LRN',
+                      label: 'Student ID / LRN',
+                      hint: 'e.g. 24-1234-567 (NEU) or 12-digit LRN',
                       isRequired: true,
                       controller: _studentIdController,
-                      keyboardType: TextInputType.number,
+                      keyboardType: TextInputType.text,
                       inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(12),
+                        FilteringTextInputFormatter.allow(RegExp(r'[\d\-]')),
+                        LengthLimitingTextInputFormatter(14),
                       ],
                     ),
                     const SizedBox(height: 16),

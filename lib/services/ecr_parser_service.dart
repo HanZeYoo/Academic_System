@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:archive/archive.dart';
 import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
 import '../models/ecr_mapping_model.dart';
@@ -100,6 +101,7 @@ class EcrParserService {
 
   static const List<String> nonCandidateSheetKeywords = [
     'input data',
+    'data input',
     'do not delete',
     'guidelines',
     'instruction',
@@ -107,6 +109,10 @@ class EcrParserService {
     'transmutation',
     'settings',
     'config',
+    'deportment',
+    'report of grades',
+    'official report',
+    'summary of grades',
   ];
 
   // ── PURE HELPER METHODS ──────────────────────────────────────────────────
@@ -122,7 +128,7 @@ class EcrParserService {
       if (raw.isNaN || raw.isInfinite) return null;
       // Convert to integer string without scientific notation
       final str = raw.toInt().toString();
-      if (RegExp(r'^\d{12}$').hasMatch(str)) {
+      if (RegExp(r'^\d{12}$').hasMatch(str) || RegExp(r'^\d{9}$').hasMatch(str)) {
         return str;
       }
       return null;
@@ -138,7 +144,7 @@ class EcrParserService {
 
     // Strip internal spaces/dashes if any
     final sanitized = text.replaceAll(RegExp(r'[\s\-]'), '');
-    if (RegExp(r'^\d{12}$').hasMatch(sanitized)) {
+    if (RegExp(r'^\d{12}$').hasMatch(sanitized) || RegExp(r'^\d{9}$').hasMatch(sanitized)) {
       return sanitized;
     }
 
@@ -202,8 +208,10 @@ class EcrParserService {
       }
     }
 
-    // 3. Evidence check: must have either valid LRN or at least one numeric score
+    // 3. Evidence check: must have either valid LRN, student ID, or at least one numeric score
     final hasValidLrn = cleanLrn(lrn) != null;
+    final lrnStr = lrn?.toString().trim() ?? '';
+    final hasValidStudentId = lrnStr.isNotEmpty && !lrnStr.startsWith('=') && !lrnStr.startsWith('#');
     final hasScore = scores.any((s) {
       if (s == null) return false;
       if (s is num && s >= 0) return true;
@@ -211,7 +219,7 @@ class EcrParserService {
       return p != null && p >= 0;
     });
 
-    return hasValidLrn || hasScore;
+    return hasValidLrn || hasValidStudentId || hasScore;
   }
 
   /// Tests whether a given string is a plausible student name.
@@ -309,6 +317,42 @@ class EcrParserService {
       }
     }
 
+    // 2b. Check for decimal weights matched to WW / PT / QA columns (e.g. 0.2, 0.6, 0.2 or 0.2, 0.5, 0.3)
+    if (ww == null || pt == null || qa == null) {
+      final scanLimit = grid.length < 6 ? grid.length : 6;
+      for (int r = 0; r < scanLimit; r++) {
+        double? rowWw;
+        double? rowPt;
+        double? rowQa;
+        for (int c = 0; c < grid[r].length; c++) {
+          final cell = grid[r][c];
+          if (cell == null) continue;
+          final parsed = double.tryParse(cell.toString().trim());
+          if (parsed != null && parsed > 0 && parsed < 1.0) {
+            final colContext = (grid.isNotEmpty && c < grid[0].length ? grid[0][c].toString() : '') +
+                ' ' + (c < headers.length ? headers[c] : '');
+            final normContext = colContext.toUpperCase().replaceAll(' ', '');
+            if (rowWw == null && (normContext.contains('WRITTEN') || normContext.contains('WW'))) {
+              rowWw = parsed;
+            } else if (rowPt == null && (normContext.contains('PERFORMANCE') || normContext.contains('PT'))) {
+              rowPt = parsed;
+            } else if (rowQa == null && (normContext.contains('EXAM') || normContext.contains('ASSESSMENT') || normContext.contains('QA'))) {
+              rowQa = parsed;
+            }
+          }
+        }
+        if (rowWw != null && rowPt != null && rowQa != null) {
+          final sum = rowWw + rowPt + rowQa;
+          if ((sum - 1.0).abs() <= 0.05) {
+            ww = (rowWw * 100).roundToDouble();
+            pt = (rowPt * 100).roundToDouble();
+            qa = (rowQa * 100).roundToDouble();
+            break;
+          }
+        }
+      }
+    }
+
     // If all three were detected and sum close to 100%, return them
     if (ww != null && pt != null && qa != null) {
       final sum = ww! + pt! + qa!;
@@ -349,6 +393,27 @@ class EcrParserService {
         if (cellStr.contains('HIGHEST POSSIBLE SCORE') || cellStr == 'HPS') {
           isHpsRow = true;
           break;
+        }
+      }
+
+      // Check for HPS row positioned below header with subtitle (Lastname, Firstname, MI)
+      if (!isHpsRow && r > headerRowIndex && r <= headerRowIndex + 2) {
+        final nameCell = (row.length > 2) ? row[2]?.toString().trim() ?? '' : '';
+        final isSubtitle = nameCell.contains('Lastname') || nameCell.contains('Firstname') || nameCell.isEmpty;
+        if (isSubtitle && r + 1 < grid.length) {
+          final nextNameCell = (grid[r + 1].length > 2) ? grid[r + 1][2]?.toString().toUpperCase().trim() ?? '' : '';
+          final nextIsDividerOrStudent = nextNameCell.startsWith('BOYS') || nextNameCell.startsWith('MALE') || nextNameCell.startsWith('GIRLS') || isValidStudentName(nextNameCell);
+          if (nextIsDividerOrStudent) {
+            int numCount = 0;
+            for (int c = 3; c < row.length; c++) {
+              final val = row[c];
+              if (val is num && val > 0) numCount++;
+              else if (val != null && double.tryParse(val.toString()) != null && double.tryParse(val.toString())! > 0) numCount++;
+            }
+            if (numCount >= 2) {
+              isHpsRow = true;
+            }
+          }
         }
       }
 
@@ -550,7 +615,7 @@ class EcrParserService {
           targetSheetName: targetSheetName,
           gradingPeriod: gradingPeriod,
         );
-        rawGrid = parsedExcel.grid;
+        rawGrid = _detectAndSliceHorizontalQuarterGrid(parsedExcel.grid, gradingPeriod);
         selectedSheetName = parsedExcel.sheetName;
         availableSheets = parsedExcel.sheets;
       } else {
@@ -596,6 +661,9 @@ class EcrParserService {
         }
       }
       if (hpsRowIdx != null) break;
+    }
+    if (hpsRowIdx == null && rowHpsMap.isNotEmpty && headerRowIndex + 1 < rawGrid.length) {
+      hpsRowIdx = headerRowIndex + 1;
     }
 
     // Determine candidate name and LRN column indices from headers
@@ -701,8 +769,12 @@ class EcrParserService {
         final upper = nameVal.toUpperCase();
         if (upper == 'MALE') {
           reason = 'Section Divider (MALE)';
+        } else if (upper.startsWith('BOYS')) {
+          reason = 'Section Divider (BOYS)';
         } else if (upper == 'FEMALE') {
           reason = 'Section Divider (FEMALE)';
+        } else if (upper.startsWith('GIRLS')) {
+          reason = 'Section Divider (GIRLS)';
         } else if (upper.startsWith('TOTAL')) {
           reason = 'Summary Subtotal Row ($nameVal)';
         } else if (upper.contains('AVERAGE')) {
@@ -740,6 +812,107 @@ class EcrParserService {
     );
   }
 
+  static List<List<dynamic>> _detectAndSliceHorizontalQuarterGrid(
+    List<List<dynamic>> grid,
+    String? gradingPeriod,
+  ) {
+    if (grid.isEmpty || grid.first.length < 50) return grid;
+
+    int maxCheckRows = grid.length < 4 ? grid.length : 4;
+    int q1Start = -1;
+    int q2Start = -1;
+    int q3Start = -1;
+    int q4Start = -1;
+    int finalStart = -1;
+
+    for (int r = 0; r < maxCheckRows; r++) {
+      for (int c = 0; c < grid[r].length; c++) {
+        final val = grid[r][c]?.toString().toUpperCase().replaceAll(RegExp(r'\s+'), ' ').trim() ?? '';
+        if (val.isEmpty) continue;
+
+        if (q1Start == -1 && (val.contains('WRITTEN WORKS') || val.contains('WW')) && c > 2) {
+          q1Start = c;
+        } else if (val.contains('SECOND GRADING') || val.contains('2ND GRADING')) {
+          q2Start = c;
+        } else if (val.contains('THIRD GRADING') || val.contains('3RD GRADING')) {
+          q3Start = c;
+        } else if (val.contains('FOURTH GRADING') || val.contains('4TH GRADING')) {
+          q4Start = c;
+        } else if (val.contains('FINAL GRADING') || val.contains('FINAL GRADE')) {
+          finalStart = c;
+        }
+      }
+    }
+
+    if (q1Start == -1 || q2Start == -1) return grid;
+
+    final commonColCount = q1Start;
+
+    int targetQuarter = 1;
+    if (gradingPeriod != null) {
+      final pLower = gradingPeriod.toLowerCase();
+      if (pLower.contains('2') || pLower.contains('second')) {
+        targetQuarter = 2;
+      } else if (pLower.contains('3') || pLower.contains('third')) {
+        targetQuarter = 3;
+      } else if (pLower.contains('4') || pLower.contains('fourth')) {
+        targetQuarter = 4;
+      }
+    }
+
+    int targetStart = q1Start;
+    int targetEnd = q2Start - 1;
+
+    if (targetQuarter == 2 && q2Start != -1) {
+      int actualQ2Start = q2Start;
+      for (int c = q2Start; c < (q3Start != -1 ? q3Start : grid.first.length); c++) {
+        final v = grid[0][c]?.toString().toUpperCase() ?? '';
+        if (v.contains('WRITTEN') || v.contains('WW')) {
+          actualQ2Start = c;
+          break;
+        }
+      }
+      targetStart = actualQ2Start;
+      targetEnd = (q3Start != -1) ? q3Start - 1 : (finalStart != -1 ? finalStart - 1 : grid.first.length - 1);
+    } else if (targetQuarter == 3 && q3Start != -1) {
+      int actualQ3Start = q3Start;
+      for (int c = q3Start; c < (q4Start != -1 ? q4Start : grid.first.length); c++) {
+        final v = grid[0][c]?.toString().toUpperCase() ?? '';
+        if (v.contains('WRITTEN') || v.contains('WW')) {
+          actualQ3Start = c;
+          break;
+        }
+      }
+      targetStart = actualQ3Start;
+      targetEnd = (q4Start != -1) ? q4Start - 1 : (finalStart != -1 ? finalStart - 1 : grid.first.length - 1);
+    } else if (targetQuarter == 4 && q4Start != -1) {
+      int actualQ4Start = q4Start;
+      for (int c = q4Start; c < (finalStart != -1 ? finalStart : grid.first.length); c++) {
+        final v = grid[0][c]?.toString().toUpperCase() ?? '';
+        if (v.contains('WRITTEN') || v.contains('WW')) {
+          actualQ4Start = c;
+          break;
+        }
+      }
+      targetStart = actualQ4Start;
+      targetEnd = (finalStart != -1) ? finalStart - 1 : grid.first.length - 1;
+    }
+
+    List<List<dynamic>> sliced = [];
+    for (final row in grid) {
+      List<dynamic> newRow = [];
+      for (int c = 0; c < commonColCount && c < row.length; c++) {
+        newRow.add(row[c]);
+      }
+      for (int c = targetStart; c <= targetEnd && c < row.length; c++) {
+        newRow.add(row[c]);
+      }
+      sliced.add(newRow);
+    }
+
+    return sliced;
+  }
+
   // ── CSV & EXCEL DECODERS ─────────────────────────────────────────────────
 
   List<List<dynamic>> _parseCsv(Uint8List bytes) {
@@ -752,12 +925,42 @@ class EcrParserService {
     return csv.decoder.convert(content);
   }
 
+  static Uint8List _sanitizeZipRels(Uint8List bytes) {
+    try {
+      final archive = ZipDecoder().decodeBytes(bytes);
+      final newArchive = Archive();
+      bool modified = false;
+      for (final file in archive.files) {
+        if (file.name.endsWith('.rels') && file.content != null) {
+          final contentBytes = file.content as List<int>;
+          final contentStr = utf8.decode(contentBytes, allowMalformed: true);
+          if (contentStr.contains('Target="/xl/')) {
+            final fixedStr = contentStr.replaceAll('Target="/xl/', 'Target="');
+            final fixedBytes = utf8.encode(fixedStr);
+            newArchive.addFile(ArchiveFile(file.name, fixedBytes.length, fixedBytes));
+            modified = true;
+            continue;
+          }
+        }
+        newArchive.addFile(file);
+      }
+      if (modified) {
+        final encoded = ZipEncoder().encode(newArchive);
+        if (encoded != null) {
+          return Uint8List.fromList(encoded);
+        }
+      }
+    } catch (_) {}
+    return bytes;
+  }
+
   _ParsedExcelData _parseExcelWithSheet(
     Uint8List bytes, {
     String? targetSheetName,
     String? gradingPeriod,
   }) {
-    final excel = Excel.decodeBytes(bytes);
+    final sanitizedBytes = _sanitizeZipRels(bytes);
+    final excel = Excel.decodeBytes(sanitizedBytes);
     if (excel.tables.isEmpty) {
       return _ParsedExcelData(grid: [], sheetName: '', sheets: []);
     }
@@ -789,6 +992,10 @@ class EcrParserService {
       if (rows < 5 || cols < 3) {
         score = 0.0;
         isNonCandidate = true;
+      }
+
+      if (lower.contains('classrecord') || lower.contains('class record')) {
+        score = 0.95;
       }
 
       if (gradingPeriod != null) {
@@ -993,13 +1200,20 @@ class EcrParserService {
   }
 
   bool _isCategoryHeader(String text) {
-    final t = text.toLowerCase();
-    return t.contains('written') ||
-        t.contains('performance') ||
-        t.contains('quarterly') ||
-        t.contains('assessment') ||
-        t.contains('task') ||
-        t.contains('work');
+    final t = text.replaceAll(RegExp(r'\s+'), ' ').trim().toLowerCase();
+    if (t.contains('\n') || t.contains('quiz') || t.contains('seatwork') || t.contains('demonstration') || t.contains('assignment')) {
+      return false;
+    }
+    return t.contains('written work') ||
+        t.contains('performance task') ||
+        t.contains('quarterly assessment') ||
+        t.contains('examinations') ||
+        t.contains('(ww)') ||
+        t.contains('(pt)') ||
+        t.contains('(qa)') ||
+        t == 'ww' ||
+        t == 'pt' ||
+        t == 'qa';
   }
 
   _HeaderScanResult _detectHeaderRows(List<List<dynamic>> grid) {
@@ -1009,9 +1223,30 @@ class EcrParserService {
 
     for (int r = 0; r < scanLimit; r++) {
       int score = 0;
+      bool hasStudentColumn = false;
+      bool hasIdColumn = false;
+
       for (final cell in grid[r]) {
         final cellStr = cell.toString().toLowerCase().trim();
         if (cellStr.isEmpty) continue;
+
+        if (cellStr == 'name' ||
+            cellStr == 'student' ||
+            cellStr.contains('name of student') ||
+            cellStr.contains('student name') ||
+            cellStr.contains('learner') ||
+            cellStr.contains('pangalan')) {
+          hasStudentColumn = true;
+          score += 15;
+        }
+
+        if (cellStr.contains('studno') ||
+            cellStr.contains('student no') ||
+            cellStr.contains('lrn') ||
+            cellStr.contains('id no')) {
+          hasIdColumn = true;
+          score += 10;
+        }
 
         for (final kw in headerKeywords) {
           if (cellStr == kw || cellStr.contains(kw)) {
@@ -1019,6 +1254,10 @@ class EcrParserService {
             break;
           }
         }
+      }
+
+      if (hasStudentColumn && hasIdColumn) {
+        score += 20;
       }
 
       if (score > maxMatches) {
@@ -1034,11 +1273,16 @@ class EcrParserService {
     List<dynamic>? parentRow;
     List<dynamic>? childRow;
 
-    if (bestRow > 0 && _isCategoryRow(grid[bestRow - 1])) {
-      parentRow = grid[bestRow - 1];
-      childRow = grid[bestRow];
-      effectiveHeaderRow = bestRow;
-    } else if (bestRow + 1 < grid.length && _isCategoryRow(grid[bestRow]) && _isSubHeaderRow(grid[bestRow + 1])) {
+    for (int r = bestRow - 1; r >= 0; r--) {
+      if (_isCategoryRow(grid[r])) {
+        parentRow = grid[r];
+        childRow = grid[bestRow];
+        effectiveHeaderRow = bestRow;
+        break;
+      }
+    }
+
+    if (parentRow == null && bestRow + 1 < grid.length && _isCategoryRow(grid[bestRow]) && _isSubHeaderRow(grid[bestRow + 1])) {
       parentRow = grid[bestRow];
       childRow = grid[bestRow + 1];
       effectiveHeaderRow = bestRow + 1;
@@ -1082,12 +1326,21 @@ class EcrParserService {
   bool _isCategoryRow(List<dynamic> row) {
     int categoryCount = 0;
     for (final cell in row) {
-      final str = cell.toString().toLowerCase().trim();
-      if (str.contains('written') ||
-          str.contains('performance') ||
-          str.contains('quarterly') ||
-          str.contains('assessment') ||
-          str.contains('task')) {
+      final raw = cell.toString();
+      if (raw.contains('\n') || raw.toLowerCase().contains('seatwork') || raw.toLowerCase().contains('demonstration')) {
+        continue;
+      }
+      final str = raw.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+      final strNoSpaces = raw.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+      if (str.contains('written work') ||
+          strNoSpaces.contains('writtenworks') ||
+          str.contains('performance task') ||
+          strNoSpaces.contains('performancetasks') ||
+          str.contains('quarterly assessment') ||
+          strNoSpaces.contains('examinations') ||
+          str.contains('(ww)') ||
+          str.contains('(pt)') ||
+          str.contains('(qa)')) {
         categoryCount++;
       }
     }
