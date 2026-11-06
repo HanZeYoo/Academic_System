@@ -4,6 +4,7 @@ import 'package:archive/archive.dart';
 import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
 import '../models/ecr_mapping_model.dart';
+import '../models/ecr_transmutation_model.dart';
 
 class EcrParseParams {
   final Uint8List bytes;
@@ -50,6 +51,7 @@ class EcrParseResult {
   final List<EcrExcludedRow> excludedRows;
   final List<EcrSheetSummary> availableSheets;
   final EcrWeightPercentages detectedWeights;
+  final EcrTransmutationTable detectedTransmutation;
 
   EcrParseResult({
     required this.filename,
@@ -68,6 +70,11 @@ class EcrParseResult {
       wwWeight: 30.0,
       ptWeight: 50.0,
       qaWeight: 20.0,
+      isDetected: false,
+    ),
+    this.detectedTransmutation = const EcrTransmutationTable(
+      description: 'DepEd Base-70',
+      passingRawScore: 70.0,
       isDetected: false,
     ),
   });
@@ -375,6 +382,134 @@ class EcrParserService {
     );
   }
 
+  /// Detects whether an Excel file contains a Transmutation sheet and extracts the lookup brackets.
+  static EcrTransmutationTable detectTransmutationTable(Excel excel) {
+    String? targetSheetName;
+    for (final name in excel.tables.keys) {
+      final lower = name.toLowerCase().trim();
+      if (lower.contains('transmut')) {
+        targetSheetName = name;
+        break;
+      }
+    }
+
+    if (targetSheetName == null) {
+      return const EcrTransmutationTable(
+        description: 'DepEd Base-70',
+        passingRawScore: 70.0,
+        isDetected: false,
+      );
+    }
+
+    final sheet = excel.tables[targetSheetName];
+    if (sheet == null || sheet.maxRows < 10) {
+      return const EcrTransmutationTable(
+        description: 'DepEd Base-70',
+        passingRawScore: 70.0,
+        isDetected: false,
+      );
+    }
+
+    final rows = sheet.rows;
+    final maxCols = sheet.maxColumns;
+
+    int maxValidPairs = 0;
+    Map<double, int> bestBrackets = {};
+
+    for (int c = 0; c < maxCols - 1; c++) {
+      for (int cNext = c + 1; cNext <= c + 2 && cNext < maxCols; cNext++) {
+        final candidateBrackets = <double, int>{};
+        bool has75 = false;
+
+        for (int r = 0; r < rows.length; r++) {
+          final row = rows[r];
+          if (c >= row.length || cNext >= row.length) continue;
+
+          final rawCell = row[c]?.value;
+          final gradeCell = row[cNext]?.value;
+          if (rawCell == null || gradeCell == null) continue;
+
+          double? rawVal;
+          if (rawCell is IntCellValue) {
+            rawVal = rawCell.value.toDouble();
+          } else if (rawCell is DoubleCellValue) {
+            rawVal = rawCell.value;
+          } else {
+            rawVal = double.tryParse(rawCell.toString().trim());
+          }
+
+          int? gradeVal;
+          if (gradeCell is IntCellValue) {
+            gradeVal = gradeCell.value;
+          } else if (gradeCell is DoubleCellValue) {
+            gradeVal = gradeCell.value.toInt();
+          } else {
+            final parsed = double.tryParse(gradeCell.toString().trim());
+            if (parsed != null) gradeVal = parsed.toInt();
+          }
+
+          if (rawVal != null && gradeVal != null) {
+            if (rawVal >= 0 && rawVal <= 100 && gradeVal >= 50 && gradeVal <= 100) {
+              candidateBrackets[rawVal] = gradeVal;
+              if (gradeVal == 75) has75 = true;
+            }
+          }
+        }
+
+        if (has75 && candidateBrackets.length > maxValidPairs && candidateBrackets.length >= 15) {
+          maxValidPairs = candidateBrackets.length;
+          bestBrackets = candidateBrackets;
+        }
+      }
+    }
+
+    if (bestBrackets.isNotEmpty && maxValidPairs >= 15) {
+      final sortedBrackets = Map.fromEntries(
+        bestBrackets.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+      );
+
+      double passingRaw = 70.0;
+      for (final entry in sortedBrackets.entries) {
+        if (entry.value == 75) {
+          passingRaw = entry.key;
+          break;
+        }
+      }
+
+      String desc;
+      if (passingRaw >= 68.0 && passingRaw <= 72.0) {
+        desc = 'DepEd Base-70 (Passing: 70 → 75)';
+      } else if (passingRaw >= 58.0 && passingRaw <= 62.0) {
+        desc = 'DepEd Base-60 (Passing: 60 → 75)';
+      } else if (passingRaw >= 48.0 && passingRaw <= 52.0) {
+        desc = 'Base-50 (Passing: 50 → 75)';
+      } else {
+        desc = 'Custom Scale (Passing: ${passingRaw.toStringAsFixed(1)} → 75)';
+      }
+
+      final minGrade = sortedBrackets.values.reduce((a, b) => a < b ? a : b).toDouble();
+      final maxGrade = sortedBrackets.values.reduce((a, b) => a > b ? a : b).toDouble();
+
+      return EcrTransmutationTable(
+        sheetName: targetSheetName,
+        description: desc,
+        passingRawScore: (passingRaw >= 69.0 && passingRaw <= 71.0) ? 70.0 : passingRaw,
+        minRawScore: sortedBrackets.keys.first,
+        minGrade: minGrade,
+        passingGrade: 75.0,
+        maxGrade: maxGrade,
+        brackets: sortedBrackets,
+        isDetected: true,
+      );
+    }
+
+    return const EcrTransmutationTable(
+      description: 'DepEd Base-70',
+      passingRawScore: 70.0,
+      isDetected: false,
+    );
+  }
+
   /// Finds a horizontal row containing "Highest Possible Score" or "HPS"
   /// and extracts per-column maximum scores.
   static Map<int, double> detectHpsRow(List<List<dynamic>> grid, int headerRowIndex) {
@@ -604,6 +739,7 @@ class EcrParserService {
     List<List<dynamic>> rawGrid = [];
     String selectedSheetName = filename;
     List<EcrSheetSummary> availableSheets = [];
+    EcrTransmutationTable detectedTransmutation = const EcrTransmutationTable();
 
     try {
       if (lowerName.endsWith('.csv')) {
@@ -627,6 +763,7 @@ class EcrParserService {
         rawGrid = _detectAndSliceHorizontalQuarterGrid(parsedExcel.grid, gradingPeriod);
         selectedSheetName = parsedExcel.sheetName;
         availableSheets = parsedExcel.sheets;
+        detectedTransmutation = parsedExcel.detectedTransmutation;
       } else {
         throw const FormatException('Unsupported file format. Please upload .xlsx or .csv');
       }
@@ -827,6 +964,7 @@ class EcrParserService {
       excludedRows: excludedRows,
       availableSheets: availableSheets,
       detectedWeights: detectedWeights,
+      detectedTransmutation: detectedTransmutation,
     );
   }
 
@@ -979,8 +1117,14 @@ class EcrParserService {
   }) {
     final sanitizedBytes = _sanitizeZipRels(bytes);
     final excel = Excel.decodeBytes(sanitizedBytes);
+    final detectedTransmutation = detectTransmutationTable(excel);
     if (excel.tables.isEmpty) {
-      return _ParsedExcelData(grid: [], sheetName: '', sheets: []);
+      return _ParsedExcelData(
+        grid: [],
+        sheetName: '',
+        sheets: [],
+        detectedTransmutation: detectedTransmutation,
+      );
     }
 
     final allSheets = excel.tables.keys.toList();
@@ -1045,7 +1189,12 @@ class EcrParserService {
 
     final sheet = excel.tables[chosenSheet];
     if (sheet == null || sheet.maxRows == 0) {
-      return _ParsedExcelData(grid: [], sheetName: chosenSheet, sheets: summaries);
+      return _ParsedExcelData(
+        grid: [],
+        sheetName: chosenSheet,
+        sheets: summaries,
+        detectedTransmutation: detectedTransmutation,
+      );
     }
 
     List<List<dynamic>> rawGrid = [];
@@ -1123,7 +1272,12 @@ class EcrParserService {
     // Additional horizontal forward fill for parent category headers in rows 0..15
     _forwardFillHeaderMatrix(rawGrid);
 
-    return _ParsedExcelData(grid: rawGrid, sheetName: chosenSheet, sheets: summaries);
+    return _ParsedExcelData(
+      grid: rawGrid,
+      sheetName: chosenSheet,
+      sheets: summaries,
+      detectedTransmutation: detectedTransmutation,
+    );
   }
 
   static dynamic _resolveFormulaReference(Excel excel, String formula, {int depth = 0}) {
@@ -1400,10 +1554,16 @@ class _ParsedExcelData {
   final List<List<dynamic>> grid;
   final String sheetName;
   final List<EcrSheetSummary> sheets;
+  final EcrTransmutationTable detectedTransmutation;
 
   _ParsedExcelData({
     required this.grid,
     required this.sheetName,
     required this.sheets,
+    this.detectedTransmutation = const EcrTransmutationTable(
+      description: 'DepEd Base-70',
+      passingRawScore: 70.0,
+      isDetected: false,
+    ),
   });
 }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:academic_system/models/ecr_transmutation_model.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -2068,21 +2069,80 @@ class DatabaseHelper {
     return List<Map<String, dynamic>>.from(results);
   }
 
-  // --- GRADING SYSTEM (New DepEd DO 015 s. 2026 Transmutation) ---
+  // --- GRADING SYSTEM (New DepEd DO 015 s. 2026 Transmutation & ECR Auto-Detection) ---
+
+  static EcrTransmutationTable? _activeTransmutationTable;
+  static final Map<String, EcrTransmutationTable> _transmutationCache = {};
+
+  /// Set the active transmutation table in-memory for the current session
+  static void setActiveTransmutationTable(EcrTransmutationTable? table) {
+    _activeTransmutationTable = table;
+  }
+
+  /// Get the currently active transmutation table
+  static EcrTransmutationTable? get activeTransmutationTable => _activeTransmutationTable;
+
+  /// Save detected transmutation table for a class / subject
+  Future<void> saveTransmutationTable(String subjectCode, String section, EcrTransmutationTable table) async {
+    final key = '${subjectCode}_$section';
+    _transmutationCache[key] = table;
+    _activeTransmutationTable = table;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('ecr_transmutation_$key', jsonEncode(table.toJson()));
+    } catch (e) {
+      print('Note: saving transmutation table: $e');
+    }
+  }
+
+  /// Retrieve detected transmutation table for a class / subject
+  Future<EcrTransmutationTable?> getTransmutationTable(String subjectCode, String section) async {
+    final key = '${subjectCode}_$section';
+    if (_transmutationCache.containsKey(key)) {
+      return _transmutationCache[key];
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('ecr_transmutation_$key');
+      if (raw != null) {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map<String, dynamic>) {
+          final table = EcrTransmutationTable.fromJson(decoded);
+          _transmutationCache[key] = table;
+          return table;
+        }
+      }
+    } catch (_) {}
+    return _activeTransmutationTable;
+  }
 
   // Base-70 Transmutation: Raw score of 70 = 75.
-  double transmuteGrade(double initialGrade) {
+  // Dynamic: adapts automatically to custom ECR transmutation table or passing threshold if detected.
+  double transmuteGrade(
+    double initialGrade, {
+    EcrTransmutationTable? customTable,
+    double? passingRawThreshold,
+  }) {
+    // 1. If explicit or active custom table is detected, use exact lookup
+    final activeTable = customTable ?? _activeTransmutationTable;
+    if (activeTable != null && activeTable.isDetected && activeTable.brackets.isNotEmpty) {
+      return activeTable.lookup(initialGrade).toDouble();
+    }
+
+    // 2. Dynamic passing raw threshold if customized
+    final passingRaw = passingRawThreshold ?? activeTable?.passingRawScore ?? 70.0;
+
     if (initialGrade >= 100) return 100.0;
     if (initialGrade <= 0) return 60.0;
 
     double transmuted;
-    if (initialGrade >= 70) {
-      // Passing: 70 to 100 maps to 75 to 100
-      transmuted = 75 + ((initialGrade - 70) / 30) * 25;
+    if (initialGrade >= passingRaw) {
+      // Passing: passingRaw to 100 maps to 75 to 100
+      transmuted = 75 + ((initialGrade - passingRaw) / (100.0 - passingRaw)) * 25;
       return transmuted.roundToDouble();
     } else {
-      // Failing: 0 to 69.99 maps to 60 to 74
-      transmuted = 60 + (initialGrade / 70) * 15;
+      // Failing: 0 to (passingRaw - 0.01) maps to 60 to 74
+      transmuted = 60 + (initialGrade / passingRaw) * 15;
       double rounded = transmuted.roundToDouble();
       // Ensure a failing raw score does not round up to a passing 75
       return rounded >= 75 ? 74.0 : rounded;

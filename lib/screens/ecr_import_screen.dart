@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../models/ecr_mapping_model.dart';
+import '../models/ecr_transmutation_model.dart';
 import '../services/ecr_mapping_engine.dart';
 import '../services/ecr_parser_service.dart';
 import '../services/ecr_validator.dart';
@@ -612,6 +613,16 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       mappingJson: templateJson,
     );
 
+    // Save detected transmutation table if available
+    final detectedTrans = _parseResult?.detectedTransmutation;
+    if (detectedTrans != null && detectedTrans.isDetected) {
+      await DatabaseHelper().saveTransmutationTable(
+        subjectCode,
+        section,
+        detectedTrans,
+      );
+    }
+
     setState(() {
       _isSaving = false;
       _statusMessage = null;
@@ -622,10 +633,13 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       final weightsInfo = (detectedWeights?.isDetected == true)
           ? '\n\nGrading weights auto-adapted: WW $finalWwWeight% | PT $finalPtWeight% | QA $finalTeWeight%'
           : '';
+      final transInfo = (detectedTrans?.isDetected == true)
+          ? '\nTransmutation table auto-adapted: ${detectedTrans!.description}'
+          : '';
       AestheticDialogs.showSuccessDialog(
         context,
         title: 'Grades Imported',
-        message: 'Successfully imported $insertedCount grade records into the system!$weightsInfo',
+        message: 'Successfully imported $insertedCount grade records into the system!$weightsInfo$transInfo',
       );
     }
   }
@@ -2022,6 +2036,8 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
         const SizedBox(height: 12),
         _buildWeightsDetectedCard(),
+        const SizedBox(height: 12),
+        _buildTransmutationDetectedCard(),
 
         const SizedBox(height: 16),
 
@@ -2330,6 +2346,86 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
+  Widget _buildTransmutationDetectedCard() {
+    final trans = _parseResult?.detectedTransmutation;
+    final isDetected = trans?.isDetected == true;
+    final desc = trans?.description ?? 'DepEd Base-70';
+    final count = trans?.brackets.length ?? 0;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: isDetected ? const Color(0xFF93C5FD) : const Color(0xFFCBD5E1)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      color: isDetected ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC),
+      child: Padding(
+        padding: const EdgeInsets.all(14.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              isDetected ? Icons.auto_awesome : Icons.table_chart_outlined,
+              color: isDetected ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      Text(
+                        isDetected ? 'Transmutation Auto-Detected' : 'Standard DepEd Transmutation Applied',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: isDetected ? const Color(0xFF1E40AF) : const Color(0xFF334155),
+                        ),
+                      ),
+                      if (isDetected)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDBEAFE),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'ECR TABLE MATCH',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF1D4ED8)),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$desc${count > 0 ? " ($count lookup brackets)" : ""}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDetected ? const Color(0xFF1D4ED8) : const Color(0xFF475569),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    isDetected
+                        ? 'Quarterly grades will automatically match the official ECR transmutation table.'
+                        : 'Using default Base-70 linear interpolation (DepEd Order 015 s. 2026).',
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── STEP 4: SUCCESS STEP ─────────────────────────────────────────────────
 
   Widget _buildSuccessStep(bool isMobile) {
@@ -2379,6 +2475,35 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                             ? 'Grading Weights Auto-Adapted: WW ${_parseResult!.detectedWeights.wwWeight.toInt()}% | PT ${_parseResult!.detectedWeights.ptWeight.toInt()}% | QA ${_parseResult!.detectedWeights.qaWeight.toInt()}%'
                             : 'Standard DepEd Weights Applied: WW 30% | PT 50% | QA 20%',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF065F46)),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (_parseResult?.detectedTransmutation != null && _parseResult!.detectedTransmutation.isDetected) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDBEAFE),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.auto_awesome,
+                      color: Color(0xFF1E40AF),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Transmutation Table Auto-Adapted: ${_parseResult!.detectedTransmutation.description} (${_parseResult!.detectedTransmutation.brackets.length} brackets)',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E40AF)),
                         textAlign: TextAlign.center,
                       ),
                     ),

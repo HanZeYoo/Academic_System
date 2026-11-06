@@ -217,6 +217,10 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       gradingPeriod: _selectedPeriod,
     );
 
+    // Load detected transmutation table for this class if available
+    final transTable = await DatabaseHelper().getTransmutationTable(subjectCode, section);
+    DatabaseHelper.setActiveTransmutationTable(transTable);
+
     List<String> parseLabels(dynamic data, int fallbackCount, String prefix) {
       if (data != null && data is String) {
         try {

@@ -108,6 +108,8 @@ class _AcademicEvaluationScreenState
       gradeLevel: grade,
       gradingPeriod: _selectedPeriod,
     );
+    final transTable = await db.getTransmutationTable(subjectCode, section);
+    DatabaseHelper.setActiveTransmutationTable(transTable);
     final attendance = await db.getAttendanceForClass('$grade - $section');
 
     setState(() {
