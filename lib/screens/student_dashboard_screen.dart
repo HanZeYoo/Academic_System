@@ -121,7 +121,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         }
 
         // Filter scores
-        var subjectScores = scores.where((s) => s['subject_code'] == subjectCode && s['grading_period'] == gradingPeriod).toList();
+        final periodAliases = DatabaseHelper.getPeriodAliases(gradingPeriod);
+        var subjectScores = scores.where((s) => s['subject_code'] == subjectCode && periodAliases.contains(s['grading_period']?.toString())).toList();
         
         double grade = 0.0;
 
@@ -133,6 +134,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             gradeLevel: gradeLevel,
             gradingPeriod: gradingPeriod,
           );
+          final transTable = await dbHelper.getTransmutationTable(subjectCode, sectionName);
 
           if (setup != null) {
             double earned = 0.0;
@@ -178,7 +180,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
             if (totalWeight > 0) {
               double initialGrade = earned / totalWeight;
-              grade = dbHelper.transmuteGrade(initialGrade);
+              grade = dbHelper.transmuteGrade(initialGrade, customTable: transTable);
             } else {
               grade = 0.0;
             }
@@ -190,7 +192,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             }
             if (max > 0) {
               double initialGrade = (total / max) * 100;
-              grade = dbHelper.transmuteGrade(initialGrade);
+              grade = dbHelper.transmuteGrade(initialGrade, customTable: transTable);
             }
           }
 

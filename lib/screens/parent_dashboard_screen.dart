@@ -163,10 +163,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         int subjPresentCount = subjAttendance.where((r) => r['status'] == 'Present' || r['status'] == 'Late').length;
         classAttendancePct = (subjPresentCount / subjAttendance.length) * 100;
       }
+      final periodAliases = DatabaseHelper.getPeriodAliases(gradingPeriod);
       final subjectScores = scores
           .where((s) =>
               s['subject_code'] == subjectCode &&
-              s['grading_period'] == gradingPeriod)
+              periodAliases.contains(s['grading_period']?.toString()))
           .toList();
       double grade = 0.0;
       double? finalWwAvg;
@@ -181,6 +182,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           gradeLevel: gradeLevel,
           gradingPeriod: gradingPeriod,
         );
+        final transTable = await dbHelper.getTransmutationTable(subjectCode, sectionName);
 
         if (setup != null) {
           final Set<String> activeLabels = {};
@@ -211,9 +213,18 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           addLabels(setup['te_labels'], teCount, 'Term Exams');
 
           if (activeLabels.isNotEmpty) {
-            activeSubjectScores = subjectScores
-                .where((r) => activeLabels.contains(r['item_label']?.toString() ?? ''))
-                .toList();
+            activeSubjectScores = subjectScores.where((r) {
+              final label = r['item_label']?.toString() ?? '';
+              if (activeLabels.contains(label)) return true;
+              final num = int.tryParse(label.replaceAll(RegExp(r'[^0-9]'), ''));
+              final cat = r['category']?.toString().toLowerCase() ?? '';
+              if (num != null) {
+                if (cat.contains('written') && num <= wwCount) return true;
+                if (cat.contains('performance') && num <= ptCount) return true;
+                if (cat.contains('exam') && num <= teCount) return true;
+              }
+              return false;
+            }).toList();
           }
 
           double earned = 0.0;
@@ -250,7 +261,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
           if (totalWeight > 0) {
             double initialGrade = earned / totalWeight;
-            grade = dbHelper.transmuteGrade(initialGrade);
+            grade = dbHelper.transmuteGrade(initialGrade, customTable: transTable);
           } else {
              grade = 0.0;
           }
@@ -262,7 +273,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           }
           if (max > 0) {
              double initialGrade = (total / max) * 100;
-             grade = dbHelper.transmuteGrade(initialGrade);
+             grade = dbHelper.transmuteGrade(initialGrade, customTable: transTable);
           }
         }
 
@@ -1015,8 +1026,9 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
             Builder(
               builder: (context) {
-                bool isHighRisk = _subjectGrades.any((g) => (g['grade'] as double) < 75) || (_overallAverage > 0 && _overallAverage < 75);
-                bool isMediumRisk = !isHighRisk && (_subjectGrades.any((g) => (g['grade'] as double) < 80) || (_overallAverage > 0 && _overallAverage < 80));
+                final gradedSubjects = _subjectGrades.where((g) => (g['grade'] as double) > 0).toList();
+                bool isHighRisk = gradedSubjects.any((g) => (g['grade'] as double) < 75) || (_overallAverage > 0 && _overallAverage < 75);
+                bool isMediumRisk = !isHighRisk && (gradedSubjects.any((g) => (g['grade'] as double) < 80) || (_overallAverage > 0 && _overallAverage < 80));
 
                 if (!isHighRisk && !isMediumRisk) return const SizedBox.shrink();
 
@@ -1570,84 +1582,179 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 final double grade = s['grade'] as double;
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: color.withOpacity(0.2)),
-                    boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.07), blurRadius: 6, offset: const Offset(0, 3))],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.07),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(9),
-                            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                            child: Icon(Icons.book_rounded, color: color, size: 20),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(s['subjectName'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF224A60))),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(grade > 0 ? grade.toStringAsFixed(1) : 'N/A', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: color)),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                                child: Text(s['status'], style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => _showGradeBreakdownDialog(s),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(9),
+                                  decoration: BoxDecoration(
+                                    color: color.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(Icons.book_rounded, color: color, size: 20),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        s['subjectName'],
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                          color: Color(0xFF224A60),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      const Row(
+                                        children: [
+                                          Text(
+                                            'Tap to view breakdown',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Color(0xFF0D6EFD),
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          SizedBox(width: 4),
+                                          Icon(
+                                            Icons.arrow_forward_ios_rounded,
+                                            size: 9,
+                                            color: Color(0xFF0D6EFD),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      grade > 0 ? grade.toStringAsFixed(1) : 'N/A',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 22,
+                                        color: color,
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: color.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        s['status'],
+                                        style: TextStyle(
+                                          color: color,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            if (grade > 0) ...[
+                              const SizedBox(height: 12),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: LinearProgressIndicator(
+                                  value: (grade / 100).clamp(0.0, 1.0),
+                                  backgroundColor: color.withOpacity(0.1),
+                                  color: color,
+                                  minHeight: 7,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '${grade.toStringAsFixed(1)}%',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: color,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const Text(
+                                    'Passing: 75.0%',
+                                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                                  ),
+                                ],
                               ),
                             ],
-                          ),
-                        ],
-                      ),
-                      if (grade > 0) ...[
-                        const SizedBox(height: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: LinearProgressIndicator(value: grade / 100, backgroundColor: color.withOpacity(0.1), color: color, minHeight: 7),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('${grade.toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
-                            const Text('Passing: 75.0%', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                          ],
-                        ),
-                      ],
-                      if (s['remark'] != null && s['remark'].toString().isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade200),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(Icons.format_quote, color: color.withOpacity(0.6), size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
+                            if (s['remark'] != null && s['remark'].toString().isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade50,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey.shade200),
+                                ),
+                                child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Teacher\'s Feedback', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
-                                    const SizedBox(height: 4),
-                                    Text(s['remark'], style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black87)),
+                                    Icon(Icons.format_quote, color: color.withOpacity(0.6), size: 20),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Teacher\'s Feedback',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: color,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            s['remark'],
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontStyle: FontStyle.italic,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
                             ],
-                          ),
+                          ],
                         ),
-                      ],
-                    ],
+                      ),
+                    ),
                   ),
                 );
               }),
@@ -1756,110 +1863,372 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
       if (mounted) Navigator.pop(context); // Close loading dialog
 
+      final double initialGrade = (breakdown['initialGrade'] as num?)?.toDouble() ?? 0.0;
+      final double finalGrade = (breakdown['finalGrade'] as num?)?.toDouble() ?? 0.0;
+      final bool hasScores = breakdown['hasScores'] == true;
+      final String transScale = breakdown['transmutationScale']?.toString() ?? 'DepEd Base-70';
+
+      Color gradeColor = const Color(0xFF64748B);
+      String gradeStatus = 'No Grades';
+      if (hasScores) {
+        if (finalGrade >= 90) {
+          gradeColor = const Color(0xFF0284C7);
+          gradeStatus = 'Excellent';
+        } else if (finalGrade >= 75) {
+          gradeColor = const Color(0xFF059669);
+          gradeStatus = 'Passed';
+        } else {
+          gradeColor = const Color(0xFFDC2626);
+          gradeStatus = 'At-Risk';
+        }
+      }
+
       showDialog(
         context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${subject['subjectName']} Breakdown', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              const SizedBox(height: 4),
-              Text(gradingPeriod ?? '1st Term', style: const TextStyle(fontSize: 13, color: Colors.grey)),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (breakdown['hasSetup'] == false) ...[
-                  const Text('No detailed weight setup for this subject yet. Computed using raw averages.',
-                      style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
-                  const SizedBox(height: 12),
-                  const Text('Raw Scores:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  ...((breakdown['rawScores'] as List).map((score) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(child: Text('${score['category']} - ${score['item_label']}')),
-                          Text('${score['score']}/${score['total_score']}'),
-                        ],
+        builder: (ctx) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 520),
+            padding: const EdgeInsets.all(20),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // --- Header ---
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0D6EFD).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.analytics_rounded, color: Color(0xFF0D6EFD), size: 24),
                       ),
-                    );
-                  })).toList(),
-                ] else ...[
-                  ...((breakdown['components'] as Map<String, dynamic>).entries.where((e) => e.value['weight'] > 0).map((e) {
-                    final cat = e.key;
-                    final data = e.value;
-                    final scores = data['scores'] as List;
-                    
-                    return Column(
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              subject['subjectName']?.toString() ?? 'Subject Breakdown',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Color(0xFF1E293B)),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${gradingPeriod ?? '1st Term'} • ${section ?? ''}',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 22),
+                        onPressed: () => Navigator.pop(ctx),
+                        splashRadius: 20,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // --- Running Grade Summary Card ---
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: hasScores
+                            ? [gradeColor.withOpacity(0.08), gradeColor.withOpacity(0.02)]
+                            : [Colors.grey.shade100, Colors.grey.shade50],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: hasScores ? gradeColor.withOpacity(0.25) : Colors.grey.shade300),
+                    ),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.blueGrey.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('$cat (${data['weight']}%)', style: const TextStyle(fontWeight: FontWeight.bold)),
-                              Text('${data['average'].toStringAsFixed(1)}% Avg', style: const TextStyle(color: Colors.blueGrey, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ),
-                        if (scores.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          ...scores.map((score) => Padding(
-                            padding: const EdgeInsets.only(left: 12, right: 12, bottom: 4),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(child: Text('• ${score['item_label']}', style: const TextStyle(fontSize: 12))),
-                                Text('${score['score']}/${score['total_score']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                const Text(
+                                  'Current Running Grade',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  hasScores ? finalGrade.toStringAsFixed(1) : 'N/A',
+                                  style: TextStyle(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w900,
+                                    color: gradeColor,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
                               ],
                             ),
-                          )).toList(),
-                        ] else ...[
-                          const Padding(
-                            padding: EdgeInsets.only(left: 12, top: 4),
-                            child: Text('No recorded scores.', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey)),
-                          ),
-                        ],
-                        const SizedBox(height: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: gradeColor.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: gradeColor.withOpacity(0.3)),
+                                  ),
+                                  child: Text(
+                                    gradeStatus,
+                                    style: TextStyle(color: gradeColor, fontWeight: FontWeight.bold, fontSize: 11),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                if (hasScores)
+                                  Text(
+                                    'Raw Avg: ${initialGrade.toStringAsFixed(1)}%',
+                                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline_rounded, size: 14, color: Colors.blueGrey.shade400),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                hasScores
+                                    ? 'Current running grade based on recorded assessments ($transScale). Unadministered tasks do not penalize this grade.'
+                                    : 'No assessments or scores recorded by the teacher for this quarter yet.',
+                                style: TextStyle(fontSize: 11, color: Colors.blueGrey.shade600, height: 1.3),
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
-                    );
-                  })).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // --- Component Breakdown ---
+                  const Text(
+                    'Assessment Components',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                  ),
+                  const SizedBox(height: 10),
+
+                  if (breakdown['hasSetup'] == false) ...[
+                    // No setup fallback
+                    const Text('No detailed weight setup for this subject yet. Computed using raw averages.',
+                        style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    ...((breakdown['rawScores'] as List? ?? []).map((score) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(child: Text('${score['category']} - ${score['item_label']}', style: const TextStyle(fontSize: 12))),
+                            Text('${score['score']}/${score['total_score']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          ],
+                        ),
+                      );
+                    })),
+                  ] else ...[
+                    ...((breakdown['components'] as Map<String, dynamic>).entries.where((e) => (e.value['weight'] as num? ?? 0) > 0).map((e) {
+                      final cat = e.key;
+                      final data = e.value as Map<String, dynamic>;
+                      final scores = data['scores'] as List? ?? [];
+                      final bool compHasScores = data['hasScores'] == true;
+                      final double compAvg = (data['average'] as num?)?.toDouble() ?? 0.0;
+                      final double compWeight = (data['weight'] as num?)?.toDouble() ?? 0.0;
+                      final double compEarned = (data['totalEarnedScore'] as num?)?.toDouble() ?? 0.0;
+                      final double compMax = (data['totalMaxScore'] as num?)?.toDouble() ?? 0.0;
+
+                      IconData catIcon = Icons.edit_note_rounded;
+                      Color catColor = const Color(0xFF2563EB);
+                      if (cat.toLowerCase().contains('performance')) {
+                        catIcon = Icons.assignment_turned_in_rounded;
+                        catColor = const Color(0xFF7C3AED);
+                      } else if (cat.toLowerCase().contains('exam') || cat.toLowerCase().contains('test')) {
+                        catIcon = Icons.fact_check_rounded;
+                        catColor = const Color(0xFFD97706);
+                      }
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Component Header Bar
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: catColor.withOpacity(0.06),
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(11),
+                                  topRight: Radius.circular(11),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(catIcon, size: 18, color: catColor),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '$cat (${compWeight.toStringAsFixed(0)}%)',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: catColor),
+                                    ),
+                                  ),
+                                  if (compHasScores)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: catColor.withOpacity(0.2)),
+                                      ),
+                                      child: Text(
+                                        '${compAvg.toStringAsFixed(1)}% Avg',
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: catColor),
+                                      ),
+                                    )
+                                  else
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.hourglass_empty_rounded, size: 10, color: Color(0xFF64748B)),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            'Pending',
+                                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+
+                            // Items List
+                            if (compHasScores) ...[
+                              Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  children: [
+                                    ...scores.map((score) {
+                                      final double sVal = (score['score'] as num?)?.toDouble() ?? 0.0;
+                                      final double tVal = (score['total_score'] as num?)?.toDouble() ?? 0.0;
+                                      final double pct = tVal > 0 ? (sVal / tVal) * 100 : 0.0;
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 6),
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF10B981)),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                score['item_label']?.toString() ?? 'Assessment',
+                                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF334155)),
+                                              ),
+                                            ),
+                                            Text(
+                                              '${sVal.toStringAsFixed(0)}/${tVal.toStringAsFixed(0)}',
+                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFE2E8F0),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                '${pct.toStringAsFixed(0)}%',
+                                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                    const Divider(height: 12, color: Color(0xFFE2E8F0)),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text('Total Points Earned:', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                                        Text(
+                                          '${compEarned.toStringAsFixed(0)} / ${compMax.toStringAsFixed(0)} pts',
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ] else ...[
+                              const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.schedule_rounded, size: 14, color: Color(0xFF94A3B8)),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'No recorded assessments for this component yet.',
+                                      style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Color(0xFF94A3B8)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    })),
+                  ],
+
+                  const SizedBox(height: 8),
+                  // --- Close Button ---
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0D6EFD),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    ),
+                  ),
                 ],
-                const Divider(),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Initial Computed Grade:', style: TextStyle(fontWeight: FontWeight.w600)),
-                    Text(breakdown['initialGrade'].toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Zero-based Final Grade:', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1664C5))),
-                    Text(breakdown['finalGrade'].toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1664C5))),
-                  ],
-                ),
-              ],
+              ),
             ),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-          ],
         ),
       );
     } catch (e) {

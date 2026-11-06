@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../models/ecr_transmutation_model.dart';
 import 'student_detail_screen.dart';
 import 'student_grades_screen.dart';
 import '../utils/avatar_utils.dart';
@@ -139,6 +140,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
             gradeLevel: gradeLevel,
             gradingPeriod: period,
           );
+          final transTable = await DatabaseHelper().getTransmutationTable(subjectCode, section);
 
           final scores = await DatabaseHelper().getScoresByStudentSubjectPeriod(
             studentId: studentId,
@@ -164,7 +166,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
 
           if (scores.isNotEmpty) {
             hasData = true;
-            final grade = _computeGrade(studentId, scores, setup, attendancePct);
+            final grade = _computeGrade(studentId, scores, setup, attendancePct, customTable: transTable);
             if (grade > 0) {
               if (grade < lowestGrade) lowestGrade = grade;
               if (grade < 75) hasFailing = true;
@@ -209,8 +211,9 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     String studentId,
     List<Map<String, dynamic>> allScores,
     Map<String, dynamic>? setup,
-    double attendancePct,
-  ) {
+    double attendancePct, {
+    EcrTransmutationTable? customTable,
+  }) {
     if (setup != null) {
       final wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 30;
       final wPT = (setup['pt_weight'] as num?)?.toDouble() ?? 50;
@@ -246,7 +249,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
 
       if (totalWeight == 0) return 0.0;
       final initialGrade = earned / totalWeight;
-      return DatabaseHelper().transmuteGrade(initialGrade);
+      return DatabaseHelper().transmuteGrade(initialGrade, customTable: customTable);
     }
 
     if (allScores.isEmpty) return 0.0;
@@ -259,7 +262,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     }
     if (max == 0) return 0.0;
     final initialGrade = (total / max) * 100;
-    return DatabaseHelper().transmuteGrade(initialGrade);
+    return DatabaseHelper().transmuteGrade(initialGrade, customTable: customTable);
   }
 
   double _categoryAvg(

@@ -839,6 +839,7 @@ class DatabaseHelper {
           gradeLevel: gradeLevel,
           gradingPeriod: period,
         );
+        final transTable = await getTransmutationTable(subj, section);
 
         if (setup != null) {
           // Calculate weighted grade using setup
@@ -886,7 +887,7 @@ class DatabaseHelper {
 
           if (totalWeight > 0) {
             double initialGrade = earned / totalWeight;
-            sumQ += transmuteGrade(initialGrade);
+            sumQ += transmuteGrade(initialGrade, customTable: transTable);
             countQ++;
           }
         } else {
@@ -898,7 +899,7 @@ class DatabaseHelper {
           }
           if (m > 0) {
             double initialGrade = (t / m) * 100;
-            sumQ += transmuteGrade(initialGrade);
+            sumQ += transmuteGrade(initialGrade, customTable: transTable);
             countQ++;
           }
         }
@@ -2074,6 +2075,15 @@ class DatabaseHelper {
   static EcrTransmutationTable? _activeTransmutationTable;
   static final Map<String, EcrTransmutationTable> _transmutationCache = {};
 
+  static String _normalizeTransKey(String subjectCode, [String? section]) {
+    final s = subjectCode.trim().toLowerCase();
+    if (section != null && section.trim().isNotEmpty) {
+      final sec = section.trim().toLowerCase();
+      return '${s}_$sec';
+    }
+    return s;
+  }
+
   /// Set the active transmutation table in-memory for the current session
   static void setActiveTransmutationTable(EcrTransmutationTable? table) {
     _activeTransmutationTable = table;
@@ -2084,36 +2094,59 @@ class DatabaseHelper {
 
   /// Save detected transmutation table for a class / subject
   Future<void> saveTransmutationTable(String subjectCode, String section, EcrTransmutationTable table) async {
-    final key = '${subjectCode}_$section';
-    _transmutationCache[key] = table;
+    final exactKey = _normalizeTransKey(subjectCode, section);
+    final subjectKey = _normalizeTransKey(subjectCode);
+
+    _transmutationCache[exactKey] = table;
+    _transmutationCache[subjectKey] = table;
     _activeTransmutationTable = table;
+
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('ecr_transmutation_$key', jsonEncode(table.toJson()));
+      final jsonStr = jsonEncode(table.toJson());
+      await prefs.setString('ecr_transmutation_$exactKey', jsonStr);
+      await prefs.setString('ecr_transmutation_$subjectKey', jsonStr);
     } catch (e) {
       print('Note: saving transmutation table: $e');
     }
   }
 
   /// Retrieve detected transmutation table for a class / subject
-  Future<EcrTransmutationTable?> getTransmutationTable(String subjectCode, String section) async {
-    final key = '${subjectCode}_$section';
-    if (_transmutationCache.containsKey(key)) {
-      return _transmutationCache[key];
+  Future<EcrTransmutationTable?> getTransmutationTable(String subjectCode, [String? section]) async {
+    final exactKey = _normalizeTransKey(subjectCode, section);
+    final subjectKey = _normalizeTransKey(subjectCode);
+
+    if (_transmutationCache.containsKey(exactKey)) {
+      return _transmutationCache[exactKey];
     }
+    if (_transmutationCache.containsKey(subjectKey)) {
+      return _transmutationCache[subjectKey];
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString('ecr_transmutation_$key');
+      var raw = prefs.getString('ecr_transmutation_$exactKey');
+      raw ??= prefs.getString('ecr_transmutation_$subjectKey');
+
       if (raw != null) {
         final decoded = jsonDecode(raw);
         if (decoded is Map<String, dynamic>) {
           final table = EcrTransmutationTable.fromJson(decoded);
-          _transmutationCache[key] = table;
+          _transmutationCache[exactKey] = table;
+          _transmutationCache[subjectKey] = table;
           return table;
         }
       }
     } catch (_) {}
+
     return _activeTransmutationTable;
+  }
+
+  /// Synchronously get cached transmutation table if already loaded in memory
+  EcrTransmutationTable? getCachedTransmutationTable(String subjectCode, [String? section]) {
+    final exactKey = _normalizeTransKey(subjectCode, section);
+    final subjectKey = _normalizeTransKey(subjectCode);
+    return _transmutationCache[exactKey] ?? _transmutationCache[subjectKey] ?? _activeTransmutationTable;
   }
 
   // Base-70 Transmutation: Raw score of 70 = 75.
@@ -2373,14 +2406,34 @@ class DatabaseHelper {
       gradeLevel: gradeLevel,
       gradingPeriod: gradingPeriod,
     );
+    final transTable = await getTransmutationTable(subjectCode, sectionName);
 
-    final scores = await Supabase.instance.client
-        .from('scores')
-        .select()
-        .eq('student_id', studentId)
-        .eq('subject_code', subjectCode)
-        .eq('grading_period', gradingPeriod)
-        .eq('school_year', schoolYear);
+    final aliases = getPeriodAliases(gradingPeriod);
+    List<Map<String, dynamic>> scores = [];
+    try {
+      var query = Supabase.instance.client
+          .from('scores')
+          .select()
+          .eq('student_id', studentId)
+          .eq('subject_code', subjectCode)
+          .inFilter('grading_period', aliases);
+
+      if (schoolYear.isNotEmpty) {
+        query = query.eq('school_year', schoolYear);
+      }
+      final res = await query;
+      scores = List<Map<String, dynamic>>.from(res);
+    } catch (_) {
+      try {
+        final res = await Supabase.instance.client
+            .from('scores')
+            .select()
+            .eq('student_id', studentId)
+            .eq('subject_code', subjectCode)
+            .inFilter('grading_period', aliases);
+        scores = List<Map<String, dynamic>>.from(res);
+      } catch (_) {}
+    }
 
     List<String> parseLabels(dynamic data, int fallbackCount, String prefix) {
       if (data != null && data is String) {
@@ -2399,21 +2452,28 @@ class DatabaseHelper {
     List<Map<String, dynamic>> validScores = List.from(scores);
 
     if (setup != null) {
-      final wwItems = (setup['ww_items'] as int?) ?? 10;
-      final ptItems = (setup['pt_items'] as int?) ?? 10;
-      final teItems = (setup['te_items'] as int?) ?? 1;
+      final wwItems = (setup['ww_items'] as num?)?.toInt() ?? 10;
+      final ptItems = (setup['pt_items'] as num?)?.toInt() ?? 10;
+      final teItems = (setup['te_items'] as num?)?.toInt() ?? 1;
 
       final wwLabels = parseLabels(setup['ww_labels'], wwItems, 'Written Works');
       final ptLabels = parseLabels(setup['pt_labels'], ptItems, 'Performance Tasks');
       final teLabels = parseLabels(setup['te_labels'], teItems, 'Term Exams');
       
       validScores = validScores.where((s) {
-        final cat = s['category'].toString();
-        final label = s['item_label'].toString();
+        final cat = s['category']?.toString().toLowerCase() ?? '';
+        final label = s['item_label']?.toString() ?? '';
+        final itemNum = int.tryParse(label.replaceAll(RegExp(r'[^0-9]'), ''));
         
-        if (cat == 'Written Works') return wwLabels.contains(label);
-        if (cat == 'Performance Tasks') return ptLabels.contains(label);
-        if (cat == 'Term Exams') return teLabels.contains(label);
+        if (cat.contains('written') || cat == 'ww') {
+          return wwLabels.contains(label) || (itemNum != null && itemNum <= wwItems);
+        }
+        if (cat.contains('performance') || cat == 'pt') {
+          return ptLabels.contains(label) || (itemNum != null && itemNum <= ptItems);
+        }
+        if (cat.contains('exam') || cat.contains('test') || cat.contains('quarterly') || cat == 'qa') {
+          return teLabels.contains(label) || (itemNum != null && itemNum <= teItems);
+        }
         return false;
       }).toList();
     }
@@ -2426,11 +2486,12 @@ class DatabaseHelper {
         max += (r['total_score'] as num?)?.toDouble() ?? 0;
       }
       double initial = max > 0 ? (total / max) * 100 : 0.0;
-      double finalGrade = initial; // Zero-based, no transmutation
+      double finalGrade = transmuteGrade(initial, customTable: transTable);
       return {
         'hasSetup': false,
         'initialGrade': initial,
         'finalGrade': finalGrade,
+        'hasScores': max > 0,
         'rawScores': validScores,
       };
     }
@@ -2441,19 +2502,31 @@ class DatabaseHelper {
     double wTE = (setup['te_weight'] as num?)?.toDouble() ?? 0.0;
 
     Map<String, dynamic> computeCat(String cat, double weight) {
-      var filtered = validScores.where((s) => s['category'] == cat).toList();
+      final catLower = cat.toLowerCase();
+      var filtered = validScores.where((s) {
+        final c = s['category']?.toString().toLowerCase() ?? '';
+        if (catLower.contains('written')) return c.contains('written') || c == 'ww';
+        if (catLower.contains('performance')) return c.contains('performance') || c == 'pt';
+        if (catLower.contains('exam')) return c.contains('exam') || c.contains('test') || c.contains('quarterly') || c == 'qa';
+        return c == catLower;
+      }).toList();
+
       double t = 0, m = 0;
       for (var s in filtered) {
         t += (s['score'] as num?)?.toDouble() ?? 0;
         m += (s['total_score'] as num?)?.toDouble() ?? 0;
       }
-      double avg = m > 0 ? (t / m) * 100 : 0.0;
+      final bool hasScores = filtered.isNotEmpty && m > 0;
+      double avg = hasScores ? (t / m) * 100 : 0.0;
       double earned = avg * (weight / 100);
       return {
         'weight': weight,
         'average': avg,
         'earned': earned,
         'scores': filtered,
+        'hasScores': hasScores,
+        'totalEarnedScore': t,
+        'totalMaxScore': m,
       };
     }
 
@@ -2466,17 +2539,19 @@ class DatabaseHelper {
         (teData['earned'] as double);
 
     double totalWeight = 0;
-    if (wwData['scores'].isNotEmpty) totalWeight += wWW / 100;
-    if (ptData['scores'].isNotEmpty) totalWeight += wPT / 100;
-    if (teData['scores'].isNotEmpty) totalWeight += wTE / 100;
+    if (wwData['hasScores'] == true) totalWeight += wWW / 100;
+    if (ptData['hasScores'] == true) totalWeight += wPT / 100;
+    if (teData['hasScores'] == true) totalWeight += wTE / 100;
 
     double initialGrade = totalWeight > 0 ? totalEarned / totalWeight : 0.0;
-    double finalGrade = initialGrade; // Zero-based, no transmutation
+    double finalGrade = totalWeight > 0 ? transmuteGrade(initialGrade, customTable: transTable) : 0.0;
 
     return {
       'hasSetup': true,
       'initialGrade': initialGrade,
       'finalGrade': finalGrade,
+      'hasScores': totalWeight > 0,
+      'transmutationScale': transTable?.description ?? 'DepEd Base-70',
       'components': {
         'Written Works': wwData,
         'Performance Tasks': ptData,

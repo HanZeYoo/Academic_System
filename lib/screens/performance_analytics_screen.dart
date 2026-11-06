@@ -130,6 +130,8 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
         gradeLevel: gradeLevel,
         gradingPeriod: _selectedPeriod,
       );
+      final transTable = await db.getTransmutationTable(subjectCode, section);
+      DatabaseHelper.setActiveTransmutationTable(transTable);
 
       final scores = await db.getScoresForClass(
         subjectCode: subjectCode,

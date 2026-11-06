@@ -67,7 +67,10 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
 
       if (totalWeight == 0) return 0.0;
       double initialGrade = earned / totalWeight;
-      return DatabaseHelper().transmuteGrade(initialGrade);
+      final subj = assessmentSetup?['subject_code']?.toString() ?? '';
+      final sec = assessmentSetup?['section_name']?.toString() ?? '';
+      final customTable = DatabaseHelper().getCachedTransmutationTable(subj, sec);
+      return DatabaseHelper().transmuteGrade(initialGrade, customTable: customTable);
     }
 
     double total = 0, max = 0;
@@ -77,7 +80,10 @@ class StudentEvaluationDetailScreen extends StatelessWidget {
     }
     if (max == 0) return 0.0;
     double initialGrade = (total / max) * 100;
-    return DatabaseHelper().transmuteGrade(initialGrade);
+    final subj = assessmentSetup?['subject_code']?.toString() ?? '';
+    final sec = assessmentSetup?['section_name']?.toString() ?? '';
+    final customTable = DatabaseHelper().getCachedTransmutationTable(subj, sec);
+    return DatabaseHelper().transmuteGrade(initialGrade, customTable: customTable);
   }
 
   @override
