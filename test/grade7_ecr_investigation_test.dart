@@ -168,10 +168,13 @@ void main() {
       final qaList = mappings.where((m) => m.target.component == 'QA' && !m.target.isHps).toList();
       expect(qaList.length, equals(3));
       expect(qaList[0].columnIndex, equals(49));
+      expect(qaList[0].target, equals(EcrTargetCategory.qa));
       expect(qaList[0].detectedRowHps, equals(30.0));
       expect(qaList[1].columnIndex, equals(50));
+      expect(qaList[1].target, equals(EcrTargetCategory.qa2));
       expect(qaList[1].detectedRowHps, equals(30.0));
       expect(qaList[2].columnIndex, equals(51));
+      expect(qaList[2].target, equals(EcrTargetCategory.qa3));
       expect(qaList[2].detectedRowHps, equals(40.0));
     });
 
@@ -244,6 +247,41 @@ void main() {
       expect(anaScores.first['score'], equals(17.0));
       expect(anaScores.first['total_score'], equals(20.0));
     });
+
+    test('Multi-item QA (e.g. 3 Term Exams) correctly maps to Term Exams 1, 2, 3 and produces te_items: 3', () async {
+      final file = File('test/fixtures/populated_computer_7.xlsx');
+      final bytes = await file.readAsBytes();
+      final result = parser.parseFileSync(bytes, 'populated_computer_7.xlsx', gradingPeriod: '1st Term');
+
+      final mappings = engine.autoDetectMappings(
+        headers: result.headers,
+        previewRows: result.dataRows,
+        rowHpsMap: result.rowHpsMap,
+      );
+
+      final qaCols = mappings.where((m) => m.target.component == 'QA' && !m.target.isHps).toList();
+      expect(qaCols.length, equals(3));
+      expect(qaCols[0].target, equals(EcrTargetCategory.qa));
+      expect(qaCols[1].target, equals(EcrTargetCategory.qa2));
+      expect(qaCols[2].target, equals(EcrTargetCategory.qa3));
+
+      // Simulate label generation for all 3 QA columns
+      final List<String> activeTeLabels = [];
+      for (final m in qaCols) {
+        int itemNumber = 1;
+        if (m.target.label.startsWith('QA') && m.target.label.length > 2) {
+          itemNumber = int.tryParse(m.target.label.substring(2)) ?? 1;
+        }
+        final label = 'Term Exams $itemNumber';
+        if (!activeTeLabels.contains(label)) {
+          activeTeLabels.add(label);
+        }
+      }
+
+      expect(activeTeLabels, equals(['Term Exams 1', 'Term Exams 2', 'Term Exams 3']));
+      expect(activeTeLabels.length, equals(3));
+    });
+
     test('New Era University (NEU) Student ID 9-digit format (##-####-### and raw 9 digits) is normalized', () {
       // 9 digits with dashes
       expect(EcrParserService.cleanLrn('24-1234-567'), equals('241234567'));

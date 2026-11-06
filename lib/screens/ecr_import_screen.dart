@@ -58,6 +58,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
   // Filter for Validation Issues Table
   bool _showOnlyErrorsInValidation = false;
+  bool _isGradingConfigExpanded = false;
 
   @override
   void initState() {
@@ -647,7 +648,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
   String _getCategoryName(EcrTargetCategory target) {
     if (target.label.startsWith('WW')) return 'Written Works';
     if (target.label.startsWith('PT')) return 'Performance Tasks';
-    if (target.label == 'QA') return 'Term Exams';
+    if (target.label.startsWith('QA') || target.component == 'QA') return 'Term Exams';
     return 'Written Works';
   }
 
@@ -697,11 +698,19 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       }
       return meaningfulHeader ?? (idx >= 0 && idx < ptLabels.length ? ptLabels[idx] : 'Performance Tasks ${idx + 1}');
     }
-    if (target.label == 'QA') {
-      if (teLabels.isNotEmpty && !teLabels.first.startsWith('Term Exams')) {
-        return teLabels.first;
+    if (target.label.startsWith('QA') || target.component == 'QA') {
+      int itemNumber = 1;
+      if (target.label.startsWith('QA') && target.label.length > 2) {
+        itemNumber = int.tryParse(target.label.substring(2)) ?? 1;
       }
-      return meaningfulHeader ?? (teLabels.isNotEmpty ? teLabels.first : 'Term Exams 1');
+      final idx = itemNumber - 1;
+      if (meaningfulHeader != null) {
+        return meaningfulHeader;
+      }
+      if (idx >= 0 && idx < teLabels.length && !teLabels[idx].startsWith('Term Exams')) {
+        return teLabels[idx];
+      }
+      return (idx >= 0 && idx < teLabels.length ? teLabels[idx] : 'Term Exams $itemNumber');
     }
     return target.label;
   }
@@ -1162,44 +1171,6 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-            const SizedBox(height: 28),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0FDF4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFBBF7D0)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFDCFCE7),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.auto_awesome, color: Color(0xFF16A34A), size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Universal Adaptability Engine',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF166534)),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'NotifyED automatically adapts to ANY imported ECR—whether you upload an official DepEd Excel sheet or a flat CSV with arbitrary activity columns.',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF15803D), height: 1.3),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
               ),
             ),
           ],
@@ -2035,9 +2006,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         ],
 
         const SizedBox(height: 12),
-        _buildWeightsDetectedCard(),
-        const SizedBox(height: 12),
-        _buildTransmutationDetectedCard(),
+        _buildGradingConfigDropdown(),
 
         const SizedBox(height: 16),
 
@@ -2258,6 +2227,159 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildGradingConfigDropdown() {
+    final weights = _parseResult?.detectedWeights;
+    final isWeightsDetected = weights?.isDetected == true;
+    final ww = weights?.wwWeight.toInt() ?? 30;
+    final pt = weights?.ptWeight.toInt() ?? 50;
+    final qa = weights?.qaWeight.toInt() ?? 20;
+
+    final trans = _parseResult?.detectedTransmutation;
+    final isTransDetected = trans?.isDetected == true;
+    final transDesc = trans?.description ?? 'DepEd Base-70';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                setState(() {
+                  _isGradingConfigExpanded = !_isGradingConfigExpanded;
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: (isWeightsDetected || isTransDetected)
+                            ? const Color(0xFFDCFCE7)
+                            : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        (isWeightsDetected || isTransDetected)
+                            ? Icons.auto_awesome
+                            : Icons.tune_rounded,
+                        color: (isWeightsDetected || isTransDetected)
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFF475569),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text(
+                                'Grading Weights & Transmutation',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                                ),
+                                child: Text(
+                                  isTransDetected ? 'AUTO-DETECTED' : 'CONFIGURED',
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1D4ED8),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Weights: WW $ww% • PT $pt% • QA $qa%  |  Scale: $transDesc',
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _isGradingConfigExpanded ? 'Hide' : 'Show',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            _isGradingConfigExpanded
+                                ? Icons.keyboard_arrow_up_rounded
+                                : Icons.keyboard_arrow_down_rounded,
+                            size: 16,
+                            color: const Color(0xFF475569),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (_isGradingConfigExpanded) ...[
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  _buildWeightsDetectedCard(),
+                  const SizedBox(height: 10),
+                  _buildTransmutationDetectedCard(),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

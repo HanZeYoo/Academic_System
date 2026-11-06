@@ -48,6 +48,16 @@ enum EcrTargetCategory {
   pt19('PT19', isNumeric: true, component: 'PT'),
   pt20('PT20', isNumeric: true, component: 'PT'),
   qa('QA', isNumeric: true, component: 'QA'),
+  qa1('QA1', isNumeric: true, component: 'QA'),
+  qa2('QA2', isNumeric: true, component: 'QA'),
+  qa3('QA3', isNumeric: true, component: 'QA'),
+  qa4('QA4', isNumeric: true, component: 'QA'),
+  qa5('QA5', isNumeric: true, component: 'QA'),
+  qa6('QA6', isNumeric: true, component: 'QA'),
+  qa7('QA7', isNumeric: true, component: 'QA'),
+  qa8('QA8', isNumeric: true, component: 'QA'),
+  qa9('QA9', isNumeric: true, component: 'QA'),
+  qa10('QA10', isNumeric: true, component: 'QA'),
   componentTotal('Component Total', isNumeric: true),
   calculatedIgnore('Calculated Score (PS/WS - Ignore)', isNumeric: false),
   hpsWw('HPS (Written Work)', isNumeric: true, isHps: true, component: 'WW'),
@@ -69,8 +79,10 @@ enum EcrTargetCategory {
   });
 
   static EcrTargetCategory fromLabel(String label) {
+    final clean = label.trim().toUpperCase();
+    if (clean == 'QA') return EcrTargetCategory.qa;
     return EcrTargetCategory.values.firstWhere(
-      (e) => e.label == label,
+      (e) => e.label.toUpperCase() == clean,
       orElse: () => EcrTargetCategory.ignore,
     );
   }

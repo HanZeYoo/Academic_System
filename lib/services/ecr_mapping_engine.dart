@@ -120,6 +120,14 @@ class EcrMappingEngine {
         target = EcrTargetCategory.fromLabel(targetLabel);
         confidence = 1.0;
         reasons.add('Matched saved teacher template for "$rawHeader"');
+
+        // Prevent QA column collision if an old template mapped multiple columns to generic QA
+        if (target.component == 'QA' && !target.isHps && block == 'QA') {
+          if (target == EcrTargetCategory.qa && qaActivityIndex > 1) {
+            target = _getQaTarget(qaActivityIndex);
+            reasons.add('Auto-separated legacy template QA item to #$qaActivityIndex');
+          }
+        }
       } else if (block != null) {
         // 2. Hierarchical block resolution
         final blockMatch = _evaluateBlockColumnRole(
@@ -136,11 +144,6 @@ class EcrMappingEngine {
         target = blockMatch.target;
         confidence = blockMatch.confidence;
         reasons.addAll(blockMatch.reasons);
-
-        // Increment position counters only when an activity item was assigned
-        if (target.label.startsWith('WW')) wwActivityIndex++;
-        if (target.label.startsWith('PT')) ptActivityIndex++;
-        if (target.label.startsWith('QA') && target != EcrTargetCategory.hpsQa) qaActivityIndex++;
       } else {
         // 3. Independent column resolution (Name, LRN, Final Grade, Split Names)
         final indepMatch = _evaluateIndependentColumn(headerLower);
@@ -148,6 +151,11 @@ class EcrMappingEngine {
         confidence = indepMatch.confidence;
         reasons.addAll(indepMatch.reasons);
       }
+
+      // Increment position counters only when an activity item was assigned
+      if (target.label.startsWith('WW')) wwActivityIndex++;
+      if (target.label.startsWith('PT')) ptActivityIndex++;
+      if (target.label.startsWith('QA') && target != EcrTargetCategory.hpsQa) qaActivityIndex++;
 
       // 4. Data profiling signal check on preview rows
       final profileResult = _profileColumnData(colIndex, target, previewRows);
@@ -293,8 +301,9 @@ class EcrMappingEngine {
 
     // E. Map to component activity enum or handle overflow
     if (parentBlock == 'QA') {
-      reasons.add('Quarterly Assessment component score');
-      return _RoleResolution(EcrTargetCategory.qa, 0.90, reasons);
+      reasons.add('Quarterly Assessment component score #$detectedNumber');
+      final target = _getQaTarget(detectedNumber);
+      return _RoleResolution(target, 0.90, reasons);
     }
 
     if (detectedNumber <= 20) {
@@ -428,6 +437,15 @@ class EcrMappingEngine {
     }
 
     // Check Standalone Quarterly Assessment / Exam columns
+    final qaMatch = RegExp(r'^(?:qa|exam|quarterly(?: exam)?|periodical(?: exam)?|term exam)\s*[-_:]?\s*(\d+)$').firstMatch(headerLower);
+    if (qaMatch != null) {
+      final num = int.tryParse(qaMatch.group(1)!) ?? 1;
+      if (num >= 1 && num <= 10) {
+        final target = _getQaTarget(num);
+        return _RoleResolution(target, 0.92, ['Adaptive match: Standalone Quarterly Assessment activity item $num']);
+      }
+    }
+
     if (headerLower == 'qa' ||
         headerLower == 'exam' ||
         headerLower == 'quarterly assessment' ||
@@ -535,6 +553,33 @@ class EcrMappingEngine {
       hasTypeMismatch: hasTypeMismatch,
       notes: notes,
     );
+  }
+
+  EcrTargetCategory _getQaTarget(int number) {
+    switch (number) {
+      case 1:
+        return EcrTargetCategory.qa;
+      case 2:
+        return EcrTargetCategory.qa2;
+      case 3:
+        return EcrTargetCategory.qa3;
+      case 4:
+        return EcrTargetCategory.qa4;
+      case 5:
+        return EcrTargetCategory.qa5;
+      case 6:
+        return EcrTargetCategory.qa6;
+      case 7:
+        return EcrTargetCategory.qa7;
+      case 8:
+        return EcrTargetCategory.qa8;
+      case 9:
+        return EcrTargetCategory.qa9;
+      case 10:
+        return EcrTargetCategory.qa10;
+      default:
+        return EcrTargetCategory.qa;
+    }
   }
 
   void _applyHpsFallbacks(List<EcrColumnMapping> mappings) {

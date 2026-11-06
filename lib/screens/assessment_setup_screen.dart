@@ -124,6 +124,74 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
         _teWeightCtrl.text = '${(saved['te_weight'] as num?)?.toInt() ?? 20}';
         _attendanceWeightCtrl.text = '${(saved['attendance_weight'] as num?)?.toInt() ?? 0}';
       });
+
+      // If setup only has 1 or 0 Term Exam labels, check if the mapping template or scores have all QA items
+      if (_teLabels.length <= 1) {
+        try {
+          final teacherId = _teacherName ?? widget.username;
+          final subjectCode = _selectedClassRecord!['subject_code']?.toString() ?? '';
+          final section = _selectedClassRecord!['section_name']?.toString() ?? '';
+          final grade = _selectedClassRecord!['grade_level']?.toString() ?? '';
+
+          final List<String> detectedTe = [];
+
+          // 1. Check mapping template first
+          final templateMap = await DatabaseHelper().getMappingTemplate(
+            teacherId: teacherId,
+            subjectId: subjectCode,
+          );
+          if (templateMap != null && templateMap.isNotEmpty) {
+            for (final entry in templateMap.entries) {
+              final header = entry.key;
+              final target = entry.value;
+              final lower = header.toLowerCase();
+              if (target.startsWith('QA') ||
+                  lower.contains('exam') ||
+                  lower.contains('summative') ||
+                  lower.contains('quarterly')) {
+                String clean = header.trim();
+                if (clean.contains(' - ')) {
+                  clean = clean.split(' - ').last.trim();
+                }
+                if (clean.isNotEmpty &&
+                    !clean.toLowerCase().contains('total') &&
+                    !clean.toLowerCase().contains('ps') &&
+                    !clean.toLowerCase().contains('ws') &&
+                    !clean.toLowerCase().contains('hps') &&
+                    !detectedTe.contains(clean)) {
+                  detectedTe.add(clean);
+                }
+              }
+            }
+          }
+
+          // 2. Check raw scores in case scores exist with multiple labels
+          if (detectedTe.length <= _teLabels.length) {
+            final rawScores = await DatabaseHelper().getScoresForClass(
+              subjectCode: subjectCode,
+              sectionName: section,
+              gradeLevel: grade,
+              gradingPeriod: _selectedPeriod,
+              filterBySetup: false,
+            );
+            for (final s in rawScores) {
+              final cat = s['category']?.toString().toLowerCase() ?? '';
+              final label = s['item_label']?.toString() ?? '';
+              if ((cat.contains('exam') || cat.contains('qa') || cat.contains('test')) &&
+                  label.isNotEmpty &&
+                  !detectedTe.contains(label)) {
+                detectedTe.add(label);
+              }
+            }
+          }
+
+          if (detectedTe.length > _teLabels.length) {
+            setState(() {
+              _teLabels = detectedTe;
+            });
+          }
+        } catch (_) {}
+      }
     } else {
       // Defaults
       setState(() {
