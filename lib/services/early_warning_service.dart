@@ -123,20 +123,27 @@ class EarlyWarningService {
   }
 
   /// Evaluates an entire class using the scores retrieved from the database.
+  /// Pre-groups scores by student_id in a single O(R) pass for O(S + R) total time.
   static Map<String, EarlyWarningResult> evaluateClassScores({
     required List<Map<String, dynamic>> students,
     required List<Map<String, dynamic>> allScores,
     required String subjectCode,
     required String gradingPeriod,
   }) {
+    final Map<String, List<Map<String, dynamic>>> scoresByStudentId = {};
+    for (final s in allScores) {
+      final sid = s['student_id']?.toString() ?? '';
+      if (sid.isNotEmpty) {
+        scoresByStudentId.putIfAbsent(sid, () => []).add(s);
+      }
+    }
+
     final Map<String, EarlyWarningResult> results = {};
 
     for (final student in students) {
       final sid = student['student_id']?.toString() ?? '';
       final sname = student['name']?.toString() ?? 'Student';
-      final studentScores = allScores.where(
-        (s) => s['student_id']?.toString() == sid,
-      ).toList();
+      final studentScores = scoresByStudentId[sid] ?? const [];
 
       results[sid] = evaluateScores(
         studentId: sid,

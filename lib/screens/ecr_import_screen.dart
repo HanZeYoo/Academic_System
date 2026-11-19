@@ -129,6 +129,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         bytes,
         file.name,
         gradingPeriod: _selectedPeriod,
+        useCache: true,
       );
       _selectedSheetName = parseRes.sheetName;
 
@@ -162,6 +163,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         _uploadedFilename!,
         targetSheetName: newSheetName,
         gradingPeriod: _selectedPeriod,
+        useCache: true,
       );
       _selectedSheetName = parseRes.sheetName;
 

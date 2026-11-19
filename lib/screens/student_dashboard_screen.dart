@@ -13,6 +13,7 @@ import '../database_helper.dart';
 import '../utils/avatar_utils.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
+import '../widgets/skeleton_loader.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
   final String username; // The student's email/username
@@ -76,11 +77,17 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       }
       _profilePicture = photo;
 
-      // Fetch Schedule
-      _schedule = await dbHelper.getStudentSchedule(widget.username);
+      // Fetch Schedule, Attendance, and Scores concurrently
+      final dashboardResults = await Future.wait([
+        dbHelper.getStudentSchedule(widget.username),
+        dbHelper.getStudentAttendance(widget.username),
+        dbHelper.getStudentAllScores(widget.username),
+      ]);
 
-      // Fetch Attendance
-      final attendanceRecords = await dbHelper.getStudentAttendance(widget.username);
+      _schedule = dashboardResults[0];
+      final attendanceRecords = dashboardResults[1];
+      final scores = dashboardResults[2];
+
       _hasAttendance = attendanceRecords.isNotEmpty;
       if (_hasAttendance) {
         // Treat 'Present' and 'Late' as attending the class.
@@ -89,9 +96,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       } else {
         _attendancePercentage = 0.0;
       }
-
-      // Fetch Scores
-      final scores = await dbHelper.getStudentAllScores(widget.username);
 
       _subjectGrades.clear();
       double sumOfAverages = 0.0;
@@ -103,6 +107,34 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         String code = s['subject_code'] ?? 'Unknown';
         uniqueSubjects[code] = s;
       }
+
+      // Pre-fetch setups & transmutation tables concurrently for subjects that have scores
+      final periodAliases = DatabaseHelper.getPeriodAliases(gradingPeriod);
+      final Map<String, Future<Map<String, dynamic>?>> setupFutures = {};
+      final Map<String, Future<dynamic>> transFutures = {};
+      for (final code in uniqueSubjects.keys) {
+        final hasSubjScores = scores.any(
+          (s) => s['subject_code'] == code && periodAliases.contains(s['grading_period']?.toString()),
+        );
+        if (hasSubjScores) {
+          setupFutures[code] = dbHelper.getAssessmentSetup(
+            subjectCode: code,
+            sectionName: sectionName,
+            gradeLevel: gradeLevel,
+            gradingPeriod: gradingPeriod,
+          );
+          transFutures[code] = dbHelper.getTransmutationTable(code, sectionName);
+        }
+      }
+
+      final setupEntries = await Future.wait(
+        setupFutures.entries.map((e) async => MapEntry(e.key, await e.value)),
+      );
+      final transEntries = await Future.wait(
+        transFutures.entries.map((e) async => MapEntry(e.key, await e.value)),
+      );
+      final setupsByCode = Map<String, Map<String, dynamic>?>.fromEntries(setupEntries);
+      final transByCode = Map<String, dynamic>.fromEntries(transEntries);
 
       for (var subjectData in uniqueSubjects.values) {
         String subjectName = subjectData['subject_name'] ?? 'Unknown';
@@ -121,20 +153,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         }
 
         // Filter scores
-        final periodAliases = DatabaseHelper.getPeriodAliases(gradingPeriod);
         var subjectScores = scores.where((s) => s['subject_code'] == subjectCode && periodAliases.contains(s['grading_period']?.toString())).toList();
         
         double grade = 0.0;
 
         if (subjectScores.isNotEmpty) {
-          // Fetch Assessment Setup
-          final setup = await dbHelper.getAssessmentSetup(
-            subjectCode: subjectCode,
-            sectionName: sectionName,
-            gradeLevel: gradeLevel,
-            gradingPeriod: gradingPeriod,
-          );
-          final transTable = await dbHelper.getTransmutationTable(subjectCode, sectionName);
+          final setup = setupsByCode[subjectCode];
+          final transTable = transByCode[subjectCode];
 
           if (setup != null) {
             double earned = 0.0;
@@ -610,7 +635,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   Widget _buildDashboardContent() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return SkeletonPresets.dashboard(
+        showBanner: true,
+        statCount: 3,
+        listCount: 4,
+      );
     }
 
     return RefreshIndicator(

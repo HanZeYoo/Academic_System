@@ -9,6 +9,7 @@ import '../utils/avatar_utils.dart';
 import '../utils/dialog_utils.dart';
 import 'add_student_screen.dart';
 import 'student_detail_screen.dart';
+import '../widgets/skeleton_loader.dart';
 
 class StudentManagementScreen extends StatefulWidget {
   const StudentManagementScreen({super.key});
@@ -397,7 +398,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
           // List
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? SkeletonPresets.cardList(itemCount: 6, padding: EdgeInsets.zero)
                 : _students.isEmpty
                     ? Center(
                         child: Column(

@@ -4,6 +4,7 @@ import '../database_helper.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'reports_generation_screen.dart';
 import '../utils/dialog_utils.dart';
+import '../widgets/skeleton_loader.dart';
 class AdminOverviewScreen extends StatefulWidget {
   const AdminOverviewScreen({super.key});
 
@@ -71,16 +72,29 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
     });
 
     try {
-      // Get Total Students
-      final studentsData = await db.getStudents();
-      _totalStudents = studentsData.length;
+      // Fetch all overview datasets concurrently in 1 parallel batch (instead of 3N+ sequential queries)
+      final results = await Future.wait([
+        db.getStudents(),
+        db.getTeachers(),
+        Supabase.instance.client.from('attendance').select('status'),
+        db.getSubjectClasses(),
+        Supabase.instance.client.from('assessment_setups').select().order('created_at', ascending: false),
+        Supabase.instance.client.from('scores').select(),
+        db.getActiveSchoolYear(),
+      ]);
 
-      // Get Total Teachers
-      final teachersData = await db.getTeachers();
+      final studentsData = results[0] as List<Map<String, dynamic>>;
+      final teachersData = results[1] as List<Map<String, dynamic>>;
+      final attendance = List<Map<String, dynamic>>.from(results[2] as List);
+      final classes = results[3] as List<Map<String, dynamic>>;
+      final allSetups = List<Map<String, dynamic>>.from(results[4] as List);
+      final allScores = List<Map<String, dynamic>>.from(results[5] as List);
+      final activeYear = results[6] as String;
+
+      _totalStudents = studentsData.length;
       _totalTeachers = teachersData.length;
 
-      // Get Attendance data
-      final attendance = await Supabase.instance.client.from('attendance').select();
+      // Compute Attendance Percentages
       if (attendance.isNotEmpty) {
         int presentCount = 0;
         int lateCount = 0;
@@ -109,32 +123,59 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
         _absentPercent = 0.0;
       }
 
-      // Calculate Failure Rates
-      final classes = await db.getSubjectClasses();
+      // Pre-index enrolled students by (grade_level|section) for active school year
+      final Map<String, List<Map<String, dynamic>>> studentsBySection = {};
+      for (final s in studentsData) {
+        if (s['enrollment_status']?.toString() != 'Enrolled') continue;
+        final sy = s['school_year']?.toString();
+        if (sy != null && sy.isNotEmpty && sy != activeYear) continue;
+        final key = '${s['grade_level']}|${s['section']}';
+        studentsBySection.putIfAbsent(key, () => []).add(s);
+      }
+
+      // Pre-index setups for _selectedPeriod
+      final periodAliases = DatabaseHelper.getPeriodAliases(_selectedPeriod).toSet();
+      final Map<String, Map<String, dynamic>> setupByClass = {};
+      for (final setup in allSetups) {
+        final gp = setup['grading_period']?.toString() ?? '';
+        if (!periodAliases.contains(gp)) continue;
+        final key = '${setup['subject_code']}|${setup['section_name']}|${setup['grade_level']}';
+        setupByClass.putIfAbsent(key, () => setup);
+      }
+
+      // Pre-index scores for _selectedPeriod by (subject_code|section_name|grade_level)
+      final Map<String, List<Map<String, dynamic>>> scoresByClass = {};
+      for (final r in allScores) {
+        final gp = r['grading_period']?.toString() ?? '';
+        if (!periodAliases.contains(gp)) continue;
+        final key = '${r['subject_code']}|${r['section_name']}|${r['grade_level']}';
+        scoresByClass.putIfAbsent(key, () => []).add(r);
+      }
+
+      // Calculate Subject Mastery Rates in memory
       Map<String, Map<String, int>> subjectStats = {};
-      
+
       for (var c in classes) {
         final subjectCode = c['subject_code'].toString();
         final subjectName = c['subject_name'].toString();
         final gradeLevel = c['grade_level'].toString();
         final section = c['section_name'].toString();
 
-        final students = await db.getStudentsBySection(gradeLevel, section);
+        final students = studentsBySection['$gradeLevel|$section'] ?? const [];
         if (students.isEmpty) continue;
 
-        final setup = await db.getAssessmentSetup(
-          subjectCode: subjectCode,
-          sectionName: section,
-          gradeLevel: gradeLevel,
-          gradingPeriod: _selectedPeriod,
-        );
+        final classKey = '$subjectCode|$section|$gradeLevel';
+        final setup = setupByClass[classKey];
+        final scores = scoresByClass[classKey] ?? const [];
 
-        final scores = await db.getScoresForClass(
-          subjectCode: subjectCode,
-          sectionName: section,
-          gradeLevel: gradeLevel,
-          gradingPeriod: _selectedPeriod,
-        );
+        // Group class scores by student_id
+        final Map<String, List<Map<String, dynamic>>> scoresByStudent = {};
+        for (final r in scores) {
+          final sid = r['student_id']?.toString() ?? '';
+          if (sid.isNotEmpty) {
+            scoresByStudent.putIfAbsent(sid, () => []).add(r);
+          }
+        }
 
         if (!subjectStats.containsKey(subjectName)) {
           subjectStats[subjectName] = {'total': 0, 'failed': 0};
@@ -142,58 +183,52 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
 
         for (var s in students) {
           final studentId = s['student_id'].toString();
+          final stScores = scoresByStudent[studentId] ?? const [];
+          if (stScores.isEmpty) continue;
+
           double grade = 0.0;
-          
+
           if (setup != null) {
             final wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 30;
             final wPT = (setup['pt_weight'] as num?)?.toDouble() ?? 50;
             final wTE = (setup['te_weight'] as num?)?.toDouble() ?? 20;
 
-            final wwAvg = _categoryAvg(studentId, 'Written Works', scores);
-            final ptAvg = _categoryAvg(studentId, 'Performance Tasks', scores);
-            final teAvg = _categoryAvg(studentId, 'Term Exams', scores);
-
-            if (wwAvg == 0 && ptAvg == 0 && teAvg == 0) {
-              if (scores.where((r) => r['student_id'].toString() == studentId).isEmpty) continue;
-            }
+            final wwAvg = _categoryAvg(studentId, 'Written Works', stScores);
+            final ptAvg = _categoryAvg(studentId, 'Performance Tasks', stScores);
+            final teAvg = _categoryAvg(studentId, 'Term Exams', stScores);
 
             double totalWeight = 0;
             double earned = 0;
-            
-            bool hasWW = scores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'written works');
-            bool hasPT = scores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'performance tasks');
-            bool hasTE = scores.any((r) => r['student_id'].toString() == studentId && r['category'].toString().toLowerCase() == 'term exams');
+
+            bool hasWW = stScores.any((r) => r['category'].toString().toLowerCase() == 'written works');
+            bool hasPT = stScores.any((r) => r['category'].toString().toLowerCase() == 'performance tasks');
+            bool hasTE = stScores.any((r) => r['category'].toString().toLowerCase() == 'term exams');
 
             if (hasWW) { earned += wwAvg * (wWW / 100); totalWeight += (wWW / 100); }
             if (hasPT) { earned += ptAvg * (wPT / 100); totalWeight += (wPT / 100); }
             if (hasTE) { earned += teAvg * (wTE / 100); totalWeight += (wTE / 100); }
 
             if (totalWeight > 0) {
-               double initialGrade = earned / totalWeight;
-               grade = DatabaseHelper().transmuteGrade(initialGrade);
+              double initialGrade = earned / totalWeight;
+              grade = db.transmuteGrade(initialGrade);
             }
           } else {
-             final stScores = scores.where((r) => r['student_id'].toString() == studentId).toList();
-             if (stScores.isNotEmpty) {
-                double total = 0, max = 0;
-                for (final r in stScores) {
-                  total += (r['score'] as num?)?.toDouble() ?? 0;
-                  max += (r['total_score'] as num?)?.toDouble() ?? 0;
-                }
-                if (max > 0) {
-                   double initialGrade = (total / max) * 100;
-                   grade = DatabaseHelper().transmuteGrade(initialGrade);
-                }
-             } else {
-                continue;
-             }
+            double total = 0, max = 0;
+            for (final r in stScores) {
+              total += (r['score'] as num?)?.toDouble() ?? 0;
+              max += (r['total_score'] as num?)?.toDouble() ?? 0;
+            }
+            if (max > 0) {
+              double initialGrade = (total / max) * 100;
+              grade = db.transmuteGrade(initialGrade);
+            }
           }
 
           if (grade > 0) {
-             subjectStats[subjectName]!['total'] = subjectStats[subjectName]!['total']! + 1;
-             if (grade < 75) {
-                subjectStats[subjectName]!['failed'] = subjectStats[subjectName]!['failed']! + 1;
-             }
+            subjectStats[subjectName]!['total'] = subjectStats[subjectName]!['total']! + 1;
+            if (grade < 75) {
+              subjectStats[subjectName]!['failed'] = subjectStats[subjectName]!['failed']! + 1;
+            }
           }
         }
       }
@@ -212,12 +247,11 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
         }
       });
       _subjectMasteryRates.sort((a, b) => (b['rate'] as double).compareTo(a['rate'] as double));
-      
-      // Calculate Trend Data (Q1, Q2, Q3, Q4)
+
+      // Calculate Trend Data (1st Term, 2nd Term, 3rd Term) from already-fetched allScores
       List<String> quarters = ['1st Term', '2nd Term', '3rd Term'];
       _trendData.clear();
-      final allScores = await Supabase.instance.client.from('scores').select();
-      
+
       for (String q in quarters) {
         final scoresQ = allScores.where((r) => r['grading_period'] == q).toList();
         if (scoresQ.isEmpty) {
@@ -255,7 +289,13 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return SkeletonPresets.dashboard(
+        showBanner: false,
+        statCount: 2,
+        showChart: true,
+        listCount: 3,
+        padding: const EdgeInsets.all(16),
+      );
     }
 
     return RefreshIndicator(

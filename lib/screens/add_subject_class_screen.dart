@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../widgets/skeleton_loader.dart';
 
 class AddSubjectClassScreen extends StatefulWidget {
   final Map<String, dynamic>? subjectClassToEdit;
@@ -479,7 +480,7 @@ class _AddSubjectClassScreenState extends State<AddSubjectClassScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _isLoadingTeachers
-                              ? const Center(child: CircularProgressIndicator())
+                              ? SkeletonPresets.inlineField()
                               : _buildDropdown(
                                   label: 'Assigned Teacher',
                                   hint: teacherNames.isEmpty ? 'No teachers found' : 'Select teacher',

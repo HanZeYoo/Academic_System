@@ -4,12 +4,58 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:academic_system/models/ecr_transmutation_model.dart';
 
+class _TimedCacheEntry<T> {
+  final T value;
+  final DateTime expiresAt;
+  const _TimedCacheEntry(this.value, this.expiresAt);
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
+}
+
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
 
   factory DatabaseHelper() => _instance;
 
   DatabaseHelper._internal();
+
+  // ── Short-lived In-Memory TTL Caches ─────────────────────────────────────
+  static const Duration _schoolYearCacheTtl = Duration(minutes: 5);
+  static const Duration _entityCacheTtl = Duration(minutes: 2);
+
+  _TimedCacheEntry<String>? _activeSchoolYearCache;
+  _TimedCacheEntry<List<String>>? _allSchoolYearsCache;
+  final Map<String, _TimedCacheEntry<Map<String, dynamic>?>> _studentEmailCache = {};
+  final Map<String, _TimedCacheEntry<Map<String, dynamic>?>> _teacherEmailCache = {};
+  final Map<String, _TimedCacheEntry<Map<String, dynamic>?>> _assessmentSetupCache = {};
+
+  /// Clears all cached metadata and entity lookups (e.g., on logout or user switch).
+  void clearCache() {
+    _activeSchoolYearCache = null;
+    _allSchoolYearsCache = null;
+    _studentEmailCache.clear();
+    _teacherEmailCache.clear();
+    _assessmentSetupCache.clear();
+  }
+
+  void invalidateStudentCache([String? email]) {
+    if (email != null) {
+      _studentEmailCache.remove(email.trim().toLowerCase());
+    } else {
+      _studentEmailCache.clear();
+    }
+  }
+
+  void invalidateTeacherCache([String? email]) {
+    if (email != null) {
+      _teacherEmailCache.remove(email.trim().toLowerCase());
+    } else {
+      _teacherEmailCache.clear();
+    }
+  }
+
+  void invalidateAssessmentSetupCache() {
+    _assessmentSetupCache.clear();
+  }
 
   String _hashPassword(String password) {
     final bytes = utf8.encode(password);
@@ -140,6 +186,8 @@ class DatabaseHelper {
         print('Error updating user email via RPC (Student): $e');
       }
     }
+    invalidateStudentCache(oldEmail);
+    invalidateStudentCache(email);
   }
 
   // Complete student profile on first login
@@ -165,6 +213,7 @@ class DatabaseHelper {
       'parent_email': parentEmail,
       'address': address,
     }).eq('email', studentEmail);
+    invalidateStudentCache(studentEmail);
   }
 
   // Generate parent account manually
@@ -413,8 +462,16 @@ class DatabaseHelper {
     await Supabase.instance.client.from('students').delete().eq('id', id);
   }
 
-  // Get a single student by email
-  Future<Map<String, dynamic>?> getStudentByEmail(String email) async {
+  // Get a single student by email (with short-lived TTL cache)
+  Future<Map<String, dynamic>?> getStudentByEmail(String email, {bool forceRefresh = false}) async {
+    final key = email.trim().toLowerCase();
+    if (!forceRefresh && key.isNotEmpty) {
+      final cached = _studentEmailCache[key];
+      if (cached != null && !cached.isExpired) {
+        return cached.value != null ? Map<String, dynamic>.from(cached.value!) : null;
+      }
+    }
+
     final results = await Supabase.instance.client.from('students').select().eq('email', email).limit(1);
     if (results.isNotEmpty) {
       final map = Map<String, dynamic>.from(results.first);
@@ -427,7 +484,16 @@ class DatabaseHelper {
           }
         } catch (_) {}
       }
+      if (key.isNotEmpty) {
+        _studentEmailCache[key] = _TimedCacheEntry(
+          Map<String, dynamic>.from(map),
+          DateTime.now().add(_entityCacheTtl),
+        );
+      }
       return map;
+    }
+    if (key.isNotEmpty) {
+      _studentEmailCache[key] = _TimedCacheEntry(null, DateTime.now().add(_entityCacheTtl));
     }
     return null;
   }
@@ -475,6 +541,7 @@ class DatabaseHelper {
         await prefs.setString('profile_pic_student_$email', imagePath);
       }
     } catch (_) {}
+    invalidateStudentCache(email);
   }
 
   // Get student schedule based on enrolled grade level and section
@@ -779,18 +846,19 @@ class DatabaseHelper {
   // Calculate General Average for a student (Using Official K-12 Formula)
   Future<Map<String, dynamic>> getStudentGradesSummary(String studentId) async {
     double lowestGrade = 100.0;
-    final rawScores = await getScoresByStudentId(studentId);
-    if (rawScores.isEmpty) return {'average': 'N/A', 'lowest_grade': 100.0};
+    final initialResults = await Future.wait([
+      getScoresByStudentId(studentId),
+      Supabase.instance.client.from('students').select().eq('student_id', studentId).limit(1),
+    ]);
 
-    final studentQuery = await Supabase.instance.client.from('students')
-        .select()
-        .eq('student_id', studentId)
-        .limit(1);
-    
-    if (studentQuery.isEmpty) return {'average': 'N/A', 'lowest_grade': 100.0};
+    final rawScores = initialResults[0];
+    final studentQuery = initialResults[1];
+    if (rawScores.isEmpty || studentQuery.isEmpty) {
+      return {'average': 'N/A', 'lowest_grade': 100.0};
+    }
+
     final gradeLevel = studentQuery[0]['grade_level'].toString();
     final section = studentQuery[0]['section'].toString();
-    final className = '$gradeLevel - $section';
 
     // Group scores by subject_code and grading_period
     Map<String, Map<String, List<Map<String, dynamic>>>> groupedScores = {};
@@ -805,16 +873,56 @@ class DatabaseHelper {
 
     if (groupedScores.isEmpty) return {'average': 'N/A', 'lowest_grade': 100.0};
 
+    // Batch-fetch attendance across all subjects and pre-fetch setups/transmutation tables concurrently
+    final subjList = groupedScores.keys.toList();
+    final subjClassNames = subjList.map((subj) => '$subj - $gradeLevel - $section').toList();
+
+    final attendanceFuture = Supabase.instance.client
+        .from('attendance')
+        .select('class_name, date, student_id, status')
+        .inFilter('class_name', subjClassNames);
+
+    final setupFutures = <String, Future<Map<String, dynamic>?>>{};
+    final transFutures = <String, Future<EcrTransmutationTable?>>{};
+    for (final subj in subjList) {
+      transFutures[subj] = getTransmutationTable(subj, section);
+      for (final period in groupedScores[subj]!.keys) {
+        setupFutures['$subj|$period'] = getAssessmentSetup(
+          subjectCode: subj,
+          sectionName: section,
+          gradeLevel: gradeLevel,
+          gradingPeriod: period,
+        );
+      }
+    }
+
+    final allAttendanceRows = List<Map<String, dynamic>>.from(await attendanceFuture as List);
+    final setupEntries = await Future.wait(
+      setupFutures.entries.map((e) async => MapEntry(e.key, await e.value)),
+    );
+    final transEntries = await Future.wait(
+      transFutures.entries.map((e) async => MapEntry(e.key, await e.value)),
+    );
+
+    final setupsByKey = Map<String, Map<String, dynamic>?>.fromEntries(setupEntries);
+    final transBySubj = Map<String, EcrTransmutationTable?>.fromEntries(transEntries);
+
+    final Map<String, List<Map<String, dynamic>>> attendanceByClass = {};
+    for (final row in allAttendanceRows) {
+      final cn = row['class_name']?.toString() ?? '';
+      attendanceByClass.putIfAbsent(cn, () => []).add(row);
+    }
+
     double sumFinals = 0;
     int countFinals = 0;
 
-    for (var subj in groupedScores.keys) {
+    for (var subj in subjList) {
       double sumQ = 0;
       int countQ = 0;
 
       // Compute attendance specific to this subject
       final subjClassName = '$subj - $gradeLevel - $section';
-      final subjAttendance = await getAttendanceForClass(subjClassName);
+      final subjAttendance = attendanceByClass[subjClassName] ?? const [];
       final uniqueDates = subjAttendance.map((r) => r['date'].toString()).toSet();
       final totalClassDays = uniqueDates.length;
 
@@ -830,16 +938,11 @@ class DatabaseHelper {
         attendancePct = (points / totalClassDays) * 100;
       }
 
+      final transTable = transBySubj[subj];
+
       for (var period in groupedScores[subj]!.keys) {
         final scores = groupedScores[subj]![period]!;
-        
-        final setup = await getAssessmentSetup(
-          subjectCode: subj,
-          sectionName: section,
-          gradeLevel: gradeLevel,
-          gradingPeriod: period,
-        );
-        final transTable = await getTransmutationTable(subj, section);
+        final setup = setupsByKey['$subj|$period'];
 
         if (setup != null) {
           // Calculate weighted grade using setup
@@ -996,15 +1099,19 @@ class DatabaseHelper {
         return activeAliases.contains(label);
       }).toList();
 
-      // If orphaned items are detected, prune them from the database in the background
+      // If orphaned items are detected, prune them from the database in a single batch call
       if (filtered.length < rawScores.length) {
         final orphanedIds = rawScores
             .where((r) => !activeAliases.contains((r['item_label']?.toString() ?? '').toLowerCase().trim()))
             .map((r) => r['id'])
             .where((id) => id != null)
             .toList();
-        for (final id in orphanedIds) {
-          Supabase.instance.client.from('scores').delete().eq('id', id).then((_) {}, onError: (_) {});
+        if (orphanedIds.isNotEmpty) {
+          Supabase.instance.client
+              .from('scores')
+              .delete()
+              .inFilter('id', orphanedIds)
+              .then((_) {}, onError: (_) {});
         }
       }
 
@@ -1075,22 +1182,59 @@ class DatabaseHelper {
             .where((id) => id != null)
             .toList();
 
-        for (final id in orphanedIds) {
-          await Supabase.instance.client.from('scores').delete().eq('id', id);
+        if (orphanedIds.isNotEmpty) {
+          await Supabase.instance.client
+              .from('scores')
+              .delete()
+              .inFilter('id', orphanedIds);
         }
       }
     } catch (e) {
       print('Note: saveAssessmentSetup score pruning: $e');
     }
+    invalidateAssessmentSetupCache();
   }
 
-  // Get assessment setup for a specific class and period
+  String _assessmentSetupCacheKey({
+    required String subjectCode,
+    required String sectionName,
+    required String gradeLevel,
+    required String gradingPeriod,
+  }) {
+    final pLower = gradingPeriod.toLowerCase().trim();
+    final pNorm = pLower.contains('1st') || pLower.contains('q1')
+        ? 'q1'
+        : (pLower.contains('2nd') || pLower.contains('q2')
+            ? 'q2'
+            : (pLower.contains('3rd') || pLower.contains('q3')
+                ? 'q3'
+                : (pLower.contains('4th') || pLower.contains('q4')
+                    ? 'q4'
+                    : pLower)));
+    return '${subjectCode.trim().toLowerCase()}|${sectionName.trim().toLowerCase()}|${gradeLevel.trim().toLowerCase()}|$pNorm';
+  }
+
+  // Get assessment setup for a specific class and period (with short-lived TTL cache)
   Future<Map<String, dynamic>?> getAssessmentSetup({
     required String subjectCode,
     required String sectionName,
     required String gradeLevel,
     required String gradingPeriod,
+    bool forceRefresh = false,
   }) async {
+    final cacheKey = _assessmentSetupCacheKey(
+      subjectCode: subjectCode,
+      sectionName: sectionName,
+      gradeLevel: gradeLevel,
+      gradingPeriod: gradingPeriod,
+    );
+    if (!forceRefresh) {
+      final cached = _assessmentSetupCache[cacheKey];
+      if (cached != null && !cached.isExpired) {
+        return cached.value != null ? Map<String, dynamic>.from(cached.value!) : null;
+      }
+    }
+
     final aliases = getPeriodAliases(gradingPeriod);
     final results = await Supabase.instance.client.from('assessment_setups')
         .select()
@@ -1100,7 +1244,12 @@ class DatabaseHelper {
         .inFilter('grading_period', aliases)
         .order('created_at', ascending: false)
         .limit(1);
-    return results.isNotEmpty ? results.first as Map<String, dynamic> : null;
+    final map = results.isNotEmpty ? Map<String, dynamic>.from(results.first) : null;
+    _assessmentSetupCache[cacheKey] = _TimedCacheEntry(
+      map != null ? Map<String, dynamic>.from(map) : null,
+      DateTime.now().add(_entityCacheTtl),
+    );
+    return map;
   }
 
   // Add Subject / Class
@@ -1204,8 +1353,16 @@ class DatabaseHelper {
     }
   }
 
-  // Get teacher record by email (used as login username)
-  Future<Map<String, dynamic>?> getTeacherByEmail(String email) async {
+  // Get teacher record by email (used as login username) with short-lived TTL cache
+  Future<Map<String, dynamic>?> getTeacherByEmail(String email, {bool forceRefresh = false}) async {
+    final key = email.trim().toLowerCase();
+    if (!forceRefresh && key.isNotEmpty) {
+      final cached = _teacherEmailCache[key];
+      if (cached != null && !cached.isExpired) {
+        return cached.value != null ? Map<String, dynamic>.from(cached.value!) : null;
+      }
+    }
+
     final results = await Supabase.instance.client.from('teachers').select().eq('email', email).limit(1);
     if (results.isNotEmpty) {
       final map = Map<String, dynamic>.from(results.first);
@@ -1218,7 +1375,16 @@ class DatabaseHelper {
           }
         } catch (_) {}
       }
+      if (key.isNotEmpty) {
+        _teacherEmailCache[key] = _TimedCacheEntry(
+          Map<String, dynamic>.from(map),
+          DateTime.now().add(_entityCacheTtl),
+        );
+      }
       return map;
+    }
+    if (key.isNotEmpty) {
+      _teacherEmailCache[key] = _TimedCacheEntry(null, DateTime.now().add(_entityCacheTtl));
     }
     return null;
   }
@@ -1332,6 +1498,7 @@ class DatabaseHelper {
         await prefs.setString('profile_pic_teacher_$email', imagePath);
       }
     } catch (_) {}
+    invalidateTeacherCache(email);
   }
 
   // Admin Profile Picture
@@ -1397,6 +1564,8 @@ class DatabaseHelper {
         print('Error updating user email via RPC (Teacher): $e');
       }
     }
+    invalidateTeacherCache(oldEmail);
+    invalidateTeacherCache(email);
   }
 
   // Delete a teacher
@@ -1478,52 +1647,43 @@ class DatabaseHelper {
     int purgedSubjects = 0;
 
     try {
-      // 1. Expired students
+      // 1. Expired students (batch delete)
       final expStudents = await Supabase.instance.client
           .from('students')
           .select('id')
           .eq('is_active', 0)
           .not('deleted_at', 'is', null)
           .lte('deleted_at', cutoffIso);
-      for (final item in expStudents) {
-        try {
-          await Supabase.instance.client.from('students').delete().eq('id', item['id']);
-          purgedStudents++;
-        } catch (e) {
-          print('Error deleting expired student ${item['id']}: $e');
-        }
+      final studentIds = expStudents.map((e) => e['id']).where((id) => id != null).toList();
+      if (studentIds.isNotEmpty) {
+        await Supabase.instance.client.from('students').delete().inFilter('id', studentIds);
+        purgedStudents = studentIds.length;
       }
 
-      // 2. Expired teachers
+      // 2. Expired teachers (batch delete)
       final expTeachers = await Supabase.instance.client
           .from('teachers')
           .select('id')
           .eq('is_active', 0)
           .not('deleted_at', 'is', null)
           .lte('deleted_at', cutoffIso);
-      for (final item in expTeachers) {
-        try {
-          await Supabase.instance.client.from('teachers').delete().eq('id', item['id']);
-          purgedTeachers++;
-        } catch (e) {
-          print('Error deleting expired teacher ${item['id']}: $e');
-        }
+      final teacherIds = expTeachers.map((e) => e['id']).where((id) => id != null).toList();
+      if (teacherIds.isNotEmpty) {
+        await Supabase.instance.client.from('teachers').delete().inFilter('id', teacherIds);
+        purgedTeachers = teacherIds.length;
       }
 
-      // 3. Expired subjects
+      // 3. Expired subjects (batch delete)
       final expSubjects = await Supabase.instance.client
           .from('subjects_classes')
           .select('id')
           .eq('is_active', 0)
           .not('deleted_at', 'is', null)
           .lte('deleted_at', cutoffIso);
-      for (final item in expSubjects) {
-        try {
-          await Supabase.instance.client.from('subjects_classes').delete().eq('id', item['id']);
-          purgedSubjects++;
-        } catch (e) {
-          print('Error deleting expired subject ${item['id']}: $e');
-        }
+      final subjectIds = expSubjects.map((e) => e['id']).where((id) => id != null).toList();
+      if (subjectIds.isNotEmpty) {
+        await Supabase.instance.client.from('subjects_classes').delete().inFilter('id', subjectIds);
+        purgedSubjects = subjectIds.length;
       }
 
       if (purgedStudents > 0 || purgedTeachers > 0 || purgedSubjects > 0) {
@@ -1589,6 +1749,67 @@ class DatabaseHelper {
     }
   }
 
+  /// Saves or updates an entire class's attendance for a date in 2-3 batch queries
+  /// instead of 2N sequential queries.
+  Future<void> batchSaveAttendance(
+    List<Map<String, dynamic>> records, {
+    required String className,
+    required String date,
+  }) async {
+    if (records.isEmpty) return;
+    final activeYear = await getActiveSchoolYear();
+
+    final existing = await Supabase.instance.client
+        .from('attendance')
+        .select('id, student_id')
+        .eq('class_name', className)
+        .eq('date', date)
+        .eq('school_year', activeYear);
+
+    final Map<String, dynamic> existingIdByStudent = {};
+    for (final row in existing) {
+      final sid = row['student_id']?.toString() ?? '';
+      if (sid.isNotEmpty && row['id'] != null) {
+        existingIdByStudent[sid] = row['id'];
+      }
+    }
+
+    final List<Map<String, dynamic>> toUpdate = [];
+    final List<Map<String, dynamic>> toInsert = [];
+
+    for (final rec in records) {
+      final copy = Map<String, dynamic>.from(rec);
+      copy['school_year'] ??= activeYear;
+      final sid = copy['student_id']?.toString() ?? '';
+      if (existingIdByStudent.containsKey(sid)) {
+        copy['id'] = existingIdByStudent[sid];
+        toUpdate.add(copy);
+      } else {
+        toInsert.add(copy);
+      }
+    }
+
+    if (toUpdate.isNotEmpty) {
+      try {
+        await Supabase.instance.client.from('attendance').upsert(toUpdate);
+      } catch (_) {
+        await Future.wait(
+          toUpdate.map((row) => Supabase.instance.client.from('attendance').update(row).eq('id', row['id'])),
+        );
+      }
+    }
+
+    if (toInsert.isNotEmpty) {
+      try {
+        await Supabase.instance.client.from('attendance').insert(toInsert);
+      } catch (_) {
+        await Future.wait(
+          toInsert.map((row) => Supabase.instance.client.from('attendance').insert(row)),
+        );
+      }
+    }
+  }
+
   // Get attendance for a specific class and date
   Future<List<Map<String, dynamic>>> getAttendanceForClassAndDate(String className, String date) async {
     final results = await Supabase.instance.client.from('attendance')
@@ -1614,46 +1835,65 @@ class DatabaseHelper {
     return List<Map<String, dynamic>>.from(results);
   }
 
-  // Get average attendance for a teacher's classes
+  // Get average attendance for a teacher's classes (single .inFilter query)
   Future<String> getAverageAttendanceForTeacher(String teacherName) async {
     final classes = await getSubjectClassesByTeacher(teacherName);
     if (classes.isEmpty) return '0%';
 
-    int totalRecords = 0;
-    int presentRecords = 0;
+    final classNames = classes
+        .map((c) => '${c['subject_code']} - ${c['grade_level']} - ${c['section_name']}')
+        .toSet()
+        .toList();
 
-    for (var c in classes) {
-      final className = '${c['subject_code']} - ${c['grade_level']} - ${c['section_name']}';
-      final records = await getAttendanceForClass(className);
-      totalRecords += records.length;
-      presentRecords += records.where((r) => r['status'] == 'Present' || r['status'] == 'Late').length;
+    final results = await Supabase.instance.client
+        .from('attendance')
+        .select('status')
+        .inFilter('class_name', classNames);
+
+    if (results.isEmpty) return '0%';
+
+    final int totalRecords = results.length;
+    int presentRecords = 0;
+    for (final r in results) {
+      final status = r['status'];
+      if (status == 'Present' || status == 'Late') {
+        presentRecords++;
+      }
     }
 
-    if (totalRecords == 0) return '0%';
     final pct = (presentRecords / totalRecords) * 100;
     return '${pct.toStringAsFixed(1)}%';
   }
 
-  // Get teacher stats (Total Classes, Total Students)
+  // Get teacher stats (Total Classes, Total Students) in parallel
   Future<Map<String, int>> getTeacherStats(String teacherName) async {
     final classes = await getSubjectClassesByTeacher(teacherName);
-    int totalClasses = classes.length;
-    
-    Set<String> uniqueStudents = {};
-    for (var c in classes) {
+    final int totalClasses = classes.length;
+
+    final Set<String> seenSections = {};
+    final List<Future<List<Map<String, dynamic>>>> sectionFutures = [];
+    for (final c in classes) {
       final gradeLevel = c['grade_level']?.toString() ?? '';
       final section = c['section_name']?.toString() ?? '';
       if (gradeLevel.isNotEmpty && section.isNotEmpty) {
-        final students = await getStudentsBySection(gradeLevel, section);
-        for (var s in students) {
-          final sId = s['student_id']?.toString() ?? '';
-          if (sId.isNotEmpty) {
-            uniqueStudents.add(sId);
-          }
+        final key = '$gradeLevel|$section';
+        if (seenSections.add(key)) {
+          sectionFutures.add(getStudentsBySection(gradeLevel, section));
         }
       }
     }
-    
+
+    final sectionLists = await Future.wait(sectionFutures);
+    final Set<String> uniqueStudents = {};
+    for (final students in sectionLists) {
+      for (final s in students) {
+        final sId = s['student_id']?.toString() ?? '';
+        if (sId.isNotEmpty) {
+          uniqueStudents.add(sId);
+        }
+      }
+    }
+
     return {
       'totalClasses': totalClasses,
       'totalStudents': uniqueStudents.length,
@@ -1731,6 +1971,57 @@ class DatabaseHelper {
     };
   }
 
+  /// Batch version of [getStudentAttendanceStats] — fetches attendance stats for
+  /// multiple students in a single `.inFilter('student_id', ...)` query.
+  Future<Map<String, Map<String, dynamic>>> getBatchStudentAttendanceStats(
+    List<String> studentIds, [
+    String? schoolYear,
+  ]) async {
+    final Map<String, Map<String, dynamic>> out = {};
+    if (studentIds.isEmpty) return out;
+    final year = schoolYear ?? await getActiveSchoolYear();
+
+    final results = await Supabase.instance.client
+        .from('attendance')
+        .select('student_id, status')
+        .inFilter('student_id', studentIds)
+        .eq('school_year', year);
+
+    final Map<String, Map<String, int>> counts = {};
+    for (final r in results) {
+      final sid = r['student_id']?.toString() ?? '';
+      if (sid.isEmpty) continue;
+      final c = counts.putIfAbsent(sid, () => {'total': 0, 'present': 0, 'late': 0, 'absent': 0});
+      c['total'] = c['total']! + 1;
+      final status = r['status'];
+      if (status == 'Present') c['present'] = c['present']! + 1;
+      else if (status == 'Late') c['late'] = c['late']! + 1;
+      else if (status == 'Absent') c['absent'] = c['absent']! + 1;
+    }
+
+    for (final sid in studentIds) {
+      final c = counts[sid];
+      if (c == null || c['total'] == 0) {
+        out[sid] = {'total': 0, 'present': 0, 'late': 0, 'absent': 0, 'percentage': 'No Data'};
+      } else {
+        final total = c['total']!;
+        final present = c['present']!;
+        final late = c['late']!;
+        final absent = c['absent']!;
+        final pct = ((present + late) / total) * 100;
+        out[sid] = {
+          'total': total,
+          'present': present,
+          'late': late,
+          'absent': absent,
+          'percentage': '${pct.toStringAsFixed(1)}%',
+          'present_pct': pct,
+        };
+      }
+    }
+    return out;
+  }
+
   // Get Announcements
   Future<List<Map<String, dynamic>>> getAnnouncements(String? username, {String? role}) async {
     if (role == 'student' && username != null) {
@@ -1781,6 +2072,11 @@ class DatabaseHelper {
   Future<int> insertNotification(Map<String, dynamic> notification) async {
     await Supabase.instance.client.from('notifications').insert(notification);
     return 1;
+  }
+
+  Future<void> insertNotificationsBatch(List<Map<String, dynamic>> notifications) async {
+    if (notifications.isEmpty) return;
+    await Supabase.instance.client.from('notifications').insert(notifications);
   }
 
   Future<List<Map<String, dynamic>>> getNotificationsForUser(String username) async {
@@ -1861,25 +2157,37 @@ class DatabaseHelper {
     }
   }
   // --- SCHOOL YEAR MANAGEMENT ---
-  Future<String> getActiveSchoolYear() async {
+  Future<String> getActiveSchoolYear({bool forceRefresh = false}) async {
+    if (!forceRefresh && _activeSchoolYearCache != null && !_activeSchoolYearCache!.isExpired) {
+      return _activeSchoolYearCache!.value;
+    }
     try {
       final results = await Supabase.instance.client.from('school_years')
-          .select()
+          .select('year_label')
           .eq('is_active', true)
           .limit(1);
-      if (results.isNotEmpty) return results.first['year_label'].toString();
+      if (results.isNotEmpty) {
+        final year = results.first['year_label'].toString();
+        _activeSchoolYearCache = _TimedCacheEntry(year, DateTime.now().add(_schoolYearCacheTtl));
+        return year;
+      }
     } catch (e) {
       print('Error getting active school year: $e');
     }
     return 'S.Y. 2025-2026'; // Fallback
   }
 
-  Future<List<String>> getAllSchoolYears() async {
+  Future<List<String>> getAllSchoolYears({bool forceRefresh = false}) async {
+    if (!forceRefresh && _allSchoolYearsCache != null && !_allSchoolYearsCache!.isExpired) {
+      return List<String>.from(_allSchoolYearsCache!.value);
+    }
     try {
       final results = await Supabase.instance.client.from('school_years')
           .select('year_label')
           .order('id', ascending: false);
-      return results.map((e) => e['year_label'].toString()).toList();
+      final years = results.map((e) => e['year_label'].toString()).toList();
+      _allSchoolYearsCache = _TimedCacheEntry(years, DateTime.now().add(_schoolYearCacheTtl));
+      return List<String>.from(years);
     } catch (e) {
       print('Error getting all school years: $e');
       return ['S.Y. 2025-2026'];
@@ -1891,6 +2199,7 @@ class DatabaseHelper {
       'year_label': yearLabel,
       'is_active': false,
     });
+    _allSchoolYearsCache = null;
   }
 
   Future<void> setActiveSchoolYear(String yearLabel) async {
@@ -1898,6 +2207,8 @@ class DatabaseHelper {
     await Supabase.instance.client.from('school_years').update({'is_active': false}).neq('id', 0);
     // Set specific to true
     await Supabase.instance.client.from('school_years').update({'is_active': true}).eq('year_label', yearLabel);
+    _activeSchoolYearCache = _TimedCacheEntry(yearLabel, DateTime.now().add(_schoolYearCacheTtl));
+    _allSchoolYearsCache = null;
   }
 
   // --- ENROLLMENT & YEAR-END ROLLOVER ---
@@ -1925,36 +2236,44 @@ class DatabaseHelper {
   }
 
   /// Preview rollover — returns a list of student promotion previews
-  /// without actually making any changes.
+  /// without actually making any changes (bulk fetches scores in one pass).
   Future<List<Map<String, dynamic>>> previewRollover() async {
     final activeYear = await getActiveSchoolYear();
-    final students = await Supabase.instance.client
-        .from('students')
-        .select()
-        .eq('is_active', 1)
-        .inFilter('enrollment_status', ['Enrolled', 'Not Enrolled'])
-        .order('grade_level', ascending: true);
+
+    final results = await Future.wait([
+      Supabase.instance.client
+          .from('students')
+          .select()
+          .eq('is_active', 1)
+          .inFilter('enrollment_status', ['Enrolled', 'Not Enrolled'])
+          .order('grade_level', ascending: true),
+      Supabase.instance.client
+          .from('scores')
+          .select('student_id, subject_code, score, total_score')
+          .eq('school_year', activeYear),
+    ]);
+
+    final students = List<Map<String, dynamic>>.from(results[0] as List);
+    final allScores = List<Map<String, dynamic>>.from(results[1] as List);
+
+    // Group scores by student_id -> subject_code in memory
+    final Map<String, Map<String, List<Map<String, dynamic>>>> scoresByStudentSubject = {};
+    for (final s in allScores) {
+      final sid = s['student_id']?.toString() ?? '';
+      final subj = s['subject_code']?.toString() ?? '';
+      if (sid.isEmpty || subj.isEmpty) continue;
+      scoresByStudentSubject
+          .putIfAbsent(sid, () => {})
+          .putIfAbsent(subj, () => [])
+          .add(s);
+    }
 
     final List<Map<String, dynamic>> previews = [];
 
     for (final student in students) {
       final studentId = student['student_id']?.toString() ?? '';
       final gradeLevel = student['grade_level']?.toString() ?? '';
-
-      // Get all scores for this student in active year
-      final scores = await Supabase.instance.client
-          .from('scores')
-          .select()
-          .eq('student_id', studentId)
-          .eq('school_year', activeYear);
-
-      // Group by subject
-      final Map<String, List<Map<String, dynamic>>> bySubject = {};
-      for (final s in scores) {
-        final subj = s['subject_code']?.toString() ?? '';
-        bySubject.putIfAbsent(subj, () => []);
-        bySubject[subj]!.add(s);
-      }
+      final bySubject = scoresByStudentSubject[studentId] ?? const {};
 
       double totalAvg = 0;
       int subjectCount = 0;
@@ -1997,7 +2316,7 @@ class DatabaseHelper {
   }
 
   /// Perform the actual End of School Year rollover.
-  /// Creates new school year, updates grade levels, sets enrollment to Not Enrolled.
+  /// Creates new school year, updates grade levels concurrently in batches, sets enrollment to Not Enrolled.
   Future<void> performYearEndRollover({
     required String newSchoolYear,
     required List<Map<String, dynamic>> previewData,
@@ -2006,29 +2325,37 @@ class DatabaseHelper {
     await addSchoolYear(newSchoolYear);
     await setActiveSchoolYear(newSchoolYear);
 
-    // 2. Process each student
-    for (final preview in previewData) {
-      final studentId = preview['student_id'];
-      final promotionStatus = preview['promotion_status'];
-      final nextGrade = preview['next_grade_level'];
+    // 2. Process students concurrently in bounded batches to avoid connection spikes
+    const int batchSize = 20;
+    for (int i = 0; i < previewData.length; i += batchSize) {
+      final chunk = previewData.sublist(
+        i,
+        (i + batchSize > previewData.length) ? previewData.length : i + batchSize,
+      );
+      await Future.wait(chunk.map((preview) {
+        final studentId = preview['student_id'];
+        final promotionStatus = preview['promotion_status'];
+        final nextGrade = preview['next_grade_level'];
 
-      final updateData = <String, dynamic>{
-        'promotion_status': promotionStatus,
-        'section': '', // Clear section for all
-      };
+        final updateData = <String, dynamic>{
+          'promotion_status': promotionStatus,
+          'section': '', // Clear section for all
+        };
 
-      if (promotionStatus == 'Graduated') {
-        updateData['enrollment_status'] = 'Graduated';
-      } else {
-        updateData['grade_level'] = nextGrade;
-        updateData['enrollment_status'] = 'Not Enrolled';
-      }
+        if (promotionStatus == 'Graduated') {
+          updateData['enrollment_status'] = 'Graduated';
+        } else {
+          updateData['grade_level'] = nextGrade;
+          updateData['enrollment_status'] = 'Not Enrolled';
+        }
 
-      await Supabase.instance.client
-          .from('students')
-          .update(updateData)
-          .eq('student_id', studentId);
+        return Supabase.instance.client
+            .from('students')
+            .update(updateData)
+            .eq('student_id', studentId);
+      }));
     }
+    invalidateStudentCache();
   }
 
   /// Enroll a student (set enrollment_status = 'Enrolled')
@@ -2389,7 +2716,7 @@ class DatabaseHelper {
                 : (lowerPeriod.contains('4th') || lowerPeriod.contains('q4')
                     ? 'q4'
                     : lowerPeriod)));
-    return '$cleanId|\${subjectCode.toLowerCase()}|\${category.toLowerCase()}|$cleanLabel|$periodNorm';
+    return '$cleanId|${subjectCode.toLowerCase()}|${category.toLowerCase()}|$cleanLabel|$periodNorm';
   }
 
   Future<Map<String, dynamic>> getGradeBreakdown({

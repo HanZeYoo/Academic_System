@@ -12,6 +12,7 @@ import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
 import '../utils/avatar_utils.dart';
+import '../widgets/skeleton_loader.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
   final String username;
@@ -84,27 +85,34 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     }
     try {
       final dbHelper = DatabaseHelper();
-    
-    final years = await dbHelper.getAllSchoolYears();
-    final activeYear = await dbHelper.getActiveSchoolYear();
-    if (_selectedSchoolYear == null) {
-      _selectedSchoolYear = activeYear;
-    }
-    
-    if (mounted) {
-      setState(() {
-        _schoolYears = years.isNotEmpty ? years : [activeYear];
-      });
-    }
 
-    _children = await dbHelper.getStudentsByParentEmail(widget.username);
-    if (_children.isNotEmpty) {
-      await _fetchDashboardDataForChild(_children[_selectedChildIndex], isRefresh: isRefresh);
-    } else {
-      if (mounted) {
-        setState(() => _isLoading = false);
+      final initialResults = await Future.wait([
+        dbHelper.getAllSchoolYears(),
+        dbHelper.getActiveSchoolYear(),
+        dbHelper.getStudentsByParentEmail(widget.username),
+      ]);
+
+      final years = initialResults[0] as List<String>;
+      final activeYear = initialResults[1] as String;
+      _children = initialResults[2] as List<Map<String, dynamic>>;
+
+      if (_selectedSchoolYear == null) {
+        _selectedSchoolYear = activeYear;
       }
-    }
+
+      if (mounted) {
+        setState(() {
+          _schoolYears = years.isNotEmpty ? years : [activeYear];
+        });
+      }
+
+      if (_children.isNotEmpty) {
+        await _fetchDashboardDataForChild(_children[_selectedChildIndex], isRefresh: isRefresh);
+      } else {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -126,9 +134,18 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     final sectionName = student['section'] ?? '';
     const gradingPeriod = '1st Term';
 
-    _schedule = await dbHelper.getStudentSchedule(studentEmail);
+    final childResults = await Future.wait([
+      dbHelper.getStudentSchedule(studentEmail),
+      dbHelper.getStudentAttendance(studentEmail, _selectedSchoolYear),
+      dbHelper.getStudentAllScores(studentEmail, _selectedSchoolYear),
+      dbHelper.getStudentAllRemarksByEmail(studentEmail),
+    ]);
 
-    final attendanceRecords = await dbHelper.getStudentAttendance(studentEmail, _selectedSchoolYear);
+    _schedule = childResults[0];
+    final attendanceRecords = childResults[1];
+    final scores = childResults[2];
+    final remarks = childResults[3];
+
     _hasAttendance = attendanceRecords.isNotEmpty;
     if (_hasAttendance) {
       final presentCount = attendanceRecords
@@ -139,8 +156,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       _attendancePercentage = 0.0;
     }
 
-    final scores = await dbHelper.getStudentAllScores(studentEmail, _selectedSchoolYear);
-    final remarks = await dbHelper.getStudentAllRemarksByEmail(studentEmail);
     _subjectGrades.clear();
     double sumOfAverages = 0.0;
     int validSubjects = 0;
@@ -149,6 +164,32 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     for (var s in _schedule) {
       uniqueSubjects[s['subject_code'] ?? 'Unknown'] = s;
     }
+
+    final periodAliases = DatabaseHelper.getPeriodAliases(gradingPeriod);
+    final Map<String, Future<Map<String, dynamic>?>> setupFutures = {};
+    final Map<String, Future<dynamic>> transFutures = {};
+    for (final code in uniqueSubjects.keys) {
+      final hasSubjScores = scores.any(
+        (s) => s['subject_code'] == code && periodAliases.contains(s['grading_period']?.toString()),
+      );
+      if (hasSubjScores) {
+        setupFutures[code] = dbHelper.getAssessmentSetup(
+          subjectCode: code,
+          sectionName: sectionName,
+          gradeLevel: gradeLevel,
+          gradingPeriod: gradingPeriod,
+        );
+        transFutures[code] = dbHelper.getTransmutationTable(code, sectionName);
+      }
+    }
+    final setupEntries = await Future.wait(
+      setupFutures.entries.map((e) async => MapEntry(e.key, await e.value)),
+    );
+    final transEntries = await Future.wait(
+      transFutures.entries.map((e) async => MapEntry(e.key, await e.value)),
+    );
+    final setupsByCode = Map<String, Map<String, dynamic>?>.fromEntries(setupEntries);
+    final transByCode = Map<String, dynamic>.fromEntries(transEntries);
 
     for (var subjectData in uniqueSubjects.values) {
       final subjectName = subjectData['subject_name'] ?? 'Unknown';
@@ -163,7 +204,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         int subjPresentCount = subjAttendance.where((r) => r['status'] == 'Present' || r['status'] == 'Late').length;
         classAttendancePct = (subjPresentCount / subjAttendance.length) * 100;
       }
-      final periodAliases = DatabaseHelper.getPeriodAliases(gradingPeriod);
       final subjectScores = scores
           .where((s) =>
               s['subject_code'] == subjectCode &&
@@ -176,13 +216,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       List<Map<String, dynamic>> activeSubjectScores = subjectScores;
 
       if (subjectScores.isNotEmpty) {
-        final setup = await dbHelper.getAssessmentSetup(
-          subjectCode: subjectCode,
-          sectionName: sectionName,
-          gradeLevel: gradeLevel,
-          gradingPeriod: gradingPeriod,
-        );
-        final transTable = await dbHelper.getTransmutationTable(subjectCode, sectionName);
+        final setup = setupsByCode[subjectCode];
+        final transTable = transByCode[subjectCode];
 
         if (setup != null) {
           final Set<String> activeLabels = {};
@@ -756,7 +791,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     }
 
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return SkeletonPresets.dashboard(
+        showBanner: true,
+        statCount: 3,
+        listCount: 4,
+      );
     }
 
     if (_children.isEmpty) {
@@ -2967,7 +3006,13 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    if (_isLoading) {
+      return SkeletonPresets.cardList(
+        itemCount: 5,
+        showHeader: true,
+        showStats: true,
+      );
+    }
 
     final total = _records.length;
     final attendPct = total > 0

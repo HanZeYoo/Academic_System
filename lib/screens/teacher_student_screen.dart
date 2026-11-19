@@ -4,6 +4,7 @@ import '../models/ecr_transmutation_model.dart';
 import 'student_detail_screen.dart';
 import 'student_grades_screen.dart';
 import '../utils/avatar_utils.dart';
+import '../widgets/skeleton_loader.dart';
 
 class TeacherStudentScreen extends StatefulWidget {
   final String username;
@@ -338,7 +339,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
         elevation: 0,
       ) : null,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? SkeletonPresets.cardList(itemCount: 6, showHeader: true)
           : RefreshIndicator(
               onRefresh: () => _loadData(isRefresh: true),
               child: SingleChildScrollView(

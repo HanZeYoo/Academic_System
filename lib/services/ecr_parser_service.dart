@@ -710,14 +710,37 @@ class EcrParserService {
     );
   }
 
+  // ── INSTANCE CACHE FOR REPEATED SHEET/PERIOD SWITCHING ──────────────────
+  final Map<String, EcrParseResult> _instanceParseCache = {};
+
+  static String _computeBytesFingerprint(Uint8List bytes) {
+    // Fast FNV-1a 64-bit style sampled hash + length for O(1) cache key generation
+    int hash = 0x811c9dc5 ^ bytes.length;
+    final int step = bytes.length > 4096 ? (bytes.length ~/ 1024) : 1;
+    for (int i = 0; i < bytes.length; i += step) {
+      hash ^= bytes[i];
+      hash = (hash * 0x01000193) & 0x7fffffff;
+    }
+    return '${bytes.length}_$hash';
+  }
+
   /// Parses file bytes in a background isolate (via compute) to keep UI running at 60/120 FPS.
+  /// When [useCache] is true, reuses parsed results for identical file + sheet + period.
   Future<EcrParseResult> parseFile(
     Uint8List bytes,
     String filename, {
     String? targetSheetName,
     String? gradingPeriod,
+    bool useCache = false,
   }) async {
-    return compute(
+    String? cacheKey;
+    if (useCache) {
+      cacheKey = '${_computeBytesFingerprint(bytes)}|$filename|${targetSheetName ?? ''}|${gradingPeriod ?? ''}';
+      final cached = _instanceParseCache[cacheKey];
+      if (cached != null) return cached;
+    }
+
+    final result = await compute(
       _computeParseFile,
       EcrParseParams(
         bytes: bytes,
@@ -726,6 +749,15 @@ class EcrParserService {
         gradingPeriod: gradingPeriod,
       ),
     );
+
+    if (useCache && cacheKey != null) {
+      if (_instanceParseCache.length >= 12) {
+        _instanceParseCache.remove(_instanceParseCache.keys.first);
+      }
+      _instanceParseCache[cacheKey] = result;
+    }
+
+    return result;
   }
 
   /// Synchronous core parser (executes in background isolate)
@@ -1084,8 +1116,19 @@ class EcrParserService {
   static Uint8List _sanitizeZipRels(Uint8List bytes) {
     try {
       final archive = ZipDecoder().decodeBytes(bytes);
+      bool needsModification = false;
+      for (final file in archive.files) {
+        if (file.name.endsWith('.rels') && file.content != null) {
+          final contentStr = utf8.decode(file.content as List<int>, allowMalformed: true);
+          if (contentStr.contains('Target="/xl/')) {
+            needsModification = true;
+            break;
+          }
+        }
+      }
+      if (!needsModification) return bytes;
+
       final newArchive = Archive();
-      bool modified = false;
       for (final file in archive.files) {
         if (file.name.endsWith('.rels') && file.content != null) {
           final contentBytes = file.content as List<int>;
@@ -1094,17 +1137,14 @@ class EcrParserService {
             final fixedStr = contentStr.replaceAll('Target="/xl/', 'Target="');
             final fixedBytes = utf8.encode(fixedStr);
             newArchive.addFile(ArchiveFile(file.name, fixedBytes.length, fixedBytes));
-            modified = true;
             continue;
           }
         }
         newArchive.addFile(file);
       }
-      if (modified) {
-        final encoded = ZipEncoder().encode(newArchive);
-        if (encoded != null) {
-          return Uint8List.fromList(encoded);
-        }
+      final encoded = ZipEncoder().encode(newArchive);
+      if (encoded != null) {
+        return Uint8List.fromList(encoded);
       }
     } catch (_) {}
     return bytes;
@@ -1201,6 +1241,9 @@ class EcrParserService {
 
     final sheetRows = sheet.rows;
     final int maxCols = sheet.maxColumns;
+    final Map<String, Sheet> lowerSheetMap = {
+      for (final entry in excel.tables.entries) entry.key.trim().toLowerCase(): entry.value,
+    };
 
     for (int r = 0; r < sheet.maxRows; r++) {
       List<dynamic> rowValues = [];
@@ -1221,7 +1264,7 @@ class EcrParserService {
             } else if (rawVal is DoubleCellValue) {
               val = rawVal.value;
             } else if (rawVal is FormulaCellValue) {
-              val = _resolveFormulaReference(excel, rawVal.formula);
+              val = _resolveFormulaReference(excel, rawVal.formula, lowerSheetMap: lowerSheetMap);
             } else if (rawVal is DateCellValue) {
               val = '${rawVal.year}-${rawVal.month}-${rawVal.day}';
             } else {
@@ -1280,7 +1323,14 @@ class EcrParserService {
     );
   }
 
-  static dynamic _resolveFormulaReference(Excel excel, String formula, {int depth = 0}) {
+  static final RegExp _cellAddrRegex = RegExp(r'^([A-Z]+)([0-9]+)$', caseSensitive: false);
+
+  static dynamic _resolveFormulaReference(
+    Excel excel,
+    String formula, {
+    int depth = 0,
+    Map<String, Sheet>? lowerSheetMap,
+  }) {
     if (depth > 4) return formula;
     final trimmed = formula.trim();
 
@@ -1296,10 +1346,11 @@ class EcrParserService {
       targetSheetName = targetSheetName.replaceAll("'", '').replaceAll('"', '').trim();
       cellAddr = cellAddr.replaceAll(r'$', '').trim();
 
-      Sheet? targetSheet = excel.tables[targetSheetName];
-      if (targetSheet == null) {
+      Sheet? targetSheet = excel.tables[targetSheetName] ?? lowerSheetMap?[targetSheetName.toLowerCase()];
+      if (targetSheet == null && lowerSheetMap == null) {
+        final lowerTarget = targetSheetName.toLowerCase();
         for (final k in excel.tables.keys) {
-          if (k.trim().toLowerCase() == targetSheetName.toLowerCase()) {
+          if (k.trim().toLowerCase() == lowerTarget) {
             targetSheet = excel.tables[k];
             break;
           }
@@ -1309,17 +1360,24 @@ class EcrParserService {
       if (targetSheet != null) {
         final coords = _cellAddressToColRow(cellAddr);
         if (coords != null && coords['row']! < targetSheet.maxRows && coords['col']! < targetSheet.maxColumns) {
-          final targetCell = targetSheet.cell(
-            CellIndex.indexByColumnRow(columnIndex: coords['col']!, rowIndex: coords['row']!),
-          );
-          final rawVal = targetCell.value;
+          final rIdx = coords['row']!;
+          final cIdx = coords['col']!;
+          final rows = targetSheet.rows;
+          final rawVal = (rIdx < rows.length && cIdx < rows[rIdx].length)
+              ? rows[rIdx][cIdx]?.value
+              : null;
           if (rawVal != null) {
             if (rawVal is TextCellValue) return rawVal.value.toString().trim();
             if (rawVal is SharedString) return rawVal.toString().trim();
             if (rawVal is IntCellValue) return rawVal.value;
             if (rawVal is DoubleCellValue) return rawVal.value;
             if (rawVal is FormulaCellValue) {
-              return _resolveFormulaReference(excel, rawVal.formula, depth: depth + 1);
+              return _resolveFormulaReference(
+                excel,
+                rawVal.formula,
+                depth: depth + 1,
+                lowerSheetMap: lowerSheetMap,
+              );
             }
             return rawVal.toString().trim();
           }
@@ -1340,7 +1398,7 @@ class EcrParserService {
   }
 
   static Map<String, int>? _cellAddressToColRow(String addr) {
-    final match = RegExp(r'^([A-Z]+)([0-9]+)$', caseSensitive: false).firstMatch(addr.trim());
+    final match = _cellAddrRegex.firstMatch(addr.trim());
     if (match == null) return null;
 
     final colStr = match.group(1)!.toUpperCase();

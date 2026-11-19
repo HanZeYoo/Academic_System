@@ -8,6 +8,7 @@ import 'dart:async';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/avatar_utils.dart';
+import '../widgets/skeleton_loader.dart';
 
 class TeacherAttendanceScreen extends StatefulWidget {
   final String username;
@@ -353,121 +354,139 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
 
     final dateStr = "${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
     final dbHelper = DatabaseHelper();
-    
-    for (var student in _students) {
-      await dbHelper.saveAttendance({
-        'student_id': student['id'],
-        'student_name': student['name'],
-        'class_name': _selectedClass,
-        'date': dateStr,
-        'status': student['status'],
-      });
 
-      // --- SEND PUSH NOTIFICATIONS ---
-      if (student['status'] == 'Absent' || student['status'] == 'Late') {
-        final currentStatus = student['status'].toString().toUpperCase();
-        debugPrint('--- ATTENDANCE PUSH FOR ${student['name']} ($currentStatus) ---');
-        
-        String parentEmail = '';
-        String studentEmail = '';
-        
-        try {
-          // 1. Get Parent and Student Email from Students table
-          final studentData = await Supabase.instance.client
-              .from('students')
-              .select('parent_email, email')
-              .eq('student_id', student['id'])
-              .maybeSingle();
+    // 1. Batch-save all attendance records in 2-3 queries instead of 2N sequential queries
+    final attendanceRecords = _students
+        .map((student) => {
+              'student_id': student['id'],
+              'student_name': student['name'],
+              'class_name': _selectedClass,
+              'date': dateStr,
+              'status': student['status'],
+            })
+        .toList();
 
-          parentEmail = studentData?['parent_email']?.toString() ?? '';
-          studentEmail = studentData?['email']?.toString() ?? '';
-          debugPrint('Parent Email: $parentEmail | Student Email: $studentEmail');
-        } catch (e) {
-          debugPrint('Error fetching emails: $e');
+    await dbHelper.batchSaveAttendance(
+      attendanceRecords,
+      className: _selectedClass!,
+      date: dateStr,
+    );
+
+    // 2. Batch-fetch contact emails and FCM tokens for Absent / Late students
+    final flaggedStudents = _students
+        .where((s) => s['status'] == 'Absent' || s['status'] == 'Late')
+        .toList();
+
+    if (flaggedStudents.isNotEmpty) {
+      try {
+        final flaggedIds = flaggedStudents.map((s) => s['id'].toString()).toList();
+        final studentRows = await Supabase.instance.client
+            .from('students')
+            .select('student_id, parent_email, email')
+            .inFilter('student_id', flaggedIds);
+
+        final Map<String, Map<String, String>> contactsByStudentId = {};
+        final Set<String> allTargetEmails = {};
+
+        for (final row in studentRows) {
+          final sid = row['student_id']?.toString() ?? '';
+          final pEmail = row['parent_email']?.toString().trim() ?? '';
+          final sEmail = row['email']?.toString().trim() ?? '';
+          contactsByStudentId[sid] = {'parent_email': pEmail, 'email': sEmail};
+          if (pEmail.isNotEmpty) allTargetEmails.add(pEmail);
+          if (sEmail.isNotEmpty) allTargetEmails.add(sEmail);
         }
 
-        // --- NOTIFY PARENT (Absent only, as per original logic) ---
-        if (parentEmail.isNotEmpty && student['status'] == 'Absent') {
-          try {
-            final reasonToSend = 'Attendance Alert: $currentStatus';
-            final messageToSend = '${student['name']} was marked $currentStatus for $_selectedClass today ($dateStr).';
+        final Map<String, String> fcmTokenByUsername = {};
+        if (allTargetEmails.isNotEmpty) {
+          final userRows = await Supabase.instance.client
+              .from('users')
+              .select('username, fcm_token')
+              .inFilter('username', allTargetEmails.toList());
+          for (final u in userRows) {
+            final uname = u['username']?.toString().trim() ?? '';
+            final token = u['fcm_token']?.toString().trim() ?? '';
+            if (uname.isNotEmpty && token.isNotEmpty) {
+              fcmTokenByUsername[uname] = token;
+            }
+          }
+        }
 
-            // Insert In-App Notification Record for Parent
-            await dbHelper.insertNotification({
+        final List<Map<String, dynamic>> inAppNotifications = [];
+        final List<Future<void>> pushFutures = [];
+        final notifDate = "${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}";
+
+        for (final student in flaggedStudents) {
+          final sid = student['id'].toString();
+          final currentStatus = student['status'].toString().toUpperCase();
+          final contacts = contactsByStudentId[sid];
+          final parentEmail = contacts?['parent_email'] ?? '';
+          final studentEmail = contacts?['email'] ?? (student['email']?.toString() ?? '');
+          final title = 'Attendance Alert: $currentStatus';
+
+          // Parent notification (Absent only, preserving original rule)
+          if (parentEmail.isNotEmpty && student['status'] == 'Absent') {
+            final parentMsg = '${student['name']} was marked $currentStatus for $_selectedClass today ($dateStr).';
+            inAppNotifications.add({
               'sender_username': widget.username,
               'receiver_username': parentEmail,
               'student_id': student['id'],
-              'title': reasonToSend,
-              'message': messageToSend,
-              'date': "${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}",
-              'status': 'Sent'
+              'title': title,
+              'message': parentMsg,
+              'date': notifDate,
+              'status': 'Sent',
             });
 
-            // Get Parent FCM Token & Send Push
-            final parentUser = await Supabase.instance.client
-                .from('users')
-                .select('fcm_token')
-                .eq('username', parentEmail)
-                .maybeSingle();
-
-            final fcmToken = parentUser?['fcm_token'];
-            debugPrint('Parent FCM Token: $fcmToken');
-            if (fcmToken != null && fcmToken.toString().isNotEmpty) {
-              await Supabase.instance.client.functions.invoke('send-fcm', body: {
-                'title': reasonToSend,
-                'body': messageToSend,
-                'token': fcmToken.toString(),
-                'data': {
-                  'route': 'notifications',
-                },
-              });
-              debugPrint('Parent Push Notification Invoked.');
-            } else {
-              debugPrint('Failed to send Parent Push: FCM Token is null/empty.');
+            final parentToken = fcmTokenByUsername[parentEmail];
+            if (parentToken != null && parentToken.isNotEmpty) {
+              pushFutures.add(() async {
+                try {
+                  await Supabase.instance.client.functions.invoke('send-fcm', body: {
+                    'title': title,
+                    'body': parentMsg,
+                    'token': parentToken,
+                    'data': {'route': 'notifications'},
+                  });
+                } catch (e) {
+                  debugPrint('Error sending PARENT push: $e');
+                }
+              }());
             }
-          } catch (e) {
-            debugPrint('Error sending PARENT attendance notification: $e');
+          }
+
+          // Student notification (Absent or Late, push only)
+          if (studentEmail.isNotEmpty) {
+            final studentMsg = 'You were marked $currentStatus for $_selectedClass today ($dateStr).';
+            final studentToken = fcmTokenByUsername[studentEmail];
+            if (studentToken != null && studentToken.isNotEmpty) {
+              pushFutures.add(() async {
+                try {
+                  await Supabase.instance.client.functions.invoke('send-fcm', body: {
+                    'title': title,
+                    'body': studentMsg,
+                    'token': studentToken,
+                    'data': {'route': 'attendance'},
+                  });
+                } catch (e) {
+                  debugPrint('Error sending STUDENT push: $e');
+                }
+              }());
+            }
           }
         }
 
-        // --- NOTIFY STUDENT (Absent or Late, Push Only) ---
-        if (studentEmail.isNotEmpty) {
-          try {
-            final reasonToSend = 'Attendance Alert: $currentStatus';
-            final messageToSend = 'You were marked $currentStatus for $_selectedClass today ($dateStr).';
-
-            // Get Student FCM Token & Send Push
-            final studentUser = await Supabase.instance.client
-                .from('users')
-                .select('fcm_token')
-                .eq('username', studentEmail)
-                .maybeSingle();
-
-            final studentFcmToken = studentUser?['fcm_token'];
-            debugPrint('Student FCM Token: $studentFcmToken');
-            
-            if (studentFcmToken != null && studentFcmToken.toString().isNotEmpty) {
-              await Supabase.instance.client.functions.invoke('send-fcm', body: {
-                'title': reasonToSend,
-                'body': messageToSend,
-                'token': studentFcmToken.toString(),
-                'data': {
-                  'route': 'attendance', // Route to attendance screen or dashboard
-                },
-              });
-              debugPrint('Student Push Notification Invoked.');
-            } else {
-              debugPrint('Failed to send Student Push: FCM Token is null/empty.');
-            }
-          } catch (e) {
-            debugPrint('Error sending STUDENT attendance notification: $e');
-          }
-        } else {
-          debugPrint('Failed to send Student Push: Student Email is empty in DB.');
+        if (inAppNotifications.isNotEmpty) {
+          await dbHelper.insertNotificationsBatch(inAppNotifications);
         }
+        if (pushFutures.isNotEmpty) {
+          await Future.wait(pushFutures);
+        }
+      } catch (e) {
+        debugPrint('Error sending batch attendance notifications: $e');
       }
     }
-    
+
+    if (!mounted) return;
     // Hide loading
     Navigator.pop(context);
 
@@ -574,8 +593,12 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
         foregroundColor: Colors.white,
       ) : null,
       backgroundColor: widget.showAppBar ? const Color(0xFFF4F7F6) : Colors.transparent, // Inherits from dashboard body
-      body: _isLoading && _classes.isEmpty 
-          ? const Center(child: CircularProgressIndicator())
+      body: _isLoading && _classes.isEmpty
+          ? SkeletonPresets.cardList(
+              itemCount: 6,
+              showHeader: true,
+              showStats: true,
+            )
           : Column(
               children: [
                 _buildSearchBar(),
@@ -595,10 +618,11 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
                         const SizedBox(height: 12),
                         
                         if (_isLoading)
-                           const Center(child: Padding(
-                             padding: EdgeInsets.all(32.0),
-                             child: CircularProgressIndicator(),
-                           ))
+                           SkeletonPresets.cardList(
+                             itemCount: 5,
+                             shrinkWrap: true,
+                             padding: EdgeInsets.zero,
+                           )
                         else if (_students.isEmpty)
                            Center(
                              child: Padding(

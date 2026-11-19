@@ -3,6 +3,7 @@ import '../database_helper.dart';
 import '../utils/avatar_utils.dart';
 import 'add_teacher_screen.dart';
 import 'teacher_detail_screen.dart';
+import '../widgets/skeleton_loader.dart';
 
 class TeacherManagementScreen extends StatefulWidget {
   const TeacherManagementScreen({super.key});
@@ -236,7 +237,7 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
           // List
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? SkeletonPresets.cardList(itemCount: 6, padding: EdgeInsets.zero)
                 : _teachers.isEmpty
                     ? Center(
                         child: Column(

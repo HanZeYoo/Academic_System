@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../database_helper.dart';
 import '../services/report_service.dart';
+import '../widgets/skeleton_loader.dart';
 
 class ReportsGenerationScreen extends StatefulWidget {
   final String? username;
@@ -90,7 +91,7 @@ class _ReportsGenerationScreenState extends State<ReportsGenerationScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return SkeletonPresets.analytics(padding: const EdgeInsets.all(16));
     }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),

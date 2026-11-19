@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
 import 'school_year_rollover_screen.dart';
+import '../widgets/skeleton_loader.dart';
 
 const List<String> _kQuarters = [
   '1st Term',
@@ -466,10 +467,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
           if (_deadlinesLoading)
-            const Center(child: Padding(
-              padding: EdgeInsets.all(16),
-              child: CircularProgressIndicator(),
-            ))
+            SkeletonPresets.cardList(
+              itemCount: 4,
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+            )
           else
             ...(_kQuarters.map((quarter) => _buildQuarterDeadlineTile(quarter))),
         ],

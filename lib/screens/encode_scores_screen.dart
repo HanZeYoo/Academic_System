@@ -8,6 +8,7 @@ import '../utils/dialog_utils.dart';
 import '../utils/avatar_utils.dart';
 import '../services/early_warning_service.dart';
 import 'ecr_import_screen.dart';
+import '../widgets/skeleton_loader.dart';
 
 class EncodeScoresScreen extends StatefulWidget {
   final String username;
@@ -593,26 +594,21 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     final section = _selectedClassRecord!['section_name']?.toString() ?? '';
     final now = DateTime.now().toIso8601String();
 
+    final db = DatabaseHelper();
+    final List<Map<String, dynamic>> scorePayloads = [];
+    final List<String> clearedStudentIds = [];
+
     for (final student in _students) {
       final sid = student['student_id']?.toString() ?? '';
       final textValue = _scoreControllers[sid]?.text.trim();
-      
+
       if (textValue == null || textValue.isEmpty) {
-        // If the teacher cleared the score or left it blank, delete the record.
-        await DatabaseHelper().deleteScore(
-          studentId: sid,
-          subjectCode: subjectCode,
-          sectionName: section,
-          gradeLevel: grade,
-          category: _selectedCategory,
-          itemLabel: _selectedItem,
-          gradingPeriod: _selectedPeriod,
-        );
+        clearedStudentIds.add(sid);
         continue;
       }
 
       final score = _scoreOf(sid);
-      await DatabaseHelper().saveScore({
+      scorePayloads.add({
         'student_id': sid,
         'student_name': student['name']?.toString() ?? '',
         'subject_code': subjectCode,
@@ -629,8 +625,24 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       });
     }
 
+    if (clearedStudentIds.isNotEmpty) {
+      await Future.wait(clearedStudentIds.map((sid) => db.deleteScore(
+            studentId: sid,
+            subjectCode: subjectCode,
+            sectionName: section,
+            gradeLevel: grade,
+            category: _selectedCategory,
+            itemLabel: _selectedItem,
+            gradingPeriod: _selectedPeriod,
+          )));
+    }
+
+    if (scorePayloads.isNotEmpty) {
+      await db.batchSaveScores(scorePayloads);
+    }
+
     // SO1: Immediate O(1) early warning re-evaluation post-save
-    final allClassScores = await DatabaseHelper().getScoresForClass(
+    final allClassScores = await db.getScoresForClass(
       subjectCode: subjectCode,
       sectionName: section,
       gradeLevel: grade,
@@ -682,7 +694,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFEAF4FB),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? SkeletonPresets.formAndTable(rowCount: 7)
           : _assignedClasses.isEmpty
               ? _buildNoClassState()
               : _buildContent(),

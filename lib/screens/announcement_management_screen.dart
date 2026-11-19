@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
+import '../widgets/skeleton_loader.dart';
 
 class AnnouncementManagementScreen extends StatefulWidget {
   final String? username;
@@ -317,7 +318,13 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    if (_isLoading) {
+      return SkeletonPresets.cardList(
+        itemCount: 4,
+        showHeader: true,
+        padding: const EdgeInsets.all(18),
+      );
+    }
 
     return RefreshIndicator(
       onRefresh: _loadData,

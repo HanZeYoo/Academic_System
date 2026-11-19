@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../widgets/skeleton_loader.dart';
 
 class AdminArchiveScreen extends StatefulWidget {
   const AdminArchiveScreen({super.key});
@@ -252,7 +253,7 @@ class _AdminArchiveScreenState extends State<AdminArchiveScreen> with SingleTick
           // ── Tab Views ────────────────────────────────────────────────
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? SkeletonPresets.cardList(itemCount: 5)
                 : TabBarView(
                     controller: _tabController,
                     children: [

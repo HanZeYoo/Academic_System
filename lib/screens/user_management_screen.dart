@@ -4,6 +4,7 @@ import '../database_helper.dart';
 import '../services/email_service.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
+import '../widgets/skeleton_loader.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -568,7 +569,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
           // User list
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? SkeletonPresets.cardList(itemCount: 6, padding: EdgeInsets.zero)
                 : _filteredUsers.isEmpty
                     ? Center(
                         child: Column(
