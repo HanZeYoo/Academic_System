@@ -32,14 +32,25 @@ class _StudentGradesViewScreenState extends State<StudentGradesViewScreen> {
     }
     final db = DatabaseHelper();
 
-    final years = await db.getAllSchoolYears();
-    final activeYear = await db.getActiveSchoolYear();
-    if (_selectedSchoolYear == null) {
-      _selectedSchoolYear = activeYear;
-    }
+    final selectedYear = _selectedSchoolYear;
+    final initialResults = await Future.wait([
+      db.getAllSchoolYears(),
+      db.getActiveSchoolYear(),
+      db.getStudentAllRemarksByEmail(widget.username),
+      if (selectedYear != null) db.getStudentAllScores(widget.username, selectedYear),
+    ]);
 
-    final scores = await db.getStudentAllScores(widget.username, _selectedSchoolYear);
-    final remarks = await db.getStudentAllRemarksByEmail(widget.username);
+    final years = initialResults[0] as List<String>;
+    final activeYear = initialResults[1] as String;
+    final remarks = initialResults[2] as List<Map<String, dynamic>>;
+
+    final List<Map<String, dynamic>> scores;
+    if (selectedYear != null) {
+      scores = initialResults[3] as List<Map<String, dynamic>>;
+    } else {
+      _selectedSchoolYear = activeYear;
+      scores = await db.getStudentAllScores(widget.username, _selectedSchoolYear);
+    }
 
     if (mounted) {
       setState(() {

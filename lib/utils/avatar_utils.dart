@@ -4,6 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 class AvatarUtils {
+  static const int _maxCacheEntries = 200;
+  static final Map<String, MemoryImage> _memoryImageCache = {};
+
+  /// Clears the cached decoded Base64 avatar images from memory.
+  static void clearCache() => _memoryImageCache.clear();
+
   /// Safely resolves any string (base64 data URI, raw base64, URL, or local file path) into an ImageProvider.
   static ImageProvider? getImageProvider(String? pathOrBase64) {
     if (pathOrBase64 == null) return null;
@@ -17,11 +23,21 @@ class AvatarUtils {
 
     // 2. Base64 (Data URI or raw base64)
     if (trimmed.startsWith('data:image') || trimmed.length > 200) {
+      final cached = _memoryImageCache.remove(trimmed);
+      if (cached != null) {
+        _memoryImageCache[trimmed] = cached;
+        return cached;
+      }
       try {
         final base64Content = trimmed.contains(',') ? trimmed.split(',').last : trimmed;
         final cleanBase64 = base64Content.replaceAll(RegExp(r'\s+'), '');
         final bytes = base64Decode(cleanBase64);
-        return MemoryImage(bytes);
+        final image = MemoryImage(bytes);
+        if (_memoryImageCache.length >= _maxCacheEntries) {
+          _memoryImageCache.remove(_memoryImageCache.keys.first);
+        }
+        _memoryImageCache[trimmed] = image;
+        return image;
       } catch (_) {}
     }
 

@@ -1023,6 +1023,327 @@ class DatabaseHelper {
     };
   }
 
+  /// Batch version of [getStudentGradesSummary] — computes grade summaries for
+  /// multiple students using chunked/paginated batch queries and concurrent
+  /// metadata lookups instead of N sequential per-student queries.
+  Future<Map<String, Map<String, dynamic>>> getBatchStudentGradesSummaries(
+    List<Map<String, dynamic>> students,
+  ) async {
+    final Map<String, Map<String, dynamic>> out = {};
+    if (students.isEmpty) return out;
+
+    final Map<String, Map<String, dynamic>> studentById = {};
+    for (final student in students) {
+      final sid = student['student_id']?.toString() ?? '';
+      if (sid.isEmpty) continue;
+      studentById.putIfAbsent(sid, () => student);
+      out[sid] = {'average': 'N/A', 'lowest_grade': 100.0};
+    }
+
+    final studentIds = studentById.keys.toList();
+    if (studentIds.isEmpty) return out;
+
+    // 1. Fetch all scores across studentIds in bounded concurrent chunks,
+    //    paginated past PostgREST's 1,000-row cap.
+    const int idChunkSize = 50;
+    const int pageSize = 1000;
+    final List<Future<List<Map<String, dynamic>>>> scoreChunkFutures = [];
+    for (int i = 0; i < studentIds.length; i += idChunkSize) {
+      final chunk = studentIds.sublist(
+        i,
+        (i + idChunkSize > studentIds.length) ? studentIds.length : i + idChunkSize,
+      );
+      scoreChunkFutures.add(() async {
+        final List<Map<String, dynamic>> chunkScores = [];
+        int page = 0;
+        bool hasMore = true;
+        while (hasMore) {
+          final pageResults = await Supabase.instance.client
+              .from('scores')
+              .select('student_id, subject_code, grading_period, category, item_label, score, total_score')
+              .inFilter('student_id', chunk)
+              .range(page * pageSize, (page + 1) * pageSize - 1);
+          final list = List<Map<String, dynamic>>.from(pageResults);
+          chunkScores.addAll(list);
+          if (list.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        }
+        return chunkScores;
+      }());
+    }
+
+    final scoreChunks = await Future.wait(scoreChunkFutures);
+
+    // 2. Group scores by student_id -> subject_code -> grading_period
+    final Map<String, Map<String, Map<String, List<Map<String, dynamic>>>>> scoresByStudent = {};
+    for (final chunk in scoreChunks) {
+      for (final r in chunk) {
+        final sid = r['student_id']?.toString() ?? '';
+        final subj = r['subject_code']?.toString() ?? '';
+        final period = r['grading_period']?.toString() ?? '';
+        if (sid.isEmpty || subj.isEmpty || period.isEmpty) continue;
+        scoresByStudent
+            .putIfAbsent(sid, () => {})
+            .putIfAbsent(subj, () => {})
+            .putIfAbsent(period, () => [])
+            .add(r);
+      }
+    }
+
+    if (scoresByStudent.isEmpty) return out;
+
+    // 3. Collect unique class names, setup lookup tuples, and transmutation keys
+    final Set<String> uniqueClassNames = {};
+    final Map<String, ({String subj, String section, String grade, String period})> uniqueSetups = {};
+    final Map<String, ({String subj, String section})> uniqueTrans = {};
+
+    for (final entry in scoresByStudent.entries) {
+      final sid = entry.key;
+      final student = studentById[sid];
+      if (student == null) continue;
+      final gradeLevel = student['grade_level']?.toString() ?? '';
+      final section = student['section']?.toString() ?? '';
+
+      for (final subjEntry in entry.value.entries) {
+        final subj = subjEntry.key;
+        uniqueClassNames.add('$subj - $gradeLevel - $section');
+        uniqueTrans.putIfAbsent('$subj|$section', () => (subj: subj, section: section));
+
+        for (final period in subjEntry.value.keys) {
+          final setupKey = _assessmentSetupCacheKey(
+            subjectCode: subj,
+            sectionName: section,
+            gradeLevel: gradeLevel,
+            gradingPeriod: period,
+          );
+          uniqueSetups.putIfAbsent(
+            setupKey,
+            () => (subj: subj, section: section, grade: gradeLevel, period: period),
+          );
+        }
+      }
+    }
+
+    // 4. Fetch attendance, setups, and transmutation tables concurrently
+    final classNameList = uniqueClassNames.toList();
+    final List<Future<List<Map<String, dynamic>>>> attChunkFutures = [];
+    for (int i = 0; i < classNameList.length; i += idChunkSize) {
+      final chunk = classNameList.sublist(
+        i,
+        (i + idChunkSize > classNameList.length) ? classNameList.length : i + idChunkSize,
+      );
+      attChunkFutures.add(() async {
+        final List<Map<String, dynamic>> chunkAtt = [];
+        int page = 0;
+        bool hasMore = true;
+        while (hasMore) {
+          final pageResults = await Supabase.instance.client
+              .from('attendance')
+              .select('class_name, date, student_id, status')
+              .inFilter('class_name', chunk)
+              .range(page * pageSize, (page + 1) * pageSize - 1);
+          final list = List<Map<String, dynamic>>.from(pageResults);
+          chunkAtt.addAll(list);
+          if (list.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        }
+        return chunkAtt;
+      }());
+    }
+
+    final setupFutures = uniqueSetups.entries.map((e) async {
+      final setup = await getAssessmentSetup(
+        subjectCode: e.value.subj,
+        sectionName: e.value.section,
+        gradeLevel: e.value.grade,
+        gradingPeriod: e.value.period,
+      );
+      return MapEntry(e.key, setup);
+    });
+
+    final transFutures = uniqueTrans.entries.map((e) async {
+      final table = await getTransmutationTable(e.value.subj, e.value.section);
+      return MapEntry(e.key, table);
+    });
+
+    final parallelResults = await Future.wait([
+      Future.wait(attChunkFutures),
+      Future.wait(setupFutures),
+      Future.wait(transFutures),
+    ]);
+
+    final attChunks = parallelResults[0] as List<List<Map<String, dynamic>>>;
+    final setupsByKey = Map<String, Map<String, dynamic>?>.fromEntries(
+      parallelResults[1] as List<MapEntry<String, Map<String, dynamic>?>>,
+    );
+    final transByKey = Map<String, EcrTransmutationTable?>.fromEntries(
+      parallelResults[2] as List<MapEntry<String, EcrTransmutationTable?>>,
+    );
+
+    // 5. Pre-aggregate attendance dates and student points in O(A)
+    final Map<String, Set<String>> classDates = {};
+    final Map<String, Map<String, double>> studentClassPoints = {};
+    for (final chunk in attChunks) {
+      for (final row in chunk) {
+        final cn = row['class_name']?.toString() ?? '';
+        if (cn.isEmpty) continue;
+        final dateStr = row['date']?.toString() ?? '';
+        classDates.putIfAbsent(cn, () => <String>{}).add(dateStr);
+
+        final sid = row['student_id']?.toString() ?? '';
+        if (sid.isEmpty) continue;
+        final status = row['status']?.toString() ?? '';
+        double pts = 0.0;
+        if (status == 'Present' || status == 'Excused') {
+          pts = 1.0;
+        } else if (status == 'Late') {
+          pts = 0.5;
+        }
+        if (pts > 0) {
+          final bySid = studentClassPoints.putIfAbsent(cn, () => {});
+          bySid[sid] = (bySid[sid] ?? 0.0) + pts;
+        }
+      }
+    }
+
+    // 6. Compute per-student summary in memory using identical K-12 rules
+    for (final entry in scoresByStudent.entries) {
+      final sid = entry.key;
+      final student = studentById[sid];
+      if (student == null) continue;
+
+      final gradeLevel = student['grade_level']?.toString() ?? '';
+      final section = student['section']?.toString() ?? '';
+      final groupedScores = entry.value;
+
+      double lowestGrade = 100.0;
+      double sumFinals = 0;
+      int countFinals = 0;
+
+      for (final subj in groupedScores.keys) {
+        double sumQ = 0;
+        int countQ = 0;
+
+        final subjClassName = '$subj - $gradeLevel - $section';
+        final totalClassDays = classDates[subjClassName]?.length ?? 0;
+        final double attendancePct = totalClassDays > 0
+            ? ((studentClassPoints[subjClassName]?[sid] ?? 0.0) / totalClassDays) * 100
+            : 100.0;
+
+        final transTable = transByKey['$subj|$section'];
+
+        for (final period in groupedScores[subj]!.keys) {
+          final scores = groupedScores[subj]![period]!;
+          final setupKey = _assessmentSetupCacheKey(
+            subjectCode: subj,
+            sectionName: section,
+            gradeLevel: gradeLevel,
+            gradingPeriod: period,
+          );
+          final setup = setupsByKey[setupKey];
+
+          if (setup != null) {
+            double earned = 0.0;
+            double totalWeight = 0.0;
+
+            final double wWW = (setup['ww_weight'] as num?)?.toDouble() ?? 0.0;
+            final double wPT = (setup['pt_weight'] as num?)?.toDouble() ?? 0.0;
+            final double wTE = (setup['te_weight'] as num?)?.toDouble() ?? 0.0;
+            final double wAtt = (setup['attendance_weight'] as num?)?.toDouble() ?? 0.0;
+
+            double catAvg(String cat) {
+              int maxItems = 999;
+              if (cat == 'Written Works') {
+                maxItems = (setup['ww_items'] as num?)?.toInt() ?? 999;
+              } else if (cat == 'Performance Tasks') {
+                maxItems = (setup['pt_items'] as num?)?.toInt() ?? 999;
+              } else if (cat == 'Term Exams') {
+                maxItems = (setup['te_items'] as num?)?.toInt() ?? 999;
+              }
+
+              final filtered = scores.where((r) {
+                final itemCat = r['category']?.toString() ?? '';
+                final itemLabel = r['item_label']?.toString() ?? '';
+                if (itemCat != cat) return false;
+                final int? num = int.tryParse(itemLabel.replaceAll(RegExp(r'[^0-9]'), ''));
+                if (num != null && num > maxItems) return false;
+                return true;
+              }).toList();
+
+              if (filtered.isEmpty) return -1.0;
+              double t = 0, m = 0;
+              for (final r in filtered) {
+                t += (r['score'] as num?)?.toDouble() ?? 0;
+                m += (r['total_score'] as num?)?.toDouble() ?? 0;
+              }
+              if (m == 0) return 0.0;
+              return (t / m) * 100;
+            }
+
+            final wwAvg = catAvg('Written Works');
+            if (wwAvg >= 0 && wWW > 0) {
+              earned += wwAvg * (wWW / 100);
+              totalWeight += (wWW / 100);
+            }
+            final ptAvg = catAvg('Performance Tasks');
+            if (ptAvg >= 0 && wPT > 0) {
+              earned += ptAvg * (wPT / 100);
+              totalWeight += (wPT / 100);
+            }
+            final teAvg = catAvg('Term Exams');
+            if (teAvg >= 0 && wTE > 0) {
+              earned += teAvg * (wTE / 100);
+              totalWeight += (wTE / 100);
+            }
+            if (wAtt > 0) {
+              earned += attendancePct * (wAtt / 100);
+              totalWeight += (wAtt / 100);
+            }
+
+            if (totalWeight > 0) {
+              final double initialGrade = earned / totalWeight;
+              sumQ += transmuteGrade(initialGrade, customTable: transTable);
+              countQ++;
+            }
+          } else {
+            double t = 0, m = 0;
+            for (final r in scores) {
+              t += (r['score'] as num?)?.toDouble() ?? 0;
+              m += (r['total_score'] as num?)?.toDouble() ?? 0;
+            }
+            if (m > 0) {
+              final double initialGrade = (t / m) * 100;
+              sumQ += transmuteGrade(initialGrade, customTable: transTable);
+              countQ++;
+            }
+          }
+        }
+
+        if (countQ > 0) {
+          final double subjectGrade = sumQ / countQ;
+          if (subjectGrade < lowestGrade) lowestGrade = subjectGrade;
+          sumFinals += subjectGrade;
+          countFinals++;
+        }
+      }
+
+      if (countFinals > 0) {
+        out[sid] = {
+          'average': (sumFinals / countFinals).toStringAsFixed(1),
+          'lowest_grade': lowestGrade,
+        };
+      }
+    }
+
+    return out;
+  }
+
 
   // Get all scores for a subject/section/period (for class-wide evaluation)
   Future<List<Map<String, dynamic>>> getScoresForClass({
@@ -1642,55 +1963,37 @@ class DatabaseHelper {
     final cutoff = DateTime.now().toUtc().subtract(Duration(days: retentionDays));
     final cutoffIso = cutoff.toIso8601String();
 
-    int purgedStudents = 0;
-    int purgedTeachers = 0;
-    int purgedSubjects = 0;
-
-    try {
-      // 1. Expired students (batch delete)
-      final expStudents = await Supabase.instance.client
-          .from('students')
-          .select('id')
-          .eq('is_active', 0)
-          .not('deleted_at', 'is', null)
-          .lte('deleted_at', cutoffIso);
-      final studentIds = expStudents.map((e) => e['id']).where((id) => id != null).toList();
-      if (studentIds.isNotEmpty) {
-        await Supabase.instance.client.from('students').delete().inFilter('id', studentIds);
-        purgedStudents = studentIds.length;
+    Future<int> purgeTable(String table) async {
+      try {
+        final expired = await Supabase.instance.client
+            .from(table)
+            .select('id')
+            .eq('is_active', 0)
+            .not('deleted_at', 'is', null)
+            .lte('deleted_at', cutoffIso);
+        final ids = expired.map((e) => e['id']).where((id) => id != null).toList();
+        if (ids.isNotEmpty) {
+          await Supabase.instance.client.from(table).delete().inFilter('id', ids);
+          return ids.length;
+        }
+      } catch (e) {
+        print('Error purging expired records from $table: $e');
       }
+      return 0;
+    }
 
-      // 2. Expired teachers (batch delete)
-      final expTeachers = await Supabase.instance.client
-          .from('teachers')
-          .select('id')
-          .eq('is_active', 0)
-          .not('deleted_at', 'is', null)
-          .lte('deleted_at', cutoffIso);
-      final teacherIds = expTeachers.map((e) => e['id']).where((id) => id != null).toList();
-      if (teacherIds.isNotEmpty) {
-        await Supabase.instance.client.from('teachers').delete().inFilter('id', teacherIds);
-        purgedTeachers = teacherIds.length;
-      }
+    final results = await Future.wait([
+      purgeTable('students'),
+      purgeTable('teachers'),
+      purgeTable('subjects_classes'),
+    ]);
 
-      // 3. Expired subjects (batch delete)
-      final expSubjects = await Supabase.instance.client
-          .from('subjects_classes')
-          .select('id')
-          .eq('is_active', 0)
-          .not('deleted_at', 'is', null)
-          .lte('deleted_at', cutoffIso);
-      final subjectIds = expSubjects.map((e) => e['id']).where((id) => id != null).toList();
-      if (subjectIds.isNotEmpty) {
-        await Supabase.instance.client.from('subjects_classes').delete().inFilter('id', subjectIds);
-        purgedSubjects = subjectIds.length;
-      }
+    final purgedStudents = results[0];
+    final purgedTeachers = results[1];
+    final purgedSubjects = results[2];
 
-      if (purgedStudents > 0 || purgedTeachers > 0 || purgedSubjects > 0) {
-        print('Retention purge completed: $purgedStudents students, $purgedTeachers teachers, $purgedSubjects subjects deleted permanently.');
-      }
-    } catch (e) {
-      print('Error during purgeExpiredArchivedRecords: $e');
+    if (purgedStudents > 0 || purgedTeachers > 0 || purgedSubjects > 0) {
+      print('Retention purge completed: $purgedStudents students, $purgedTeachers teachers, $purgedSubjects subjects deleted permanently.');
     }
 
     return {

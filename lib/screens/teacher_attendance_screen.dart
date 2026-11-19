@@ -66,10 +66,13 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
         }
       });
       if (_selectedClass != null) {
-        await _loadMarkedDates();
-        await _loadStudentsAndAttendance();
+        await Future.wait([
+          _loadMarkedDates(),
+          _loadStudentsAndAttendance(),
+        ]);
       }
     }
+    if (!mounted) return;
     setState(() {
       _isLoading = false;
     });
@@ -79,6 +82,7 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
     if (_selectedClass == null) return;
     final dbHelper = DatabaseHelper();
     final datesStr = await dbHelper.getAttendanceDatesForClass(_selectedClass!);
+    if (!mounted) return;
     setState(() {
       _markedDates = datesStr.map((d) => DateTime.parse(d)).toSet();
     });
@@ -104,20 +108,25 @@ class _TeacherAttendanceScreenState extends State<TeacherAttendanceScreen> {
     final section = parts[2];
 
     final dbHelper = DatabaseHelper();
-    // Get students for this class
-    final rawStudents = await dbHelper.getStudentsBySection(gradeLevel, section);
-    
     // Format date string for DB (YYYY-MM-DD)
     final dateStr = "${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}";
-    
-    // Get saved attendance
-    final savedAttendance = await dbHelper.getAttendanceForClassAndDate(_selectedClass!, dateStr);
+
+    final results = await Future.wait([
+      dbHelper.getStudentsBySection(gradeLevel, section),
+      dbHelper.getAttendanceForClassAndDate(_selectedClass!, dateStr),
+      SharedPreferences.getInstance(),
+    ]);
+
+    if (!mounted) return;
+    final rawStudents = results[0] as List<Map<String, dynamic>>;
+    final savedAttendance = results[1] as List<Map<String, dynamic>>;
+    final prefs = results[2] as SharedPreferences;
+
     final attendanceMap = { for (var item in savedAttendance) item['student_id'].toString(): item['status'] };
 
     // Format for UI
     final List<Map<String, dynamic>> uiStudents = [];
     final colors = [Colors.blue, Colors.orange, Colors.purple, Colors.teal, Colors.pink, Colors.indigo];
-    final prefs = await SharedPreferences.getInstance();
     
     for (int i = 0; i < rawStudents.length; i++) {
       final student = rawStudents[i];

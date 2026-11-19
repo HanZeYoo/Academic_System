@@ -25,25 +25,38 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
 
   Future<void> _loadData() async {
     final db = DatabaseHelper();
-    
-    // Load audience options based on role
+
+    final Future<List<String>> audienceFuture;
     if (widget.role != 'student') {
       if (widget.username != null) {
-        final teacher = await db.getTeacherByEmail(widget.username!);
-        if (teacher != null) {
-          final classes = await db.getSubjectClassesByTeacher(teacher['name'].toString());
-          _audienceOptions = classes.map((c) => '${c["grade_level"]} - ${c["section_name"]} (${c["subject_name"]})').toList();
-        }
+        audienceFuture = () async {
+          final teacher = await db.getTeacherByEmail(widget.username!);
+          if (teacher != null) {
+            final classes = await db.getSubjectClassesByTeacher(teacher['name'].toString());
+            return classes.map((c) => '${c["grade_level"]} - ${c["section_name"]} (${c["subject_name"]})').toList();
+          }
+          return <String>[];
+        }();
       } else {
-        _audienceOptions = ['System-wide', 'All Students', 'All Teachers'];
+        audienceFuture = Future.value(['System-wide', 'All Students', 'All Teachers']);
       }
+    } else {
+      audienceFuture = Future.value(_audienceOptions);
     }
 
-    // Load announcements
-    final announcements = await db.getAnnouncements(widget.username, role: widget.role);
-    
+    final results = await Future.wait([
+      audienceFuture,
+      db.getAnnouncements(widget.username, role: widget.role),
+    ]);
+
+    final audienceOptions = results[0] as List<String>;
+    final announcements = results[1] as List<Map<String, dynamic>>;
+
     if (mounted) {
       setState(() {
+        if (widget.role != 'student') {
+          _audienceOptions = audienceOptions;
+        }
         _announcements = announcements;
         _isLoading = false;
       });
@@ -278,16 +291,24 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
                       }
                     }
 
-                    for (var token in uniqueTokens) {
-                      try {
-                        await Supabase.instance.client.functions.invoke('send-fcm', body: {
-                          'title': 'New Announcement',
-                          'body': titleCtrl.text,
-                          'token': token,
-                        });
-                      } catch(e) {
-                        print('Push error: $e');
-                      }
+                    final tokenList = uniqueTokens.toList();
+                    const int batchSize = 10;
+                    for (int i = 0; i < tokenList.length; i += batchSize) {
+                      final batch = tokenList.sublist(
+                        i,
+                        (i + batchSize > tokenList.length) ? tokenList.length : i + batchSize,
+                      );
+                      await Future.wait(batch.map((token) async {
+                        try {
+                          await Supabase.instance.client.functions.invoke('send-fcm', body: {
+                            'title': 'New Announcement',
+                            'body': titleCtrl.text,
+                            'token': token,
+                          });
+                        } catch (e) {
+                          print('Push error: $e');
+                        }
+                      }));
                     }
                   } catch (e) {
                     print('Error sending announcement push: $e');

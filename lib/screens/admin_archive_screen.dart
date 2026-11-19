@@ -37,9 +37,15 @@ class _AdminArchiveScreenState extends State<AdminArchiveScreen> with SingleTick
       await db.purgeExpiredArchivedRecords(retentionDays: retentionDays);
     }
 
-    final teachers = await db.getArchivedTeachers();
-    final students = await db.getArchivedStudents();
-    final subjects = await db.getArchivedSubjectClasses();
+    final results = await Future.wait([
+      db.getArchivedTeachers(),
+      db.getArchivedStudents(),
+      db.getArchivedSubjectClasses(),
+    ]);
+
+    final teachers = results[0];
+    final students = results[1];
+    final subjects = results[2];
 
     if (mounted) {
       setState(() {

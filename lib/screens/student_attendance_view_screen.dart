@@ -30,13 +30,23 @@ class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScree
     }
     final db = DatabaseHelper();
 
-    final years = await db.getAllSchoolYears();
-    final activeYear = await db.getActiveSchoolYear();
-    if (_selectedSchoolYear == null) {
-      _selectedSchoolYear = activeYear;
-    }
+    final selectedYear = _selectedSchoolYear;
+    final initialResults = await Future.wait([
+      db.getAllSchoolYears(),
+      db.getActiveSchoolYear(),
+      if (selectedYear != null) db.getStudentAttendance(widget.username, selectedYear),
+    ]);
 
-    final records = await db.getStudentAttendance(widget.username, _selectedSchoolYear);
+    final years = initialResults[0] as List<String>;
+    final activeYear = initialResults[1] as String;
+
+    final List<Map<String, dynamic>> records;
+    if (selectedYear != null) {
+      records = initialResults[2] as List<Map<String, dynamic>>;
+    } else {
+      _selectedSchoolYear = activeYear;
+      records = await db.getStudentAttendance(widget.username, _selectedSchoolYear);
+    }
 
     if (mounted) {
       setState(() {

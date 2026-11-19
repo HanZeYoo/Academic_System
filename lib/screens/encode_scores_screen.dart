@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../models/ecr_transmutation_model.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/avatar_utils.dart';
 import '../services/early_warning_service.dart';
@@ -63,6 +64,12 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
 
   List<Map<String, dynamic>> _students = [];
   Map<String, EarlyWarningResult> _earlyWarningResults = {};
+
+  // --- In-memory cache for current class + grading period ---
+  String? _cachedClassPeriodKey;
+  List<Map<String, dynamic>> _cachedSectionStudents = [];
+  List<Map<String, dynamic>> _cachedClassScores = [];
+  Map<String, dynamic>? _cachedSetup;
 
   // --- Cached CSV Data ---
   List<List<dynamic>>? _cachedCsvData;
@@ -154,6 +161,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
   }
 
   void _onTotalScoreChanged() {
+    if (!mounted) return;
     final v = int.tryParse(_totalScoreController.text);
     if (v != null && v > 0) {
       setState(() => _totalScore = v);
@@ -195,32 +203,51 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     setState(() => _isLoading = false);
   }
 
-  Future<void> _loadStudentsAndScores() async {
+  Future<void> _loadStudentsAndScores({bool reloadFromDb = true}) async {
     if (_selectedClassRecord == null) {
       setState(() => _students = []);
       return;
     }
 
+    final db = DatabaseHelper();
     final grade = _selectedClassRecord!['grade_level']?.toString() ?? '';
     final section = _selectedClassRecord!['section_name']?.toString() ?? '';
     final subjectCode =
         _selectedClassRecord!['subject_code']?.toString() ?? '';
+    final classPeriodKey = '$subjectCode|$section|$grade|$_selectedPeriod';
+    final bool needsFetch = reloadFromDb || _cachedClassPeriodKey != classPeriodKey;
 
-    // Get students in this class's section
-    final students =
-        await DatabaseHelper().getStudentsBySection(grade, section);
+    if (needsFetch) {
+      final results = await Future.wait([
+        db.getStudentsBySection(grade, section),
+        db.getAssessmentSetup(
+          subjectCode: subjectCode,
+          sectionName: section,
+          gradeLevel: grade,
+          gradingPeriod: _selectedPeriod,
+        ),
+        db.getTransmutationTable(subjectCode, section),
+        db.getScoresForClass(
+          subjectCode: subjectCode,
+          sectionName: section,
+          gradeLevel: grade,
+          gradingPeriod: _selectedPeriod,
+        ),
+      ]);
 
-    // Load setup for item counts
-    final savedSetup = await DatabaseHelper().getAssessmentSetup(
-      subjectCode: subjectCode,
-      sectionName: section,
-      gradeLevel: grade,
-      gradingPeriod: _selectedPeriod,
-    );
+      if (!mounted) return;
 
-    // Load detected transmutation table for this class if available
-    final transTable = await DatabaseHelper().getTransmutationTable(subjectCode, section);
-    DatabaseHelper.setActiveTransmutationTable(transTable);
+      _cachedSectionStudents = results[0] as List<Map<String, dynamic>>;
+      _cachedSetup = results[1] as Map<String, dynamic>?;
+      final transTable = results[2] as EcrTransmutationTable?;
+      DatabaseHelper.setActiveTransmutationTable(transTable);
+      _cachedClassScores = results[3] as List<Map<String, dynamic>>;
+      _cachedClassPeriodKey = classPeriodKey;
+    }
+
+    final students = _cachedSectionStudents;
+    final savedSetup = _cachedSetup;
+    final allScores = _cachedClassScores;
 
     List<String> parseLabels(dynamic data, int fallbackCount, String prefix) {
       if (data != null && data is String) {
@@ -270,14 +297,6 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       _selectedItem = _currentItems.first;
     }
 
-    // Pre-load all class scores for this grading period to allow instant cross-item total score adaptation
-    final allScores = await DatabaseHelper().getScoresForClass(
-      subjectCode: subjectCode,
-      sectionName: section,
-      gradeLevel: grade,
-      gradingPeriod: _selectedPeriod,
-    );
-
     // Filter existing scores for current category and item using robust aliases
     final catAliases = DatabaseHelper.getCategoryAliases(_selectedCategory).map((c) => c.toLowerCase()).toSet();
     final itmAliases = DatabaseHelper.getItemAliases(_selectedCategory, _selectedItem).map((i) => i.toLowerCase()).toSet();
@@ -288,8 +307,8 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       return catAliases.contains(c) && itmAliases.contains(it);
     }).toList();
 
-    if (existingScores.isEmpty) {
-      existingScores = await DatabaseHelper().getScores(
+    if (existingScores.isEmpty && needsFetch) {
+      existingScores = await db.getScores(
         subjectCode: subjectCode,
         category: _selectedCategory,
         itemLabel: _selectedItem,
@@ -297,6 +316,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
         sectionName: section,
         gradeLevel: grade,
       );
+      if (!mounted) return;
     }
 
     // Adapt Total Score (HPS) dynamically
@@ -394,13 +414,16 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     }
 
     // SO1: Multi-Criteria Early Warning evaluation
-    final ewResults = EarlyWarningService.evaluateClassScores(
-      students: students,
-      allScores: allScores,
-      subjectCode: subjectCode,
-      gradingPeriod: _selectedPeriod,
-    );
+    final ewResults = needsFetch
+        ? EarlyWarningService.evaluateClassScores(
+            students: students,
+            allScores: allScores,
+            subjectCode: subjectCode,
+            gradingPeriod: _selectedPeriod,
+          )
+        : _earlyWarningResults;
 
+    if (!mounted) return;
     setState(() {
       _students = students;
       _earlyWarningResults = ewResults;
@@ -655,7 +678,10 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       gradingPeriod: _selectedPeriod,
     );
 
+    if (!mounted) return;
     setState(() {
+      _cachedClassScores = allClassScores;
+      _cachedClassPeriodKey = '$subjectCode|$section|$grade|$_selectedPeriod';
       _earlyWarningResults = ewResults;
       _isSaving = false;
     });
@@ -678,13 +704,15 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
 
   // â”€â”€ On filter change: reload students+scores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  void _onFilterChanged() {
+  void _onFilterChanged({bool reloadFromDb = true}) {
     // Reset item if not valid for new category
     if (!_currentItems.contains(_selectedItem)) {
       _selectedItem = _currentItems.first;
     }
-    _checkEncodingDeadline(); // Re-check deadline when quarter changes
-    _loadStudentsAndScores();
+    if (reloadFromDb) {
+      _checkEncodingDeadline(); // Re-check deadline when class/quarter changes
+    }
+    _loadStudentsAndScores(reloadFromDb: reloadFromDb);
   }
 
   // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -808,8 +836,9 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                     _draftTotalScores.clear();
                     _categoryTotalScores.clear();
                     _draftStudentScores.clear();
+                    _cachedClassPeriodKey = null;
                     setState(() => _selectedClassRecord = found);
-                    await _loadStudentsAndScores();
+                    await _loadStudentsAndScores(reloadFromDb: true);
                   },
                 ),
                 const SizedBox(height: 12),
@@ -834,8 +863,9 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                           _draftTotalScores.clear();
                           _categoryTotalScores.clear();
                           _draftStudentScores.clear();
+                          _cachedClassPeriodKey = null;
                           setState(() => _selectedPeriod = val!);
-                          _onFilterChanged();
+                          _onFilterChanged(reloadFromDb: true);
                         },
                       ),
                     ),
@@ -852,7 +882,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                             _selectedCategory = val!;
                             _selectedItem = _currentItems.first;
                           });
-                          _onFilterChanged();
+                          _onFilterChanged(reloadFromDb: false);
                         },
                       ),
                     ),
@@ -870,7 +900,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                         items: _currentItems,
                         onChanged: (val) {
                           setState(() => _selectedItem = val!);
-                          _onFilterChanged();
+                          _onFilterChanged(reloadFromDb: false);
                         },
                       ),
                     ),
@@ -1284,7 +1314,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => _loadStudentsAndScores(),
+                  onPressed: () => _loadStudentsAndScores(reloadFromDb: true),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF0D6EFD),
                     side: const BorderSide(color: Color(0xFF0D6EFD)),

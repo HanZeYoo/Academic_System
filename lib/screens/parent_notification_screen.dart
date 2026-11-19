@@ -60,80 +60,81 @@ class _ParentNotificationScreenState
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
 
-    if (widget.username == 'admin' || widget.username.isEmpty) {
-      final allStudents = await db.getStudents();
-      List<Map<String, dynamic>> studentsWithAve = [];
-      for (var s in allStudents) {
-        final sid = s['student_id'].toString();
-        final summary = await db.getStudentGradesSummary(sid);
-        String genAveStr = summary['average'].toString();
-        Map<String, dynamic> studentData = Map<String, dynamic>.from(s);
-        studentData['general_average'] = genAveStr;
-        studentsWithAve.add(studentData);
-      }
-      _students = studentsWithAve;
+    final historyFuture = db.getNotificationsSentBy(widget.username);
 
-      _atRiskStudents = _students.where((s) {
-        if (s['general_average'] == 'N/A') return false;
-        double ave = double.tryParse(s['general_average']) ?? 100.0;
-        return ave < 80.0;
-      }).toList();
+    List<Map<String, dynamic>> loadedStudents = [];
+
+    if (widget.username == 'admin' || widget.username.isEmpty) {
+      loadedStudents = await db.getStudents();
     } else {
       final teacher = await db.getTeacherByEmail(widget.username);
       if (teacher != null) {
         final teacherName = teacher['name'].toString();
         _classes = await db.getSubjectClassesByTeacher(teacherName);
 
-        // Get all students for the classes taught by this teacher
-        final List<Map<String, dynamic>> allMyStudents = [];
-        final Set<String> seenIds = {};
+        // Deduplicate (grade_level, section_name) pairs and fetch rosters concurrently
+        final Map<String, ({String grade, String section})> uniqueSections = {};
+        for (final cls in _classes) {
+          final grade = cls['grade_level']?.toString() ?? '';
+          final section = cls['section_name']?.toString() ?? '';
+          uniqueSections.putIfAbsent('$grade|$section', () => (grade: grade, section: section));
+        }
 
-        for (var cls in _classes) {
-          final studentsInClass = await db.getStudentsBySection(
-            cls['grade_level'].toString(),
-            cls['section_name'].toString(),
-          );
-          for (var s in studentsInClass) {
+        final sectionRosters = await Future.wait(
+          uniqueSections.values.map((pair) => db.getStudentsBySection(pair.grade, pair.section)),
+        );
+
+        final Set<String> seenIds = {};
+        for (final studentsInClass in sectionRosters) {
+          for (final s in studentsInClass) {
             final sid = s['student_id'].toString();
-            if (!seenIds.contains(sid)) {
-              final summary = await db.getStudentGradesSummary(sid);
-              String genAveStr = summary['average'].toString();
-              Map<String, dynamic> studentData = Map<String, dynamic>.from(s);
-              studentData['general_average'] = genAveStr;
-              allMyStudents.add(studentData);
-              seenIds.add(sid);
+            if (seenIds.add(sid)) {
+              loadedStudents.add(s);
             }
           }
         }
-        
-        _students = allMyStudents;
-        
-        // Filter At-Risk
-        _atRiskStudents = _students.where((s) {
-          if (s['general_average'] == 'N/A') return false;
-          double ave = double.tryParse(s['general_average']) ?? 100.0;
-          return ave < 80.0;
-        }).toList();
       }
     }
-    
-    await _loadHistory();
+
+    final summaries = await db.getBatchStudentGradesSummaries(loadedStudents);
+    final List<Map<String, dynamic>> studentsWithAve = [];
+    for (final s in loadedStudents) {
+      final sid = s['student_id'].toString();
+      final genAveStr = (summaries[sid]?['average'] ?? 'N/A').toString();
+      final studentData = Map<String, dynamic>.from(s);
+      studentData['general_average'] = genAveStr;
+      studentsWithAve.add(studentData);
+    }
+
+    _students = studentsWithAve;
+    _atRiskStudents = _students.where((s) {
+      if (s['general_average'] == 'N/A') return false;
+      final ave = double.tryParse(s['general_average'].toString()) ?? 100.0;
+      return ave < 80.0;
+    }).toList();
+
+    final notifications = await historyFuture;
+    final loadedHistory = _mapNotificationsToHistory(notifications);
 
     if (mounted) {
-      setState(() => _isLoading = false);
+      setState(() {
+        _history = loadedHistory;
+        _isLoading = false;
+      });
     }
   }
 
-  Future<void> _loadHistory() async {
-    final notifications = await db.getNotificationsSentBy(widget.username);
-    
-    List<Map<String, dynamic>> loadedHistory = [];
-    for (var n in notifications) {
-      final student = _students.firstWhere(
-        (s) => s['student_id'].toString() == n['student_id'].toString(),
-        orElse: () => {'name': 'Unknown Student', 'parent_name': 'Unknown Parent'},
-      );
-      
+  List<Map<String, dynamic>> _mapNotificationsToHistory(List<Map<String, dynamic>> notifications) {
+    final Map<String, Map<String, dynamic>> studentById = {};
+    for (final s in _students) {
+      studentById[s['student_id'].toString()] = s;
+    }
+
+    final List<Map<String, dynamic>> loadedHistory = [];
+    for (final n in notifications) {
+      final student = studentById[n['student_id'].toString()] ??
+          const {'name': 'Unknown Student', 'parent_name': 'Unknown Parent'};
+
       loadedHistory.add({
         'studentName': student['name'] ?? 'Unknown',
         'parentName': student['parent_name'] ?? n['receiver_username'],
@@ -143,10 +144,16 @@ class _ParentNotificationScreenState
         'status': n['status'] ?? 'Sent',
       });
     }
-    
+    return loadedHistory.reversed.toList(); // Newest first
+  }
+
+  Future<void> _loadHistory() async {
+    final notifications = await db.getNotificationsSentBy(widget.username);
+    final loadedHistory = _mapNotificationsToHistory(notifications);
+
     if (mounted) {
       setState(() {
-        _history = loadedHistory.reversed.toList(); // Newest first
+        _history = loadedHistory;
       });
     }
   }

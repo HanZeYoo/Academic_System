@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
 import '../models/ecr_transmutation_model.dart';
 import 'student_detail_screen.dart';
@@ -56,43 +57,39 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
       setState(() => _isLoading = true);
     }
 
+    final db = DatabaseHelper();
+
     // Get teacher name from email
-    final teacherRecord = await DatabaseHelper().getTeacherByEmail(
-      widget.username,
-    );
-    _teacherName = teacherRecord != null
-        ? teacherRecord['name']?.toString()
-        : null;
+    final teacherRecord = await db.getTeacherByEmail(widget.username);
+    _teacherName = teacherRecord != null ? teacherRecord['name']?.toString() : null;
 
     // Get assigned classes for this teacher
     final classes = _teacherName != null
-        ? await DatabaseHelper().getSubjectClassesByTeacher(_teacherName!)
+        ? await db.getSubjectClassesByTeacher(_teacherName!)
         : <Map<String, dynamic>>[];
 
-    // Build a set of (grade_level, section_name) pairs from assigned classes
+    // Build a set of (grade_level, section_name) pairs and raw filter lists
     final Set<String> assignedKeys = {};
+    final Set<String> uniqueGrades = {};
+    final Set<String> uniqueSections = {};
+    final Map<String, ({String grade, String section})> uniqueAttendanceKeys = {};
+
     for (final cls in classes) {
-      final grade = cls['grade_level']?.toString().trim().toLowerCase() ?? '';
-      final section =
-          cls['section_name']?.toString().trim().toLowerCase() ?? '';
-      if (grade.isNotEmpty || section.isNotEmpty) {
-        assignedKeys.add('$grade|$section');
+      final rawGrade = cls['grade_level']?.toString() ?? '';
+      final rawSection = cls['section_name']?.toString() ?? '';
+      final gradeLower = rawGrade.trim().toLowerCase();
+      final sectionLower = rawSection.trim().toLowerCase();
+      if (gradeLower.isNotEmpty || sectionLower.isNotEmpty) {
+        assignedKeys.add('$gradeLower|$sectionLower');
       }
-    }
-
-    // Get all students
-    final allStudents = await DatabaseHelper().getStudents();
-
-    // Filter: show empty list if no classes assigned, else match grade+section
-    List<Map<String, dynamic>> filtered;
-    if (assignedKeys.isEmpty) {
-      filtered = [];
-    } else {
-      filtered = allStudents.where((s) {
-        final sGrade = s['grade_level']?.toString().trim().toLowerCase() ?? '';
-        final sSection = s['section']?.toString().trim().toLowerCase() ?? '';
-        return assignedKeys.contains('$sGrade|$sSection');
-      }).toList();
+      if (rawGrade.isNotEmpty) uniqueGrades.add(rawGrade);
+      if (rawSection.isNotEmpty) uniqueSections.add(rawSection);
+      if (rawGrade.isNotEmpty && rawSection.isNotEmpty) {
+        uniqueAttendanceKeys.putIfAbsent(
+          '$rawGrade - $rawSection',
+          () => (grade: rawGrade, section: rawSection),
+        );
+      }
     }
 
     // Build class filter labels for dropdown
@@ -106,6 +103,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
         .toSet()
         .toList();
 
+    if (!mounted) return;
     setState(() {
       _assignedClasses = classes;
       _classFilterOptions = classLabels;
@@ -114,64 +112,160 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
       }
     });
 
-    // We need to fetch scores to determine status
-    List<Map<String, dynamic>> studentsWithStats = [];
+    if (assignedKeys.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _students = [];
+        _isLoading = false;
+      });
+      return;
+    }
 
-    // Default grading period (could be improved with a selector)
     const String period = '1st Term';
 
-    for (var s in filtered) {
+    // Fetch filtered students, per-class metadata/scores, and per-section attendance concurrently
+    final Future<List<Map<String, dynamic>>> studentsFuture = () async {
+      if (uniqueGrades.isNotEmpty && uniqueSections.isNotEmpty) {
+        try {
+          final res = await Supabase.instance.client
+              .from('students')
+              .select()
+              .eq('is_active', 1)
+              .inFilter('grade_level', uniqueGrades.toList())
+              .inFilter('section', uniqueSections.toList())
+              .order('id', ascending: true);
+          return List<Map<String, dynamic>>.from(res);
+        } catch (_) {}
+      }
+      return db.getStudents();
+    }();
+
+    final classBundleFutures = classes.map((c) async {
+      final subjectCode = c['subject_code'].toString();
+      final section = c['section_name'].toString();
+      final gradeLevel = c['grade_level'].toString();
+
+      final res = await Future.wait([
+        db.getAssessmentSetup(
+          subjectCode: subjectCode,
+          sectionName: section,
+          gradeLevel: gradeLevel,
+          gradingPeriod: period,
+        ),
+        db.getTransmutationTable(subjectCode, section),
+        db.getScoresForClass(
+          subjectCode: subjectCode,
+          sectionName: section,
+          gradeLevel: gradeLevel,
+          gradingPeriod: period,
+          filterBySetup: false,
+        ),
+      ]);
+
+      final classScores = res[2] as List<Map<String, dynamic>>;
+      final Map<String, List<Map<String, dynamic>>> scoresByStudent = {};
+      for (final row in classScores) {
+        final sid = row['student_id']?.toString() ?? '';
+        if (sid.isNotEmpty) {
+          scoresByStudent.putIfAbsent(sid, () => []).add(row);
+        }
+      }
+
+      return {
+        'gradeLevel': gradeLevel,
+        'section': section,
+        'setup': res[0] as Map<String, dynamic>?,
+        'transTable': res[1] as EcrTransmutationTable?,
+        'scoresByStudent': scoresByStudent,
+      };
+    });
+
+    final attendanceFutures = uniqueAttendanceKeys.keys.map((className) async {
+      final records = await db.getAttendanceForClass(className);
+      final uniqueDates = records.map((r) => r['date'].toString()).toSet();
+      final totalClassDays = uniqueDates.length;
+      final Map<String, double> pctByStudent = {};
+      if (totalClassDays > 0) {
+        final Map<String, double> pointsByStudent = {};
+        for (final record in records) {
+          final sid = record['student_id']?.toString() ?? '';
+          if (sid.isEmpty) continue;
+          final status = record['status']?.toString() ?? '';
+          double pts = 0.0;
+          if (status == 'Present' || status == 'Excused') {
+            pts = 1.0;
+          } else if (status == 'Late') {
+            pts = 0.5;
+          }
+          if (pts > 0) {
+            pointsByStudent[sid] = (pointsByStudent[sid] ?? 0.0) + pts;
+          }
+        }
+        pointsByStudent.forEach((sid, pts) {
+          pctByStudent[sid] = (pts / totalClassDays) * 100;
+        });
+      }
+      return MapEntry(className, pctByStudent);
+    });
+
+    final parallelResults = await Future.wait([
+      studentsFuture,
+      Future.wait(classBundleFutures),
+      Future.wait(attendanceFutures),
+    ]);
+
+    if (!mounted) return;
+
+    final fetchedStudents = parallelResults[0] as List<Map<String, dynamic>>;
+    final classBundles = parallelResults[1] as List<Map<String, dynamic>>;
+    final attendanceByClass = Map<String, Map<String, double>>.fromEntries(
+      parallelResults[2] as List<MapEntry<String, Map<String, double>>>,
+    );
+
+    final filtered = fetchedStudents.where((s) {
+      final sGrade = s['grade_level']?.toString().trim().toLowerCase() ?? '';
+      final sSection = s['section']?.toString().trim().toLowerCase() ?? '';
+      return assignedKeys.contains('$sGrade|$sSection');
+    }).toList();
+
+    // Index class bundles by exact grade|section to evaluate each student in O(classes_for_section)
+    final Map<String, List<Map<String, dynamic>>> bundlesBySection = {};
+    for (final bundle in classBundles) {
+      final key = '${bundle['gradeLevel']}|${bundle['section']}';
+      bundlesBySection.putIfAbsent(key, () => []).add(bundle);
+    }
+
+    final List<Map<String, dynamic>> studentsWithStats = [];
+
+    for (final s in filtered) {
       final studentId = s['student_id']?.toString() ?? '';
+      final gradeLevel = s['grade_level']?.toString() ?? '';
+      final section = s['section']?.toString() ?? '';
+      final matchingBundles = bundlesBySection['$gradeLevel|$section'] ?? const [];
+      final attPct = attendanceByClass['$gradeLevel - $section']?[studentId] ?? 0.0;
 
       double lowestGrade = 100;
       bool hasFailing = false;
       bool hasData = false;
 
-      // Check all classes taught by this teacher for this student's grade
-      for (var c in _assignedClasses) {
-        if (c['grade_level']?.toString() == s['grade_level']?.toString() &&
-            c['section_name']?.toString() == s['section']?.toString()) {
-          final subjectCode = c['subject_code'].toString();
-          final section = c['section_name'].toString();
-          final gradeLevel = c['grade_level'].toString();
-
-          final setup = await DatabaseHelper().getAssessmentSetup(
-            subjectCode: subjectCode,
-            sectionName: section,
-            gradeLevel: gradeLevel,
-            gradingPeriod: period,
+      for (final bundle in matchingBundles) {
+        final scoresByStudent =
+            bundle['scoresByStudent'] as Map<String, List<Map<String, dynamic>>>;
+        final scores = scoresByStudent[studentId] ?? const [];
+        if (scores.isNotEmpty) {
+          hasData = true;
+          final setup = bundle['setup'] as Map<String, dynamic>?;
+          final transTable = bundle['transTable'] as EcrTransmutationTable?;
+          final grade = _computeGrade(
+            studentId,
+            scores,
+            setup,
+            attPct,
+            customTable: transTable,
           );
-          final transTable = await DatabaseHelper().getTransmutationTable(subjectCode, section);
-
-          final scores = await DatabaseHelper().getScoresByStudentSubjectPeriod(
-            studentId: studentId,
-            subjectCode: subjectCode,
-            gradingPeriod: period,
-          );
-
-          final attendanceRecords = await DatabaseHelper().getAttendanceForClass('$gradeLevel - $section');
-          final uniqueDates = attendanceRecords.map((r) => r['date'].toString()).toSet();
-          final totalClassDays = uniqueDates.length;
-
-          double attendancePct = 0.0;
-          if (totalClassDays > 0) {
-            final studentAtt = attendanceRecords.where((r) => r['student_id'].toString() == studentId).toList();
-            double points = 0.0;
-            for (final record in studentAtt) {
-              final status = record['status']?.toString() ?? '';
-              if (status == 'Present' || status == 'Excused') points += 1.0;
-              else if (status == 'Late') points += 0.5;
-            }
-            attendancePct = (points / totalClassDays) * 100;
-          }
-
-          if (scores.isNotEmpty) {
-            hasData = true;
-            final grade = _computeGrade(studentId, scores, setup, attendancePct, customTable: transTable);
-            if (grade > 0) {
-              if (grade < lowestGrade) lowestGrade = grade;
-              if (grade < 75) hasFailing = true;
-            }
+          if (grade > 0) {
+            if (grade < lowestGrade) lowestGrade = grade;
+            if (grade < 75) hasFailing = true;
           }
         }
       }
@@ -202,6 +296,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
       });
     }
 
+    if (!mounted) return;
     setState(() {
       _students = studentsWithStats;
       _isLoading = false;

@@ -72,21 +72,35 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
     });
 
     try {
-      // Fetch all overview datasets concurrently in 1 parallel batch (instead of 3N+ sequential queries)
-      final results = await Future.wait([
-        db.getStudents(),
-        db.getTeachers(),
+      // Fetch lightweight projected overview datasets concurrently in 1 parallel batch
+      final results = await Future.wait<dynamic>([
+        Supabase.instance.client
+            .from('students')
+            .select('student_id, grade_level, section, school_year, enrollment_status')
+            .eq('is_active', 1),
+        Supabase.instance.client
+            .from('teachers')
+            .select('id')
+            .eq('is_active', 1),
         Supabase.instance.client.from('attendance').select('status'),
-        db.getSubjectClasses(),
-        Supabase.instance.client.from('assessment_setups').select().order('created_at', ascending: false),
-        Supabase.instance.client.from('scores').select(),
+        Supabase.instance.client
+            .from('subjects_classes')
+            .select('subject_code, subject_name, grade_level, section_name')
+            .eq('is_active', 1),
+        Supabase.instance.client
+            .from('assessment_setups')
+            .select('subject_code, section_name, grade_level, grading_period, ww_weight, pt_weight, te_weight, created_at')
+            .order('created_at', ascending: false),
+        Supabase.instance.client
+            .from('scores')
+            .select('student_id, subject_code, section_name, grade_level, grading_period, category, score, total_score'),
         db.getActiveSchoolYear(),
       ]);
 
-      final studentsData = results[0] as List<Map<String, dynamic>>;
-      final teachersData = results[1] as List<Map<String, dynamic>>;
+      final studentsData = List<Map<String, dynamic>>.from(results[0] as List);
+      final teachersData = List<Map<String, dynamic>>.from(results[1] as List);
       final attendance = List<Map<String, dynamic>>.from(results[2] as List);
-      final classes = results[3] as List<Map<String, dynamic>>;
+      final classes = List<Map<String, dynamic>>.from(results[3] as List);
       final allSetups = List<Map<String, dynamic>>.from(results[4] as List);
       final allScores = List<Map<String, dynamic>>.from(results[5] as List);
       final activeYear = results[6] as String;
@@ -281,6 +295,7 @@ class _AdminOverviewScreenState extends State<AdminOverviewScreen> {
       }
     }
 
+    if (!mounted) return;
     setState(() {
       _isLoading = false;
     });
