@@ -5,6 +5,7 @@ import '../database_helper.dart';
 import '../utils/avatar_utils.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
+import '../widgets/skeleton_loader.dart';
 
 enum UserRole { admin, teacher, student, parent }
 
@@ -649,19 +650,7 @@ class _SharedProfileScreenState extends State<SharedProfileScreen> {
     final theme = _getRoleTheme();
 
     if (_isLoading) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: theme.primary, strokeWidth: 3),
-            const SizedBox(height: 16),
-            const Text(
-              'Loading profile information...',
-              style: TextStyle(color: Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w500),
-            ),
-          ],
-        ),
-      );
+      return SkeletonPresets.profile();
     }
 
     String displayName = '';

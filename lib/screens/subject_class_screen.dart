@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'add_subject_class_screen.dart';
 import '../database_helper.dart';
+import '../widgets/skeleton_loader.dart';
 
 class SubjectClassScreen extends StatefulWidget {
   const SubjectClassScreen({super.key});
@@ -169,7 +170,7 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
           // List
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? SkeletonPresets.cardList(itemCount: 6, padding: EdgeInsets.zero)
                 : _subjectClasses.isEmpty
                     ? Center(
                         child: Column(

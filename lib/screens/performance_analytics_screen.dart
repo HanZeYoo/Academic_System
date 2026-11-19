@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../database_helper.dart';
+import '../models/ecr_transmutation_model.dart';
+import '../widgets/skeleton_loader.dart';
 
 /// Screen for analyzing individual child academic performance,
 /// competency mastery across assessment categories, learning strengths,
@@ -115,34 +117,91 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
     // subjectName -> {total: int, passed: int, honors: int, gradeSum: double}
     Map<String, Map<String, dynamic>> subjectStats = {};
 
-    for (var c in filteredClasses) {
+    // Fetch per-class datasets concurrently across all filtered classes
+    final classBundles = await Future.wait(filteredClasses.map((c) async {
       final subjectCode = c['subject_code'].toString();
       final subjectName = c['subject_name'].toString();
       final gradeLevel = c['grade_level'].toString();
       final section = c['section_name'].toString();
 
-      final students = await db.getStudentsBySection(gradeLevel, section);
+      final results = await Future.wait([
+        db.getStudentsBySection(gradeLevel, section),
+        db.getAssessmentSetup(
+          subjectCode: subjectCode,
+          sectionName: section,
+          gradeLevel: gradeLevel,
+          gradingPeriod: _selectedPeriod,
+        ),
+        db.getTransmutationTable(subjectCode, section),
+        db.getScoresForClass(
+          subjectCode: subjectCode,
+          sectionName: section,
+          gradeLevel: gradeLevel,
+          gradingPeriod: _selectedPeriod,
+        ),
+        db.getAttendanceForClass('$gradeLevel - $section'),
+      ]);
+
+      return {
+        'subjectCode': subjectCode,
+        'subjectName': subjectName,
+        'gradeLevel': gradeLevel,
+        'section': section,
+        'students': results[0] as List<Map<String, dynamic>>,
+        'setup': results[1] as Map<String, dynamic>?,
+        'transTable': results[2],
+        'scores': results[3] as List<Map<String, dynamic>>,
+        'attendance': results[4] as List<Map<String, dynamic>>,
+      };
+    }));
+
+    // Batch-fetch student attendance stats for all students across all classes in 1 query
+    final Set<String> allStudentIds = {};
+    String? batchSchoolYear;
+    for (final bundle in classBundles) {
+      final students = bundle['students'] as List<Map<String, dynamic>>;
+      final setup = bundle['setup'] as Map<String, dynamic>?;
+      batchSchoolYear ??= setup?['school_year']?.toString();
+      for (final s in students) {
+        final sid = s['student_id']?.toString() ?? '';
+        if (sid.isNotEmpty) allStudentIds.add(sid);
+      }
+    }
+    final batchAttendanceStats = await db.getBatchStudentAttendanceStats(
+      allStudentIds.toList(),
+      batchSchoolYear,
+    );
+
+    for (final bundle in classBundles) {
+      final subjectName = bundle['subjectName'] as String;
+      final gradeLevel = bundle['gradeLevel'] as String;
+      final section = bundle['section'] as String;
+      final students = bundle['students'] as List<Map<String, dynamic>>;
       if (students.isEmpty) continue;
 
-      final setup = await db.getAssessmentSetup(
-        subjectCode: subjectCode,
-        sectionName: section,
-        gradeLevel: gradeLevel,
-        gradingPeriod: _selectedPeriod,
-      );
-      final transTable = await db.getTransmutationTable(subjectCode, section);
-      DatabaseHelper.setActiveTransmutationTable(transTable);
+      final setup = bundle['setup'] as Map<String, dynamic>?;
+      DatabaseHelper.setActiveTransmutationTable(bundle['transTable'] as EcrTransmutationTable?);
+      final scores = bundle['scores'] as List<Map<String, dynamic>>;
+      final attendanceRecords = bundle['attendance'] as List<Map<String, dynamic>>;
 
-      final scores = await db.getScoresForClass(
-        subjectCode: subjectCode,
-        sectionName: section,
-        gradeLevel: gradeLevel,
-        gradingPeriod: _selectedPeriod,
-      );
-
-      final attendanceRecords = await db.getAttendanceForClass('$gradeLevel - $section');
       final uniqueDates = attendanceRecords.map((r) => r['date'].toString()).toSet();
       final totalClassDays = uniqueDates.length;
+
+      // Pre-group class scores & attendance by student_id in O(R + A)
+      final Map<String, List<Map<String, dynamic>>> scoresByStudent = {};
+      for (final r in scores) {
+        final sid = r['student_id']?.toString() ?? '';
+        if (sid.isNotEmpty) {
+          scoresByStudent.putIfAbsent(sid, () => []).add(r);
+        }
+      }
+      final Map<String, List<Map<String, dynamic>>> attByStudent = {};
+      for (final r in attendanceRecords) {
+        final sid = r['student_id']?.toString() ?? '';
+        if (sid.isNotEmpty) {
+          attByStudent.putIfAbsent(sid, () => []).add(r);
+        }
+      }
 
       if (!subjectStats.containsKey(subjectName)) {
         subjectStats[subjectName] = {'total': 0, 'passed': 0, 'honors': 0, 'gradeSum': 0.0};
@@ -151,10 +210,11 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
       for (var s in students) {
         final studentId = s['student_id'].toString();
         final studentName = s['name'].toString();
+        final studentScores = scoresByStudent[studentId] ?? const [];
 
         double attendancePct = 0.0;
         if (totalClassDays > 0) {
-          final studentAtt = attendanceRecords.where((r) => r['student_id'].toString() == studentId).toList();
+          final studentAtt = attByStudent[studentId] ?? const [];
           double points = 0.0;
           for (final record in studentAtt) {
             final status = record['status']?.toString() ?? '';
@@ -167,7 +227,7 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
           attendancePct = (points / totalClassDays) * 100;
         }
 
-        final grade = _computeGrade(studentId, scores, setup, attendancePct);
+        final grade = _computeGrade(studentId, studentScores, setup, attendancePct);
 
         if (grade > 0) {
           subjectStats[subjectName]!['total'] = (subjectStats[subjectName]!['total'] as int) + 1;
@@ -236,10 +296,11 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
             _targetedSupportCount++;
           }
 
-          final wwAvg = _categoryAvg(studentId, 'Written Works', scores, setup);
-          final ptAvg = _categoryAvg(studentId, 'Performance Tasks', scores, setup);
-          final teAvg = _categoryAvg(studentId, 'Term Exams', scores, setup);
-          final attendanceStats = await db.getStudentAttendanceStats(studentId, setup?['school_year']);
+          final wwAvg = _categoryAvg(studentId, 'Written Works', studentScores, setup);
+          final ptAvg = _categoryAvg(studentId, 'Performance Tasks', studentScores, setup);
+          final teAvg = _categoryAvg(studentId, 'Term Exams', studentScores, setup);
+          final attendanceStats = batchAttendanceStats[studentId] ??
+              const {'total': 0, 'present': 0, 'late': 0, 'absent': 0, 'percentage': 'No Data'};
 
           // Determine Child's Top Competency & Growth Opportunity
           final breakdownMap = {
@@ -984,7 +1045,7 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return SkeletonPresets.analytics();
     }
 
     // Filter students by search and active category tab

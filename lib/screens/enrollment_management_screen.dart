@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../widgets/skeleton_loader.dart';
 
 class EnrollmentManagementScreen extends StatefulWidget {
   const EnrollmentManagementScreen({super.key});
@@ -306,7 +307,7 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
           // Content List
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? SkeletonPresets.cardList(itemCount: 6, padding: EdgeInsets.zero)
                 : TabBarView(
                     controller: _tabController,
                     children: _tabs.map((tab) {

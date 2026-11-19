@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../widgets/skeleton_loader.dart';
 
 class AssessmentSetupScreen extends StatefulWidget {
   final String username;
@@ -268,7 +269,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F9),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? SkeletonPresets.formAndTable(rowCount: 4)
           : _assignedClasses.isEmpty
               ? _buildNoClassState()
               : SingleChildScrollView(

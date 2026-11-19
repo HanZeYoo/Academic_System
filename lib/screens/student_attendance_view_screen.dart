@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/role_theme.dart';
+import '../widgets/skeleton_loader.dart';
 
 class StudentAttendanceViewScreen extends StatefulWidget {
   final String username;
@@ -49,8 +50,11 @@ class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScree
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Center(
-        child: CircularProgressIndicator(color: theme.primary),
+      return SkeletonPresets.cardList(
+        itemCount: 5,
+        showHeader: true,
+        showStats: true,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
       );
     }
 

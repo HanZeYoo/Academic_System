@@ -18,6 +18,7 @@ import '../database_helper.dart';
 import '../utils/avatar_utils.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
+import '../widgets/skeleton_loader.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   final String username;
@@ -56,37 +57,51 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     try {
       final db = DatabaseHelper();
     
-      // Load school years
-      final years = await db.getAllSchoolYears();
-      final activeYear = await db.getActiveSchoolYear();
-      
+      // Load school years and teacher profile concurrently
+      final initialResults = await Future.wait([
+        db.getAllSchoolYears(),
+        db.getActiveSchoolYear(),
+        db.getTeacherByEmail(widget.username),
+      ]);
+
+      final years = initialResults[0] as List<String>;
+      final activeYear = initialResults[1] as String;
+      final teacher = initialResults[2] as Map<String, dynamic>?;
+
       if (_selectedSchoolYear == null) {
         _selectedSchoolYear = activeYear;
       }
-      
-      final teacher = await db.getTeacherByEmail(widget.username);
+
       final tName = teacher?['name']?.toString() ?? 'Teacher';
       _profilePicture = teacher?['profile_picture']?.toString();
-      
+
       final classes = await db.getSubjectClassesByTeacher(tName, _selectedSchoolYear);
-      
-      // Calculate total students across all classes
-      int studentCount = 0;
-      Set<String> processedSections = {};
+
+      // Fetch unique section rosters, announcements, and attendance average concurrently
+      final Set<String> processedSections = {};
+      final List<Future<List<Map<String, dynamic>>>> sectionFutures = [];
       for (var c in classes) {
-        final sec = '${c['grade_level']}-${c['section_name']}';
-        if (!processedSections.contains(sec)) {
-          processedSections.add(sec);
-          final students = await db.getStudentsBySection(c['grade_level']?.toString() ?? '', c['section_name']?.toString() ?? '', _selectedSchoolYear);
-          studentCount += students.length;
+        final gradeLevel = c['grade_level']?.toString() ?? '';
+        final sectionName = c['section_name']?.toString() ?? '';
+        final sec = '$gradeLevel-$sectionName';
+        if (processedSections.add(sec)) {
+          sectionFutures.add(db.getStudentsBySection(gradeLevel, sectionName, _selectedSchoolYear));
         }
       }
 
-      // Get Announcements
-      final announcements = await db.getAnnouncements(widget.username, role: 'teacher');
-      
-      // Get Avg Attendance
-      final avgAtt = await db.getAverageAttendanceForTeacher(tName);
+      final secondaryResults = await Future.wait([
+        Future.wait(sectionFutures),
+        db.getAnnouncements(widget.username, role: 'teacher'),
+        db.getAverageAttendanceForTeacher(tName),
+      ]);
+
+      final sectionRosters = secondaryResults[0] as List<List<Map<String, dynamic>>>;
+      int studentCount = 0;
+      for (final students in sectionRosters) {
+        studentCount += students.length;
+      }
+      final announcements = secondaryResults[1] as List<Map<String, dynamic>>;
+      final avgAtt = secondaryResults[2] as String;
 
       if (mounted) {
         setState(() {
@@ -565,7 +580,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Widget _buildDashboardOverview() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return SkeletonPresets.dashboard(
+        showBanner: true,
+        statCount: 3,
+        listCount: 3,
+      );
     }
 
     return RefreshIndicator(

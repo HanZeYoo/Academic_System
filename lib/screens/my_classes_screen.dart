@@ -3,6 +3,7 @@ import '../database_helper.dart';
 import 'teacher_student_screen.dart';
 import 'teacher_attendance_screen.dart';
 import '../utils/role_theme.dart';
+import '../widgets/skeleton_loader.dart';
 
 class MyClassesScreen extends StatefulWidget {
   final String username; // teacher's login email
@@ -79,7 +80,11 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return SkeletonPresets.cardList(
+        itemCount: 5,
+        showHeader: true,
+        padding: const EdgeInsets.all(20),
+      );
     }
 
     return RefreshIndicator(

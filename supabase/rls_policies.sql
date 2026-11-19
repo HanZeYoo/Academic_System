@@ -494,6 +494,52 @@ FOR ALL TO authenticated
 USING (public.is_admin())
 WITH CHECK (public.is_admin());
 
+
+-- ------------------------------------------------------------------------------
+-- 16. PERFORMANCE COMPOSITE B-TREE INDEXES (RLS & Query Acceleration)
+-- ------------------------------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_users_username_role
+  ON public.users (username, role);
+
+CREATE INDEX IF NOT EXISTS idx_students_student_id
+  ON public.students (student_id);
+
+CREATE INDEX IF NOT EXISTS idx_students_email
+  ON public.students (email);
+
+CREATE INDEX IF NOT EXISTS idx_students_parent_email
+  ON public.students (parent_email);
+
+CREATE INDEX IF NOT EXISTS idx_students_section_year
+  ON public.students (grade_level, section, school_year, enrollment_status);
+
+CREATE INDEX IF NOT EXISTS idx_teachers_email
+  ON public.teachers (email);
+
+CREATE INDEX IF NOT EXISTS idx_subjects_classes_teacher_year
+  ON public.subjects_classes (assigned_teacher, school_year);
+
+CREATE INDEX IF NOT EXISTS idx_scores_class_period
+  ON public.scores (subject_code, section_name, grade_level, grading_period);
+
+CREATE INDEX IF NOT EXISTS idx_scores_student_year
+  ON public.scores (student_id, school_year);
+
+CREATE INDEX IF NOT EXISTS idx_attendance_class_date
+  ON public.attendance (class_name, date);
+
+CREATE INDEX IF NOT EXISTS idx_attendance_student_year
+  ON public.attendance (student_id, school_year);
+
+CREATE INDEX IF NOT EXISTS idx_assessment_setups_lookup
+  ON public.assessment_setups (subject_code, section_name, grade_level, grading_period);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_receiver
+  ON public.notifications (receiver_username);
+
+CREATE INDEX IF NOT EXISTS idx_student_remarks_student_subject
+  ON public.student_remarks (student_id, subject_code, grading_period);
+
 -- ==============================================================================
--- DONE! All tables are now protected with Row Level Security (RLS).
+-- DONE! All tables are protected with RLS and indexed for fast queries.
 -- ==============================================================================

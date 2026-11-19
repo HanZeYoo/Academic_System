@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/avatar_utils.dart';
+import '../widgets/skeleton_loader.dart';
 
 class StudentGradesScreen extends StatefulWidget {
   final Map<String, dynamic> student;
@@ -166,7 +167,7 @@ class _StudentGradesScreenState extends State<StudentGradesScreen> {
           // Grades Data Table
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? SkeletonPresets.cardList(itemCount: 5)
                 : _subjectList.isEmpty
                     ? Center(
                         child: Column(

@@ -6,6 +6,7 @@ import '../utils/avatar_utils.dart';
 import 'class_evaluation_report_screen.dart';
 import 'student_evaluation_detail_screen.dart';
 import '../services/early_warning_service.dart';
+import '../widgets/skeleton_loader.dart';
 
 class AcademicEvaluationScreen extends StatefulWidget {
   final String username;
@@ -32,6 +33,17 @@ class _AcademicEvaluationScreenState
   List<Map<String, dynamic>> _allScores = [];
   List<Map<String, dynamic>> _attendanceRecords = [];
   Map<String, dynamic>? _assessmentSetup;
+
+  // Memoized per-load caches for O(1) UI frame rendering
+  int _cachedTotalClassDays = 0;
+  Map<String, List<Map<String, dynamic>>> _scoresByStudentKey = {};
+  Map<String, double> _cachedAttendancePct = {};
+  Map<String, bool> _cachedHasScores = {};
+  Map<String, double> _cachedGrades = {};
+  Map<String, Map<String, Map<String, dynamic>>> _cachedCategoryStats = {};
+  Map<String, double> _cachedClassCategoryAvg = {};
+  double _cachedClassAttendanceAvg = 0.0;
+  Map<String, EarlyWarningResult> _cachedEwResults = {};
 
   static const _periods = [
     '1st Quarter',
@@ -86,7 +98,14 @@ class _AcademicEvaluationScreenState
 
   Future<void> _loadStudentData() async {
     if (_selectedClassData == null) {
-      setState(() { _students = []; _allScores = []; _isLoading = false; });
+      setState(() {
+        _students = [];
+        _allScores = [];
+        _attendanceRecords = [];
+        _assessmentSetup = null;
+        _rebuildEvaluationCache();
+        _isLoading = false;
+      });
       return;
     }
     setState(() => _isLoading = true);
@@ -95,167 +114,253 @@ class _AcademicEvaluationScreenState
     final section = _selectedClassData!['section_name'].toString();
     final subjectCode = _selectedClassData!['subject_code'].toString();
 
-    final students = await db.getStudentsBySection(grade, section);
-    final scores = await db.getScoresForClass(
-      subjectCode: subjectCode,
-      sectionName: section,
-      gradeLevel: grade,
-      gradingPeriod: _selectedPeriod,
-    );
-    final setup = await db.getAssessmentSetup(
-      subjectCode: subjectCode,
-      sectionName: section,
-      gradeLevel: grade,
-      gradingPeriod: _selectedPeriod,
-    );
-    final transTable = await db.getTransmutationTable(subjectCode, section);
+    final results = await Future.wait([
+      db.getStudentsBySection(grade, section),
+      db.getScoresForClass(
+        subjectCode: subjectCode,
+        sectionName: section,
+        gradeLevel: grade,
+        gradingPeriod: _selectedPeriod,
+      ),
+      db.getAssessmentSetup(
+        subjectCode: subjectCode,
+        sectionName: section,
+        gradeLevel: grade,
+        gradingPeriod: _selectedPeriod,
+      ),
+      db.getTransmutationTable(subjectCode, section),
+      db.getAttendanceForClass('$grade - $section'),
+    ]);
+
+    if (!mounted) return;
+    final students = results[0] as List<Map<String, dynamic>>;
+    final scores = results[1] as List<Map<String, dynamic>>;
+    final setup = results[2] as Map<String, dynamic>?;
+    final transTable = results[3] as dynamic;
+    final attendance = results[4] as List<Map<String, dynamic>>;
+
     DatabaseHelper.setActiveTransmutationTable(transTable);
-    final attendance = await db.getAttendanceForClass('$grade - $section');
+
+    _students = students;
+    _allScores = scores;
+    _assessmentSetup = setup;
+    _attendanceRecords = attendance;
+    _rebuildEvaluationCache();
 
     setState(() {
-      _students = students;
-      _allScores = scores;
-      _assessmentSetup = setup;
-      _attendanceRecords = attendance;
       _isLoading = false;
     });
   }
 
-  int get _totalClassDays {
-    final uniqueDates = _attendanceRecords.map((r) => r['date'].toString()).toSet();
-    return uniqueDates.length;
-  }
+  String _cleanSid(dynamic sid) =>
+      (sid?.toString() ?? '').replaceAll(RegExp(r'[\s\-]'), '').toLowerCase();
 
-  double _attendancePct(String studentId) {
-    final studentAtt = _attendanceRecords.where((r) => r['student_id'].toString() == studentId).toList();
-    final totalDays = _totalClassDays;
-    if (totalDays == 0) return 0.0;
-    
-    double points = 0.0;
-    for (final record in studentAtt) {
-      final status = record['status']?.toString() ?? '';
-      if (status == 'Present' || status == 'Excused') {
-        points += 1.0;
-      } else if (status == 'Late') {
-        points += 0.5;
+  void _rebuildEvaluationCache() {
+    _cachedTotalClassDays = _attendanceRecords.map((r) => r['date'].toString()).toSet().length;
+    _scoresByStudentKey = {};
+    _cachedAttendancePct = {};
+    _cachedHasScores = {};
+    _cachedGrades = {};
+    _cachedCategoryStats = {};
+    _cachedClassCategoryAvg = {};
+    _cachedClassAttendanceAvg = 0.0;
+
+    // 1. Pre-index attendance by student_id in O(A)
+    final Map<String, List<Map<String, dynamic>>> attendanceBySid = {};
+    for (final rec in _attendanceRecords) {
+      final sid = rec['student_id']?.toString() ?? '';
+      if (sid.isNotEmpty) {
+        attendanceBySid.putIfAbsent(sid, () => []).add(rec);
       }
     }
-    return (points / totalDays) * 100;
-  }
 
-  bool _isStudentMatch(dynamic scoreSid, String targetSid) {
-    final s1 = (scoreSid?.toString() ?? '').replaceAll(RegExp(r'[\s\-]'), '').toLowerCase();
-    final s2 = targetSid.replaceAll(RegExp(r'[\s\-]'), '').toLowerCase();
-    return s1.isNotEmpty && s1 == s2;
-  }
+    // 2. Pre-index scores by cleaned student_id and normalized fuzzy name in O(R)
+    final Map<String, List<Map<String, dynamic>>> scoresByCleanId = {};
+    final Map<String, List<Map<String, dynamic>>> scoresByRawName = {};
+    final Map<String, List<Map<String, dynamic>>> scoresByFuzzyName = {};
+    final Map<String, List<Map<String, dynamic>>> classScoresByCategory = {};
 
-  bool _isStudentOrNameMatch(Map<String, dynamic> row, String targetSid, [String? targetName]) {
-    if (_isStudentMatch(row['student_id'], targetSid)) return true;
-    if (targetName != null && targetName.isNotEmpty) {
-      final n1 = (row['student_name']?.toString() ?? '').toLowerCase().trim();
-      final n2 = targetName.toLowerCase().trim();
-      if (n1.isNotEmpty && (n1 == n2 || EcrValidator.normalizeFuzzyName(n1) == EcrValidator.normalizeFuzzyName(n2))) {
-        return true;
+    for (final r in _allScores) {
+      final cleanId = _cleanSid(r['student_id']);
+      if (cleanId.isNotEmpty) {
+        scoresByCleanId.putIfAbsent(cleanId, () => []).add(r);
+      }
+      final rawName = (r['student_name']?.toString() ?? '').toLowerCase().trim();
+      if (rawName.isNotEmpty) {
+        scoresByRawName.putIfAbsent(rawName, () => []).add(r);
+        final fuzzy = EcrValidator.normalizeFuzzyName(rawName);
+        if (fuzzy.isNotEmpty) {
+          scoresByFuzzyName.putIfAbsent(fuzzy, () => []).add(r);
+        }
+      }
+      final cat = (r['category']?.toString() ?? '').toLowerCase();
+      if (cat.isNotEmpty) {
+        classScoresByCategory.putIfAbsent(cat, () => []).add(r);
       }
     }
-    return false;
+
+    // 3. Precompute class category averages
+    for (final cat in ['Written Works', 'Performance Tasks', 'Term Exams']) {
+      final list = classScoresByCategory[cat.toLowerCase()] ?? const [];
+      if (list.isEmpty) {
+        _cachedClassCategoryAvg[cat] = 0.0;
+      } else {
+        double total = 0, max = 0;
+        for (final r in list) {
+          total += (r['score'] as num?)?.toDouble() ?? 0;
+          max += (r['total_score'] as num?)?.toDouble() ?? 0;
+        }
+        _cachedClassCategoryAvg[cat] = max > 0 ? (total / max) * 100 : 0.0;
+      }
+    }
+
+    // 4. Precompute per-student metrics in O(S + R)
+    double totalAttPct = 0.0;
+    final dbHelper = DatabaseHelper();
+    for (final student in _students) {
+      final sid = student['student_id'].toString();
+      final sName = student['name']?.toString() ?? '';
+
+      // Attendance %
+      double attPct = 0.0;
+      if (_cachedTotalClassDays > 0) {
+        final studentAtt = attendanceBySid[sid] ?? const [];
+        double points = 0.0;
+        for (final record in studentAtt) {
+          final status = record['status']?.toString() ?? '';
+          if (status == 'Present' || status == 'Excused') {
+            points += 1.0;
+          } else if (status == 'Late') {
+            points += 0.5;
+          }
+        }
+        attPct = (points / _cachedTotalClassDays) * 100;
+      }
+      _cachedAttendancePct[sid] = attPct;
+      totalAttPct += attPct;
+
+      // Match student's score rows once (deduplicating via identity if matched by both id & name)
+      final Set<Map<String, dynamic>> matchedSet = {};
+      final cleanId = _cleanSid(sid);
+      if (cleanId.isNotEmpty) {
+        matchedSet.addAll(scoresByCleanId[cleanId] ?? const []);
+      }
+      if (sName.isNotEmpty) {
+        final lowerName = sName.toLowerCase().trim();
+        matchedSet.addAll(scoresByRawName[lowerName] ?? const []);
+        final fuzzy = EcrValidator.normalizeFuzzyName(lowerName);
+        if (fuzzy.isNotEmpty) {
+          matchedSet.addAll(scoresByFuzzyName[fuzzy] ?? const []);
+        }
+      }
+      final studentScores = matchedSet.toList();
+      _scoresByStudentKey[sid] = studentScores;
+      _cachedHasScores[sid] = studentScores.isNotEmpty;
+
+      // Category stats
+      final Map<String, Map<String, dynamic>> catMap = {};
+      for (final cat in ['Written Works', 'Performance Tasks', 'Term Exams']) {
+        final catLower = cat.toLowerCase();
+        final s = studentScores.where((r) => r['category'].toString().toLowerCase() == catLower).toList();
+        if (s.isEmpty) {
+          catMap[cat] = {'earned': 0.0, 'total': 0.0, 'pct': 0.0, 'hasData': false};
+        } else {
+          double total = 0, max = 0;
+          for (final r in s) {
+            total += (r['score'] as num?)?.toDouble() ?? 0;
+            max += (r['total_score'] as num?)?.toDouble() ?? 0;
+          }
+          catMap[cat] = {
+            'earned': total,
+            'total': max,
+            'pct': max > 0 ? (total / max) * 100 : 0.0,
+            'hasData': true,
+          };
+        }
+      }
+      _cachedCategoryStats[sid] = catMap;
+
+      // Grade computation
+      double grade = 0.0;
+      if (studentScores.isNotEmpty) {
+        final wwStats = catMap['Written Works']!;
+        final ptStats = catMap['Performance Tasks']!;
+        final teStats = catMap['Term Exams']!;
+        final hasAssessmentData =
+            wwStats['hasData'] == true || ptStats['hasData'] == true || teStats['hasData'] == true;
+        if (hasAssessmentData) {
+          if (_assessmentSetup != null) {
+            final wWW = (_assessmentSetup!['ww_weight'] as num?)?.toDouble() ?? 30;
+            final wPT = (_assessmentSetup!['pt_weight'] as num?)?.toDouble() ?? 50;
+            final wTE = (_assessmentSetup!['te_weight'] as num?)?.toDouble() ?? 20;
+            final wAttendance = (_assessmentSetup!['attendance_weight'] as num?)?.toDouble() ?? 0;
+
+            double totalWeight = 0;
+            double earned = 0;
+            if (wwStats['hasData'] == true) {
+              earned += (wwStats['pct'] as double) * (wWW / 100);
+              totalWeight += (wWW / 100);
+            }
+            if (ptStats['hasData'] == true) {
+              earned += (ptStats['pct'] as double) * (wPT / 100);
+              totalWeight += (wPT / 100);
+            }
+            if (teStats['hasData'] == true) {
+              earned += (teStats['pct'] as double) * (wTE / 100);
+              totalWeight += (wTE / 100);
+            }
+            if (wAttendance > 0) {
+              earned += attPct * (wAttendance / 100);
+              totalWeight += (wAttendance / 100);
+            }
+            if (totalWeight > 0) {
+              grade = dbHelper.transmuteGrade(earned / totalWeight);
+            }
+          } else {
+            double total = 0, max = 0;
+            for (final r in studentScores) {
+              total += (r['score'] as num?)?.toDouble() ?? 0;
+              max += (r['total_score'] as num?)?.toDouble() ?? 0;
+            }
+            if (max > 0) {
+              grade = dbHelper.transmuteGrade((total / max) * 100);
+            }
+          }
+        }
+      }
+      _cachedGrades[sid] = grade;
+    }
+
+    _cachedClassAttendanceAvg = _students.isEmpty ? 0.0 : totalAttPct / _students.length;
+
+    final subjCode = _selectedClassData?['subject_code']?.toString() ?? '';
+    _cachedEwResults = EarlyWarningService.evaluateClassScores(
+      students: _students,
+      allScores: _allScores,
+      subjectCode: subjCode,
+      gradingPeriod: _selectedPeriod,
+    );
   }
+
+  double _attendancePct(String studentId) => _cachedAttendancePct[studentId] ?? 0.0;
 
   Map<String, dynamic> _categoryStats(String studentId, String category, [String? studentName]) {
-    final s = _allScores.where((r) => 
-      _isStudentOrNameMatch(r, studentId, studentName) && 
-      r['category'].toString().toLowerCase() == category.toLowerCase()
-    ).toList();
-
-    if (s.isEmpty) return {'earned': 0.0, 'total': 0.0, 'pct': 0.0, 'hasData': false};
-    double total = 0, max = 0;
-    for (final r in s) {
-      total += (r['score'] as num?)?.toDouble() ?? 0;
-      max   += (r['total_score'] as num?)?.toDouble() ?? 0;
+    final byCat = _cachedCategoryStats[studentId];
+    if (byCat != null && byCat.containsKey(category)) {
+      return byCat[category]!;
     }
-    double pct = max > 0 ? (total / max) * 100 : 0.0;
-    return {'earned': total, 'total': max, 'pct': pct, 'hasData': true};
+    return {'earned': 0.0, 'total': 0.0, 'pct': 0.0, 'hasData': false};
   }
 
-  bool _studentHasScores(String studentId, [String? studentName]) {
-    return _allScores.any((r) => _isStudentOrNameMatch(r, studentId, studentName));
-  }
+  bool _studentHasScores(String studentId, [String? studentName]) =>
+      _cachedHasScores[studentId] ?? false;
 
-  double _computeGrade(String studentId, [String? studentName]) {
-    if (!_studentHasScores(studentId, studentName)) return 0.0;
+  double _computeGrade(String studentId, [String? studentName]) =>
+      _cachedGrades[studentId] ?? 0.0;
 
-    final wwStats = _categoryStats(studentId, 'Written Works', studentName);
-    final ptStats = _categoryStats(studentId, 'Performance Tasks', studentName);
-    final teStats = _categoryStats(studentId, 'Term Exams', studentName);
-    final attAvg = _attendancePct(studentId);
+  double _classCategoryAvg(String category) => _cachedClassCategoryAvg[category] ?? 0.0;
 
-    // Require at least one academic assessment category to have data
-    final hasAssessmentData = wwStats['hasData'] == true || ptStats['hasData'] == true || teStats['hasData'] == true;
-    if (!hasAssessmentData) return 0.0;
-
-    if (_assessmentSetup != null) {
-      final wWW = (_assessmentSetup!['ww_weight'] as num?)?.toDouble() ?? 30;
-      final wPT = (_assessmentSetup!['pt_weight'] as num?)?.toDouble() ?? 50;
-      final wTE = (_assessmentSetup!['te_weight'] as num?)?.toDouble() ?? 20;
-      final wAttendance = (_assessmentSetup!['attendance_weight'] as num?)?.toDouble() ?? 0;
-
-      double totalWeight = 0;
-      double earned = 0;
-
-      if (wwStats['hasData'] == true) { earned += (wwStats['pct'] as double) * (wWW / 100); totalWeight += (wWW / 100); }
-      if (ptStats['hasData'] == true) { earned += (ptStats['pct'] as double) * (wPT / 100); totalWeight += (wPT / 100); }
-      if (teStats['hasData'] == true) { earned += (teStats['pct'] as double) * (wTE / 100); totalWeight += (wTE / 100); }
-      
-      if (wAttendance > 0) {
-        earned += attAvg * (wAttendance / 100);
-        totalWeight += (wAttendance / 100);
-      }
-
-      if (totalWeight == 0) return 0.0;
-      double initialGrade = earned / totalWeight;
-      return DatabaseHelper().transmuteGrade(initialGrade);
-    }
-
-    final s = _allScores.where((r) => _isStudentOrNameMatch(r, studentId, studentName)).toList();
-    if (s.isEmpty) return 0.0;
-    double total = 0, max = 0;
-    for (final r in s) {
-      total += (r['score'] as num?)?.toDouble() ?? 0;
-      max   += (r['total_score'] as num?)?.toDouble() ?? 0;
-    }
-    if (max == 0) return 0.0;
-    double initialGrade = (total / max) * 100;
-    return DatabaseHelper().transmuteGrade(initialGrade);
-  }
-
-  double _categoryAvg(String studentId, String category, [String? studentName]) {
-    final stats = _categoryStats(studentId, category, studentName);
-    return stats['pct'] as double;
-  }
-
-  double _classCategoryAvg(String category) {
-    final s = _allScores.where((r) => 
-      r['category'].toString().toLowerCase() == category.toLowerCase()
-    ).toList();
-
-    if (s.isEmpty) return 0.0;
-    double total = 0, max = 0;
-    for (final r in s) {
-      total += (r['score'] as num?)?.toDouble() ?? 0;
-      max   += (r['total_score'] as num?)?.toDouble() ?? 0;
-    }
-    if (max == 0) return 0.0;
-    return (total / max) * 100;
-  }
-
-  double _classAttendanceAvg() {
-    if (_students.isEmpty) return 0.0;
-    double total = 0.0;
-    for (final s in _students) {
-      total += _attendancePct(s['student_id'].toString());
-    }
-    return total / _students.length;
-  }
+  double _classAttendanceAvg() => _cachedClassAttendanceAvg;
 
   String get _classLabel {
     if (_selectedClassData == null) return 'No class';
@@ -265,7 +370,7 @@ class _AcademicEvaluationScreenState
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return SkeletonPresets.analytics(padding: const EdgeInsets.all(24));
     }
     if (_classes.isEmpty) {
       return const Center(
@@ -273,13 +378,7 @@ class _AcademicEvaluationScreenState
             style: TextStyle(fontSize: 16, color: Colors.grey)));
     }
 
-    final subjCode = _selectedClassData?['subject_code']?.toString() ?? '';
-    final ewResults = EarlyWarningService.evaluateClassScores(
-      students: _students,
-      allScores: _allScores,
-      subjectCode: subjCode,
-      gradingPeriod: _selectedPeriod,
-    );
+    final ewResults = _cachedEwResults;
 
     final gradeList = _students.where((s) {
       final sid = s['student_id'].toString();
@@ -615,9 +714,7 @@ class _AcademicEvaluationScreenState
                     _showRemarksDialog(sid, student['name'].toString());
                   } : null,
                   onViewDetails: () {
-                    final studentScores = _allScores
-                        .where((r) => _isStudentOrNameMatch(r, sid, sName))
-                        .toList();
+                    final studentScores = List<Map<String, dynamic>>.from(_scoresByStudentKey[sid] ?? const []);
                     Navigator.push(
                       context,
                       MaterialPageRoute(

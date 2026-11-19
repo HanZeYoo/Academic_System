@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
 import '../utils/avatar_utils.dart';
+import '../widgets/skeleton_loader.dart';
 
 class ParentNotificationScreen extends StatefulWidget {
   final String username;
@@ -284,7 +285,7 @@ class _ParentNotificationScreenState
                 // Main Body Content
                 Expanded(
                   child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
+                      ? SkeletonPresets.cardList(itemCount: 5, padding: EdgeInsets.zero)
                       : _selectedTab == 'Needs Attention'
                           ? _buildNeedsAttentionView()
                           : _selectedTab == 'Compose'
