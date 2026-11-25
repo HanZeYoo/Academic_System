@@ -2828,23 +2828,26 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           ? _chatHistory.sublist(_chatHistory.length - 7, _chatHistory.length - 1)
           : _chatHistory.sublist(0, _chatHistory.length - 1);
 
-      final res = await Supabase.instance.client.functions.invoke(
-        'chat-intervention',
-        body: {
-          'planText': contextText,
-          'chatHistory': historyToSend,
-          'message': text,
-        },
-      );
+      final res = await Supabase.instance.client.functions
+          .invoke(
+            'chat-intervention',
+            body: {
+              'planText': contextText,
+              'chatHistory': historyToSend,
+              'message': text,
+            },
+          )
+          .timeout(const Duration(seconds: 35));
 
-      if (res.status == 200 && res.data['reply'] != null) {
+      if (res.status == 200 && res.data is Map && res.data['reply'] != null) {
         setState(() {
           _chatHistory.add({'role': 'model', 'text': res.data['reply']});
         });
         await _saveChatHistory(_selectedChild?['email'] ?? '');
         _scrollChatToBottom();
       } else {
-        throw Exception(res.data['error'] ?? 'Failed to get reply');
+        final errMsg = (res.data is Map ? res.data['error'] : res.data)?.toString() ?? 'Status ${res.status}';
+        throw Exception(errMsg);
       }
     } catch (e) {
       _showAiErrorDialog(e);
@@ -2890,18 +2893,21 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         }).toList(),
       };
 
-      final res = await Supabase.instance.client.functions.invoke(
-        'generate-intervention',
-        body: payload,
-      );
+      final res = await Supabase.instance.client.functions
+          .invoke(
+            'generate-intervention',
+            body: payload,
+          )
+          .timeout(const Duration(seconds: 35));
 
-      if (res.status == 200 && res.data['plan'] != null) {
+      if (res.status == 200 && res.data is Map && res.data['plan'] != null) {
         setState(() {
           _interventionPlanText = res.data['plan'];
         });
         await _saveInterventionPlan(_selectedChild?['email'] ?? '', _interventionPlanText);
       } else {
-        throw Exception(res.data['error'] ?? 'Failed to generate plan');
+        final errMsg = (res.data is Map ? res.data['error'] : res.data)?.toString() ?? 'Status ${res.status}';
+        throw Exception(errMsg);
       }
     } catch (e) {
       _showAiErrorDialog(e);
@@ -2915,19 +2921,42 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   }
 
   void _showAiErrorDialog(Object e) {
-    String message = 'The AI Assistant is currently unreachable. Please check your internet connection or try again later.';
-    if (e.toString().contains('429')) {
-      message = 'The AI Assistant has reached its maximum request limit for now. Please try again later or tomorrow.';
+    debugPrint('AI Assistant error: $e');
+    final errStr = e.toString();
+    final errLower = errStr.toLowerCase();
+
+    final bool isRateLimited = errStr.contains('429') ||
+        errLower.contains('resource_exhausted') ||
+        errLower.contains('quota');
+    final bool isNetwork = AestheticDialogs.isNetworkError(e);
+
+    final String title;
+    final String message;
+
+    if (isRateLimited) {
+      title = 'AI Limit Reached';
+      message = 'The AI Assistant has reached its maximum request limit for now. Please wait a minute and try again.';
+    } else if (isNetwork) {
+      title = 'No Internet Connection';
+      message = 'Unable to reach the AI Assistant. Please check your internet connection and try again.';
+    } else {
+      title = 'AI Assistant Unavailable';
+      message = 'The AI Assistant encountered an error while processing your request. Please try again later.\n\nDetails: ${AestheticDialogs.getCleanErrorMessage(e)}';
     }
+
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.error_outline, color: Colors.red),
-            SizedBox(width: 10),
-            Text('AI Limit Reached'),
+            Icon(
+              isNetwork ? Icons.wifi_off_rounded : Icons.error_outline,
+              color: isNetwork ? const Color(0xFFF97316) : Colors.red,
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(title)),
           ],
         ),
         content: Text(message),

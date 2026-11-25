@@ -434,3 +434,8 @@ entrypoint = "./functions/chat-intervention/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/chat-intervention/*.html" ]
+
+[functions.generate-intervention]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/generate-intervention/index.ts"

@@ -85,33 +85,78 @@ INSTRUCTIONS:
 IMPORTANT: Do not copy the bracketed text. Keep the entire response concise and straight to the point to avoid truncation. Write the actual personalized content for each section! Keep the tone warm, professional, and encouraging. Use conversational Taglish (Tagalog-English) to make it more relatable and approachable for Filipino parents (e.g., "Maaari po nating tulungan si...", "We recommend setting a schedule...").
 `.trim();
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+    const models = [
+      'gemini-2.5-flash-lite',
+      'gemini-flash-lite-latest',
+      'gemini-2.5-flash',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-lite',
+      'gemini-flash-latest',
+      'gemma-3-27b-it',
+    ];
+    let geminiData: any = null;
+    let lastStatus = 400;
+    const attempts: string[] = [];
 
-    const geminiResponse = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.4,
-        },
-        safetySettings: [
-          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-        ],
-      }),
-    });
+    for (const model of models) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const isGemma = model.startsWith('gemma-');
 
-    if (!geminiResponse.ok) {
-      const errText = await geminiResponse.text();
-      throw new Error(`Gemini API error: ${errText}`);
+      try {
+        const geminiResponse = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10000),
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: prompt }],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.4,
+              maxOutputTokens: 1024,
+            },
+            ...(isGemma
+              ? {}
+              : {
+                  safetySettings: [
+                    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+                  ],
+                }),
+          }),
+        });
+
+        if (geminiResponse.ok) {
+          geminiData = await geminiResponse.json();
+          break;
+        }
+
+        lastStatus = geminiResponse.status;
+        const errText = await geminiResponse.text();
+        attempts.push(`${model}->${lastStatus}:${errText.slice(0, 140)}`);
+        console.warn(`Model ${model} failed (${lastStatus}): ${errText}`);
+
+        // Retry with next model on rate limit (429), not found (404), bad request (400), or 5xx
+        if (lastStatus === 401 || lastStatus === 403) {
+          break;
+        }
+      } catch (fetchErr: any) {
+        lastStatus = 504;
+        const msg = fetchErr?.message ?? 'Request timed out';
+        attempts.push(`${model}->504:${msg}`);
+        console.warn(`Model ${model} timed out/errored: ${msg}`);
+      }
     }
 
-    const geminiData = await geminiResponse.json();
+    if (!geminiData) {
+      return new Response(
+        JSON.stringify({ error: `Gemini API failed (${lastStatus}): ${attempts.join(' | ')}` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: lastStatus === 429 ? 429 : 400 }
+      );
+    }
+
     const planText: string = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
     if (!planText) {

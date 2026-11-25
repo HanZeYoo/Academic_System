@@ -366,13 +366,16 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
               children: [
                 const Icon(Icons.campaign_outlined, size: 20, color: Color(0xFF0F52BA)),
                 const SizedBox(width: 8),
-                const Text(
-                  'Bulletin Feed',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0F172A),
-                    letterSpacing: -0.2,
+                const Flexible(
+                  child: Text(
+                    'Bulletin Feed',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                      letterSpacing: -0.2,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -468,26 +471,28 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
           child: const Icon(Icons.campaign_rounded, color: Colors.white, size: 22),
         ),
         const SizedBox(width: 14),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Announcements Hub',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF0F172A),
-                letterSpacing: -0.3,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Announcements Hub',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: -0.3,
+                ),
               ),
-            ),
-            Text(
-              'Campus-wide notices, updates & circulars',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey.shade600,
+              Text(
+                'Campus-wide notices, updates & circulars',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -592,10 +597,11 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF0F172A),
                   ),
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 9,
@@ -638,9 +644,12 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
                 children: [
                   const Icon(Icons.people_outline_rounded, size: 14, color: Color(0xFF94A3B8)),
                   const SizedBox(width: 5),
-                  Text(
-                    audience,
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                  Flexible(
+                    child: Text(
+                      audience,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
