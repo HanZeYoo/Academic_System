@@ -172,7 +172,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           children: const [
             Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
             SizedBox(width: 8),
-            Text('Leave Page?'),
+            Expanded(child: Text('Leave Page?')),
           ],
         ),
         content: Text(
@@ -246,35 +246,39 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Image.asset(
-                          'assets/images/logo.png',
-                          height: 24,
-                          width: 24,
-                          color: Colors.white,
-                          colorBlendMode: BlendMode.srcIn,
-                          errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
-                        ),
-                        const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            RichText(
-                              text: TextSpan(
-                                style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
-                                children: const [
-                                  TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                                  TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
-                                ],
-                              ),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Image.asset(
+                            'assets/images/logo.png',
+                            height: 24,
+                            width: 24,
+                            color: Colors.white,
+                            colorBlendMode: BlendMode.srcIn,
+                            errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                RichText(
+                                  text: TextSpan(
+                                    style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
+                                    children: const [
+                                      TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                                      TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                RoleTheme.buildRoleBadge('teacher', fontSize: 9.5),
+                              ],
                             ),
-                            const SizedBox(height: 3),
-                            RoleTheme.buildRoleBadge('teacher', fontSize: 9.5),
-                          ],
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
                     if (!isDesktop)
                       GestureDetector(
@@ -417,14 +421,17 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           errorBuilder: (_, _, _) => const Icon(Icons.school, color: Colors.white, size: 20),
                         ),
                         const SizedBox(width: 10),
-                        RichText(
-                          text: TextSpan(
-                            style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
-                            children: const [
-                              TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                              TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
-                              TextSpan(text: '  •  Teacher Portal', style: TextStyle(color: Color(0xFFE2F1FC), fontSize: 14, fontWeight: FontWeight.w500)),
-                            ],
+                        Flexible(
+                          child: RichText(
+                            overflow: TextOverflow.ellipsis,
+                            text: TextSpan(
+                              style: GoogleFonts.outfit(fontSize: 18, letterSpacing: 0.2),
+                              children: const [
+                                TextSpan(text: 'Notify', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                                TextSpan(text: 'ED', style: TextStyle(color: Color(0xFFBAE3FF), fontWeight: FontWeight.w900)),
+                                TextSpan(text: '  •  Teacher Portal', style: TextStyle(color: Color(0xFFE2F1FC), fontSize: 14, fontWeight: FontWeight.w500)),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -628,55 +635,64 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.calendar_today_rounded, size: 12, color: Colors.white70),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _currentDate,
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.95),
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
+                      SizedBox(
+                        width: double.infinity,
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.calendar_today_rounded, size: 12, color: Colors.white70),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      _currentDate,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.95),
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CircleAvatar(radius: 3.5, backgroundColor: Color(0xFF67E8F9)),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Active Term',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircleAvatar(radius: 3.5, backgroundColor: Color(0xFF67E8F9)),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Active Term',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 14),
                       Text(
@@ -713,11 +729,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               builder: (context, constraints) {
                 final double width;
                 if (constraints.maxWidth >= 900) {
-                  width = (constraints.maxWidth - 48) / 4;
+                  width = (constraints.maxWidth - 48.5) / 4;
                 } else if (constraints.maxWidth < 450) {
                   width = constraints.maxWidth;
                 } else {
-                  width = (constraints.maxWidth - 16) / 2;
+                  width = (constraints.maxWidth - 16.5) / 2;
                 }
                 return Wrap(
                   spacing: 16,
@@ -821,15 +837,21 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  a['date_posted']?.toString() ?? '',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+              const SizedBox(width: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 120),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    a['date_posted']?.toString() ?? '',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ],
@@ -872,9 +894,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             child: Icon(icon, color: color, size: 22),
           ),
           const SizedBox(height: 14),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+            ),
           ),
           const SizedBox(height: 3),
           Text(
@@ -920,12 +946,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 child: Icon(icon, size: 18, color: RoleTheme.teacherTheme.primary),
               ),
               const SizedBox(width: 10),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1E293B),
+              Flexible(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1E293B),
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],

@@ -109,24 +109,26 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
                       child: Icon(Icons.class_rounded, color: RoleTheme.teacherTheme.primary, size: 22),
                     ),
                     const SizedBox(width: 12),
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'My Assigned Classes',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'My Assigned Classes',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                            ),
                           ),
-                        ),
-                        Text(
-                          'Active teaching load, schedules, and class rosters',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                        ),
-                      ],
+                          Text(
+                            'Active teaching load, schedules, and class rosters',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                          ),
+                        ],
+                      ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     // Class count badge
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -179,12 +181,15 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
                   children: const [
                     Icon(Icons.verified_user_rounded, size: 15, color: Color(0xFF94A3B8)),
                     SizedBox(width: 6),
-                    Text(
-                      'Official Academic System Faculty Record',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF94A3B8),
-                        fontWeight: FontWeight.w500,
+                    Flexible(
+                      child: Text(
+                        'Official Academic System Faculty Record',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -323,73 +328,81 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Top row: Subject Title & Badges
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Text(
+                    SizedBox(
+                      width: double.infinity,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
                             subject,
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF0F172A),
                             ),
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (status.isNotEmpty) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: status == 'Active'
-                                  ? const Color(0xFFECFDF5)
-                                  : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: status == 'Active'
-                                    ? const Color(0xFFA7F3D0)
-                                    : const Color(0xFFCBD5E1),
-                              ),
-                            ),
-                            child: Text(
-                              status,
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                color: status == 'Active'
-                                    ? const Color(0xFF065F46)
-                                    : const Color(0xFF64748B),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF8FAFC),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              const Icon(Icons.people_alt_rounded, size: 13, color: Color(0xFF64748B)),
-                              const SizedBox(width: 4),
-                              Text(
-                                '$capacity Seats',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF334155),
+                              if (status.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: status == 'Active'
+                                        ? const Color(0xFFECFDF5)
+                                        : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: status == 'Active'
+                                          ? const Color(0xFFA7F3D0)
+                                          : const Color(0xFFCBD5E1),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    status,
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      color: status == 'Active'
+                                          ? const Color(0xFF065F46)
+                                          : const Color(0xFF64748B),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.people_alt_rounded, size: 13, color: Color(0xFF64748B)),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$capacity Seats',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF334155),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     if (gradeLine.isNotEmpty)
                       Padding(
@@ -456,63 +469,84 @@ class _MyClassesScreenState extends State<MyClassesScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => TeacherStudentScreen(
-                          username: widget.username,
-                          initialClass: gradeLine.isNotEmpty ? gradeLine : null,
-                          showAppBar: true,
-                        ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final rosterButton = OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TeacherStudentScreen(
+                        username: widget.username,
+                        initialClass: gradeLine.isNotEmpty ? gradeLine : null,
+                        showAppBar: true,
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.groups_rounded, size: 16),
-                  label: const Text('View Class Roster', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: RoleTheme.teacherTheme.primary,
-                    side: BorderSide(color: RoleTheme.teacherTheme.primary.withValues(alpha: 0.3)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
+                  );
+                },
+                icon: const Icon(Icons.groups_rounded, size: 16),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('View Class Roster', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => TeacherAttendanceScreen(
-                          username: widget.username,
-                          initialClass: gradeLine.isNotEmpty ? gradeLine : null,
-                          showAppBar: true,
-                        ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: RoleTheme.teacherTheme.primary,
+                  side: BorderSide(color: RoleTheme.teacherTheme.primary.withValues(alpha: 0.3)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                ),
+              );
+
+              final attendanceButton = ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TeacherAttendanceScreen(
+                        username: widget.username,
+                        initialClass: gradeLine.isNotEmpty ? gradeLine : null,
+                        showAppBar: true,
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.checklist_rounded, size: 16),
-                  label: const Text('Attendance', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
-                  style: ElevatedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: const Color(0xFF059669),
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
+                  );
+                },
+                icon: const Icon(Icons.checklist_rounded, size: 16),
+                label: const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text('Attendance', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
                 ),
-              ),
-            ],
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: const Color(0xFF059669),
+                  elevation: 1,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                ),
+              );
+
+              if (constraints.maxWidth < 250) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    rosterButton,
+                    const SizedBox(height: 10),
+                    attendanceButton,
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: rosterButton),
+                  const SizedBox(width: 12),
+                  Expanded(child: attendanceButton),
+                ],
+              );
+            },
           ),
         ],
       ),
