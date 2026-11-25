@@ -85,6 +85,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       classes = await DatabaseHelper().getSubjectClassesByTeacher(_teacherName!);
     }
 
+    if (!mounted) return;
     setState(() {
       _assignedClasses = classes;
       if (_assignedClasses.isNotEmpty) {
@@ -187,14 +188,49 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
       await _applyMappingsForParseResult(parseRes);
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _statusMessage = null;
       });
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error switching sheet: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _reparseForSelectedPeriod() async {
+    if (_uploadedBytes == null || _uploadedFilename == null) return;
+
+    try {
+      setState(() {
+        _isLoading = true;
+        _statusMessage = 'Reloading sheet for $_selectedPeriod...';
+        _validationSummary = null;
+        _rosterMatchResult = null;
+      });
+
+      final parseRes = await _parserService.parseFile(
+        _uploadedBytes!,
+        _uploadedFilename!,
+        gradingPeriod: _selectedPeriod,
+        useCache: true,
+      );
+      _selectedSheetName = parseRes.sheetName;
+
+      await _applyMappingsForParseResult(parseRes);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _statusMessage = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error reloading for $_selectedPeriod: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
@@ -241,6 +277,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       }
     }
 
+    if (!mounted) return;
     setState(() {
       _parseResult = parseRes;
       _columnMappings = mappings;
@@ -311,6 +348,7 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       }
     }
 
+    if (!mounted) return;
     setState(() {
       _validationSummary = summary;
       _rosterMatchResult = rosterResult;
@@ -493,27 +531,27 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         studentId = row[lrnCol]?.toString().trim() ?? '';
       }
 
-      // Reconcile with official enrolled roster student_id (dash-insensitive for NEU format)
-      String officialStudentId = studentId;
+      // Reconcile with official enrolled roster student_id (dash-insensitive for NEU format, with fuzzy name fallback)
+      String? matchedOfficialId;
       if (studentId.isNotEmpty) {
         if (enrolledByLrn.containsKey(studentId)) {
-          officialStudentId = enrolledByLrn[studentId]!;
+          matchedOfficialId = enrolledByLrn[studentId];
         } else {
           final cleanId = studentId.replaceAll(RegExp(r'[\s\-]'), '');
-          if (enrolledByLrn.containsKey(cleanId)) {
-            officialStudentId = enrolledByLrn[cleanId]!;
+          if (cleanId.isNotEmpty && enrolledByLrn.containsKey(cleanId)) {
+            matchedOfficialId = enrolledByLrn[cleanId];
           }
         }
-      } else if (studentName.isNotEmpty) {
+      }
+      if (matchedOfficialId == null && studentName.isNotEmpty) {
         final norm = EcrValidator.normalizeFuzzyName(studentName);
         if (enrolledByName.containsKey(norm)) {
-          officialStudentId = enrolledByName[norm]!;
+          matchedOfficialId = enrolledByName[norm];
         }
       }
 
-      if (officialStudentId.isEmpty) {
-        officialStudentId = studentId.isNotEmpty ? studentId : studentName;
-      }
+      final officialStudentId = matchedOfficialId ??
+          (studentId.isNotEmpty ? studentId : studentName);
 
       if (studentName.isEmpty && officialStudentId.isEmpty) {
         if (skipErrors) continue;
@@ -568,17 +606,26 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       }
     }
 
-    // Clear old scores for this subject, section, and period to prevent duplicate scores on re-import
-    await DatabaseHelper().clearScoresForClassPeriod(
-      subjectCode: subjectCode,
-      sectionName: section,
-      gradeLevel: grade,
-      gradingPeriod: _selectedPeriod,
-      schoolYear: _selectedClassRecord?['school_year']?.toString(),
-    );
+    if (scoresToInsert.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _statusMessage = null;
+        });
+        AestheticDialogs.showErrorDialog(
+          context,
+          'No Valid Scores Found',
+          'No numeric scores were found to import. Existing class records were not modified.',
+        );
+      }
+      return;
+    }
 
-    // Insert scores into Supabase
-    final insertedCount = await DatabaseHelper().batchSaveScores(scoresToInsert);
+    // Upsert/insert incoming scores first, then prune stale class scores only after all chunks succeed
+    final insertedCount = await DatabaseHelper().batchSaveScores(
+      scoresToInsert,
+      pruneUnmatchedForClass: true,
+    );
 
     // Auto-adapt Assessment Setup with detected weights and mapped labels
     final detectedWeights = _parseResult?.detectedWeights;
@@ -657,25 +704,24 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
       );
     }
 
+    if (!mounted) return;
     setState(() {
       _isSaving = false;
       _statusMessage = null;
       _currentStep = 3;
     });
 
-    if (mounted) {
-      final weightsInfo = (detectedWeights?.isDetected == true)
-          ? '\n\nGrading weights auto-adapted: WW $finalWwWeight% | PT $finalPtWeight% | QA $finalTeWeight%'
-          : '';
-      final transInfo = (detectedTrans?.isDetected == true)
-          ? '\nTransmutation table auto-adapted: ${detectedTrans!.description}'
-          : '';
-      AestheticDialogs.showSuccessDialog(
-        context,
-        title: 'Grades Imported',
-        message: 'Successfully imported $insertedCount grade records into the system!$weightsInfo$transInfo',
-      );
-    }
+    final weightsInfo = (detectedWeights?.isDetected == true)
+        ? '\n\nGrading weights auto-adapted: WW $finalWwWeight% | PT $finalPtWeight% | QA $finalTeWeight%'
+        : '';
+    final transInfo = (detectedTrans?.isDetected == true)
+        ? '\nTransmutation table auto-adapted: ${detectedTrans!.description}'
+        : '';
+    AestheticDialogs.showSuccessDialog(
+      context,
+      title: 'Grades Imported',
+      message: 'Successfully imported $insertedCount grade records into the system!$weightsInfo$transInfo',
+    );
   }
 
   String _getCategoryName(EcrTargetCategory target) {
@@ -1088,7 +1134,15 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         return DropdownMenuItem(value: c, child: Text(label, overflow: TextOverflow.ellipsis));
       }).toList(),
       onChanged: (val) {
-        setState(() => _selectedClassRecord = val);
+        if (val == null || val == _selectedClassRecord) return;
+        setState(() {
+          _selectedClassRecord = val;
+          _validationSummary = null;
+          _rosterMatchResult = null;
+        });
+        if (_parseResult != null && (_currentStep == 1 || _currentStep == 2)) {
+          _applyMappingsForParseResult(_parseResult!);
+        }
       },
     );
 
@@ -1110,9 +1164,17 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         DropdownMenuItem(value: '4th Quarter', child: Text('4th Quarter')),
       ],
       onChanged: (val) {
-        if (val != null) {
-          setState(() => _selectedPeriod = val);
-          _checkEncodingDeadline();
+        if (val == null || val == _selectedPeriod) return;
+        setState(() {
+          _selectedPeriod = val;
+          _validationSummary = null;
+          _rosterMatchResult = null;
+        });
+        _checkEncodingDeadline();
+        if (_uploadedBytes != null &&
+            _uploadedFilename != null &&
+            (_currentStep == 1 || _currentStep == 2)) {
+          _reparseForSelectedPeriod();
         }
       },
     );
@@ -1248,6 +1310,8 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
     int lowConfidenceCount = _columnMappings.where((m) => m.isLowConfidence && m.target != EcrTargetCategory.ignore).length;
     int typeMismatchCount = _columnMappings.where((m) => m.hasTypeMismatch).length;
+    final duplicateTargetKeys = EcrValidator.findDuplicateTargetMappings(_columnMappings).keys.toSet();
+    final int duplicateMappingCount = duplicateTargetKeys.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1288,6 +1352,12 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                             Chip(
                               avatar: const Icon(Icons.error_outline, size: 16, color: Colors.red),
                               label: Text('$typeMismatchCount Non-numeric', style: const TextStyle(fontSize: 12)),
+                              backgroundColor: const Color(0xFFFEE2E2),
+                            ),
+                          if (duplicateMappingCount > 0)
+                            Chip(
+                              avatar: const Icon(Icons.copy_all_rounded, size: 16, color: Colors.red),
+                              label: Text('$duplicateMappingCount Duplicate', style: const TextStyle(fontSize: 12)),
                               backgroundColor: const Color(0xFFFEE2E2),
                             ),
                         ],
@@ -1350,6 +1420,12 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                               Chip(
                                 avatar: const Icon(Icons.error_outline, size: 16, color: Colors.red),
                                 label: Text('$typeMismatchCount Non-numeric Preview Alert(s)'),
+                                backgroundColor: const Color(0xFFFEE2E2),
+                              ),
+                            if (duplicateMappingCount > 0)
+                              Chip(
+                                avatar: const Icon(Icons.copy_all_rounded, size: 16, color: Colors.red),
+                                label: Text('$duplicateMappingCount Duplicate Target(s)'),
                                 backgroundColor: const Color(0xFFFEE2E2),
                               ),
                           ],
@@ -1607,8 +1683,10 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
               dataRowMaxHeight: 50,
               columns: List.generate(_columnMappings.length, (colIdx) {
                 final mapping = _columnMappings[colIdx];
+                final targetKey = EcrValidator.uniqueTargetKey(mapping.target);
+                final isDuplicate = targetKey != null && duplicateTargetKeys.contains(targetKey);
                 return DataColumn(
-                  label: _buildColumnHeaderWidget(mapping),
+                  label: _buildColumnHeaderWidget(mapping, isDuplicate: isDuplicate),
                 );
               }),
               rows: List.generate(_parseResult!.dataRows.length.clamp(0, 10), (rowIdx) {
@@ -1912,11 +1990,14 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
     );
   }
 
-  Widget _buildColumnHeaderWidget(EcrColumnMapping mapping) {
+  Widget _buildColumnHeaderWidget(EcrColumnMapping mapping, {bool isDuplicate = false}) {
     Color badgeColor = Colors.green;
     String badgeText = 'High Match (${(mapping.confidenceScore * 100).toInt()}%)';
 
-    if (mapping.confidenceScore < 0.60) {
+    if (isDuplicate) {
+      badgeColor = Colors.red.shade700;
+      badgeText = 'Duplicate Target';
+    } else if (mapping.confidenceScore < 0.60) {
       badgeColor = Colors.red.shade700;
       badgeText = 'Check Mapping';
     } else if (mapping.confidenceScore < 0.85) {
@@ -1932,7 +2013,14 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
     return Container(
       width: 180,
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      decoration: isDuplicate
+          ? BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.red.shade300),
+            )
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1982,7 +2070,9 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
             isDense: true,
             underline: Container(
               height: 2,
-              color: mapping.confidenceScore < 0.60 ? Colors.red : (mapping.confidenceScore < 0.85 ? Colors.amber : Colors.blue),
+              color: isDuplicate || mapping.confidenceScore < 0.60
+                  ? Colors.red
+                  : (mapping.confidenceScore < 0.85 ? Colors.amber : Colors.blue),
             ),
             items: EcrTargetCategory.values.map((cat) {
               return DropdownMenuItem(
@@ -1996,12 +2086,43 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
             }).toList(),
             onChanged: (newCat) {
               if (newCat != null) {
+                final newKey = EcrValidator.uniqueTargetKey(newCat);
+                EcrColumnMapping? conflict;
+                if (newKey != null) {
+                  for (final other in _columnMappings) {
+                    if (other.columnIndex != mapping.columnIndex &&
+                        EcrValidator.uniqueTargetKey(other.target) == newKey) {
+                      conflict = other;
+                      break;
+                    }
+                  }
+                }
+
                 setState(() {
                   mapping.target = newCat;
-                  mapping.confidenceScore = 1.0;
-                  mapping.isLowConfidence = false;
-                  mapping.reasons = ['Manually assigned by teacher'];
+                  if (conflict != null) {
+                    mapping.confidenceScore = 0.40;
+                    mapping.isLowConfidence = true;
+                    mapping.reasons = [
+                      'Warning: Duplicate mapping for "${newCat.label}" (also assigned to "${conflict.originalHeader}")',
+                    ];
+                  } else {
+                    mapping.confidenceScore = 1.0;
+                    mapping.isLowConfidence = false;
+                    mapping.reasons = ['Manually assigned by teacher'];
+                  }
                 });
+
+                if (conflict != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        '"${newCat.label}" is already mapped to "${conflict.originalHeader}". Please change one column before validating.',
+                      ),
+                      backgroundColor: Colors.orange.shade800,
+                    ),
+                  );
+                }
               }
             },
           ),

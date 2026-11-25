@@ -25,7 +25,7 @@ class _AcademicEvaluationScreenState
   bool _isLoading = true;
   List<Map<String, dynamic>> _classes = [];
   Map<String, dynamic>? _selectedClassData;
-  String _selectedPeriod = '1st Quarter';
+  String _selectedPeriod = '1st Term';
   String _searchQuery = '';
   bool _showOnlyAtRisk = false;
   int _currentPage = 1;
@@ -49,13 +49,13 @@ class _AcademicEvaluationScreenState
   Map<String, EarlyWarningResult> _cachedEwResults = {};
 
   static const _periods = [
+    '1st Term',
+    '2nd Term',
+    '3rd Term',
     '1st Quarter',
     '2nd Quarter',
     '3rd Quarter',
     '4th Quarter',
-    '1st Term',
-    '2nd Term',
-    '3rd Term',
   ];
 
   @override

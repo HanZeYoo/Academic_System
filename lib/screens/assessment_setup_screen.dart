@@ -21,7 +21,7 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
   String? _teacherName;
   List<Map<String, dynamic>> _assignedClasses = [];
   Map<String, dynamic>? _selectedClassRecord;
-  String _selectedPeriod = '1st Quarter';
+  String _selectedPeriod = '1st Term';
 
   // â”€â”€â”€ Component counts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<String> _wwLabels = [];
@@ -306,13 +306,13 @@ class _AssessmentSetupScreenState extends State<AssessmentSetupScreen> {
                               label: 'Grading Period',
                               value: _selectedPeriod,
                               items: const [
+                                '1st Term',
+                                '2nd Term',
+                                '3rd Term',
                                 '1st Quarter',
                                 '2nd Quarter',
                                 '3rd Quarter',
                                 '4th Quarter',
-                                '1st Term',
-                                '2nd Term',
-                                '3rd Term',
                               ],
                               onChanged: (val) async {
                                 setState(() => _selectedPeriod = val!);

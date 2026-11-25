@@ -42,19 +42,23 @@ class EcrTransmutationTable {
       }
     }
 
-    if (rawScore < brackets.keys.first) {
-      return brackets.values.first;
-    }
+    double? minKey;
+    int minVal = minGrade.toInt();
+    double? bestKey;
+    int? bestVal;
 
-    int result = brackets.values.first;
     for (final entry in brackets.entries) {
-      if (rawScore >= entry.key) {
-        result = entry.value;
-      } else {
-        break;
+      if (minKey == null || entry.key < minKey) {
+        minKey = entry.key;
+        minVal = entry.value;
+      }
+      if (entry.key <= rawScore && (bestKey == null || entry.key > bestKey)) {
+        bestKey = entry.key;
+        bestVal = entry.value;
       }
     }
-    return result;
+
+    return bestVal ?? minVal;
   }
 
   Map<String, dynamic> toJson() => {
@@ -79,6 +83,9 @@ class EcrTransmutationTable {
         if (d != null && i != null) b[d] = i;
       });
     }
+    final sortedBrackets = Map<double, int>.fromEntries(
+      b.entries.toList()..sort((a, c) => a.key.compareTo(c.key)),
+    );
     return EcrTransmutationTable(
       sheetName: json['sheetName']?.toString() ?? '',
       description: json['description']?.toString() ?? 'DepEd Base-70',
@@ -87,7 +94,7 @@ class EcrTransmutationTable {
       minGrade: (json['minGrade'] as num?)?.toDouble() ?? 60.0,
       passingGrade: (json['passingGrade'] as num?)?.toDouble() ?? 75.0,
       maxGrade: (json['maxGrade'] as num?)?.toDouble() ?? 100.0,
-      brackets: b,
+      brackets: sortedBrackets,
       isDetected: json['isDetected'] == true,
     );
   }

@@ -36,6 +36,7 @@ class DatabaseHelper {
     _studentEmailCache.clear();
     _teacherEmailCache.clear();
     _assessmentSetupCache.clear();
+    clearTransmutationCache();
   }
 
   void invalidateStudentCache([String? email]) {
@@ -766,15 +767,31 @@ class DatabaseHelper {
     String? schoolYear,
   }) async {
     final aliases = getPeriodAliases(gradingPeriod);
-    for (final p in aliases) {
-      try {
-        await Supabase.instance.client.from('scores')
-            .delete()
-            .eq('subject_code', subjectCode)
-            .eq('section_name', sectionName)
-            .eq('grade_level', gradeLevel)
-            .eq('grading_period', p);
-      } catch (e) {
+    final hasSchoolYear = schoolYear != null && schoolYear.trim().isNotEmpty;
+    try {
+      var query = Supabase.instance.client.from('scores')
+          .delete()
+          .eq('subject_code', subjectCode)
+          .eq('section_name', sectionName)
+          .eq('grade_level', gradeLevel)
+          .inFilter('grading_period', aliases);
+      if (hasSchoolYear) {
+        query = query.eq('school_year', schoolYear.trim());
+      }
+      await query;
+    } catch (e) {
+      if (hasSchoolYear && e.toString().toLowerCase().contains('school_year')) {
+        try {
+          await Supabase.instance.client.from('scores')
+              .delete()
+              .eq('subject_code', subjectCode)
+              .eq('section_name', sectionName)
+              .eq('grade_level', gradeLevel)
+              .inFilter('grading_period', aliases);
+        } catch (fallbackErr) {
+          print('Note: clearScoresForClassPeriod fallback delete: $fallbackErr');
+        }
+      } else {
         print('Note: clearScoresForClassPeriod delete: $e');
       }
     }
@@ -2713,6 +2730,22 @@ class DatabaseHelper {
 
   static EcrTransmutationTable? _activeTransmutationTable;
   static final Map<String, EcrTransmutationTable> _transmutationCache = {};
+  static final Map<String, DateTime> _missingTransmutationKeys = {};
+
+  SupabaseClient? _tryGetSupabaseClient() {
+    try {
+      return Supabase.instance.client;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Clears in-memory transmutation caches (e.g., on logout or in tests).
+  static void clearTransmutationCache() {
+    _transmutationCache.clear();
+    _missingTransmutationKeys.clear();
+    _activeTransmutationTable = null;
+  }
 
   static String _normalizeTransKey(String subjectCode, [String? section]) {
     final s = subjectCode.trim().toLowerCase();
@@ -2731,26 +2764,58 @@ class DatabaseHelper {
   /// Get the currently active transmutation table
   static EcrTransmutationTable? get activeTransmutationTable => _activeTransmutationTable;
 
-  /// Save detected transmutation table for a class / subject
+  /// Save detected transmutation table for a class / subject (persists locally and to Supabase)
   Future<void> saveTransmutationTable(String subjectCode, String section, EcrTransmutationTable table) async {
     final exactKey = _normalizeTransKey(subjectCode, section);
     final subjectKey = _normalizeTransKey(subjectCode);
 
     _transmutationCache[exactKey] = table;
     _transmutationCache[subjectKey] = table;
-    _activeTransmutationTable = table;
+    _missingTransmutationKeys.remove(exactKey);
+    _missingTransmutationKeys.remove(subjectKey);
+
+    final jsonStr = jsonEncode(table.toJson());
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final jsonStr = jsonEncode(table.toJson());
       await prefs.setString('ecr_transmutation_$exactKey', jsonStr);
       await prefs.setString('ecr_transmutation_$subjectKey', jsonStr);
     } catch (e) {
-      print('Note: saving transmutation table: $e');
+      print('Note: saving transmutation table locally: $e');
+    }
+
+    final client = _tryGetSupabaseClient();
+    if (client != null) {
+      try {
+        final now = DateTime.now().toIso8601String();
+        final rows = <Map<String, dynamic>>[
+          {
+            'lookup_key': exactKey,
+            'subject_code': subjectCode.trim(),
+            'section_name': section.trim(),
+            'table_json': jsonStr,
+            'updated_at': now,
+          },
+        ];
+        if (subjectKey != exactKey) {
+          rows.add({
+            'lookup_key': subjectKey,
+            'subject_code': subjectCode.trim(),
+            'section_name': '',
+            'table_json': jsonStr,
+            'updated_at': now,
+          });
+        }
+        await client
+            .from('ecr_transmutation_tables')
+            .upsert(rows, onConflict: 'lookup_key');
+      } catch (e) {
+        print('Note: ecr_transmutation_tables sync skipped: $e');
+      }
     }
   }
 
-  /// Retrieve detected transmutation table for a class / subject
+  /// Retrieve detected transmutation table for a class / subject (never leaks across unrelated subjects)
   Future<EcrTransmutationTable?> getTransmutationTable(String subjectCode, [String? section]) async {
     final exactKey = _normalizeTransKey(subjectCode, section);
     final subjectKey = _normalizeTransKey(subjectCode);
@@ -2762,30 +2827,84 @@ class DatabaseHelper {
       return _transmutationCache[subjectKey];
     }
 
+    final client = _tryGetSupabaseClient();
+    final missingUntil = _missingTransmutationKeys[exactKey];
+    final isNegativelyCached = missingUntil != null && DateTime.now().isBefore(missingUntil);
+
+    if (client != null && !isNegativelyCached) {
+      try {
+        final keys = exactKey == subjectKey ? [exactKey] : [exactKey, subjectKey];
+        final results = await client
+            .from('ecr_transmutation_tables')
+            .select('lookup_key, table_json')
+            .inFilter('lookup_key', keys);
+
+        if (results.isNotEmpty) {
+          Map<String, dynamic>? matchedRow;
+          for (final row in results) {
+            if (row['lookup_key']?.toString() == exactKey) {
+              matchedRow = Map<String, dynamic>.from(row);
+              break;
+            }
+          }
+          matchedRow ??= Map<String, dynamic>.from(results.first);
+
+          final rawJson = matchedRow['table_json'];
+          Map<String, dynamic>? decoded;
+          if (rawJson is String && rawJson.isNotEmpty) {
+            final parsed = jsonDecode(rawJson);
+            if (parsed is Map<String, dynamic>) decoded = parsed;
+          } else if (rawJson is Map) {
+            decoded = Map<String, dynamic>.from(rawJson);
+          }
+
+          if (decoded != null) {
+            final table = EcrTransmutationTable.fromJson(decoded);
+            final matchedKey = matchedRow['lookup_key']?.toString() ?? exactKey;
+            _transmutationCache[matchedKey] = table;
+            _transmutationCache[exactKey] = table;
+            _missingTransmutationKeys.remove(exactKey);
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setString('ecr_transmutation_$matchedKey', jsonEncode(table.toJson()));
+            } catch (_) {}
+            return table;
+          }
+        } else {
+          _missingTransmutationKeys[exactKey] = DateTime.now().add(const Duration(seconds: 60));
+        }
+      } catch (e) {
+        print('Note: ecr_transmutation_tables query skipped: $e');
+      }
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
-      var raw = prefs.getString('ecr_transmutation_$exactKey');
-      raw ??= prefs.getString('ecr_transmutation_$subjectKey');
+      final exactRaw = prefs.getString('ecr_transmutation_$exactKey');
+      final raw = exactRaw ?? prefs.getString('ecr_transmutation_$subjectKey');
 
       if (raw != null) {
         final decoded = jsonDecode(raw);
         if (decoded is Map<String, dynamic>) {
           final table = EcrTransmutationTable.fromJson(decoded);
-          _transmutationCache[exactKey] = table;
-          _transmutationCache[subjectKey] = table;
+          if (exactRaw != null) {
+            _transmutationCache[exactKey] = table;
+          } else {
+            _transmutationCache[subjectKey] = table;
+          }
           return table;
         }
       }
     } catch (_) {}
 
-    return _activeTransmutationTable;
+    return null;
   }
 
   /// Synchronously get cached transmutation table if already loaded in memory
   EcrTransmutationTable? getCachedTransmutationTable(String subjectCode, [String? section]) {
     final exactKey = _normalizeTransKey(subjectCode, section);
     final subjectKey = _normalizeTransKey(subjectCode);
-    return _transmutationCache[exactKey] ?? _transmutationCache[subjectKey] ?? _activeTransmutationTable;
+    return _transmutationCache[exactKey] ?? _transmutationCache[subjectKey];
   }
 
   // Base-70 Transmutation: Raw score of 70 = 75.
@@ -2889,28 +3008,34 @@ class DatabaseHelper {
     return null;
   }
 
-  /// Save or update scores in batch
-    /// Save or update scores in batch with in-memory key reconciliation and chunked writes.
+  /// Save or update scores in batch with in-memory key reconciliation and chunked writes.
   /// Zero-migration compatible: reconciles existing record IDs and splits into chunked update/insert calls.
-  Future<int> batchSaveScores(List<Map<String, dynamic>> scoreList) async {
+  /// When [pruneUnmatchedForClass] is true, deletes stale scores for the target class/period/year
+  /// only after all incoming chunks save without error.
+  Future<int> batchSaveScores(
+    List<Map<String, dynamic>> scoreList, {
+    bool pruneUnmatchedForClass = false,
+  }) async {
     if (scoreList.isEmpty) return 0;
 
     // 1. Identify distinct classes/periods to reconcile existing records
     final first = scoreList.first;
     final subjectCode = first['subject_code']?.toString() ?? '';
     final sectionName = first['section_name']?.toString() ?? '';
+    final gradeLevel = first['grade_level']?.toString() ?? '';
     final gradingPeriod = first['grading_period']?.toString() ?? '';
     final schoolYear = first['school_year']?.toString();
+    final hasSchoolYear = schoolYear != null && schoolYear.trim().isNotEmpty;
 
     // 2. Paginated SELECT of existing scores past PostgREST's 1,000-row default
-    List<Map<String, dynamic>> existingScores = [];
-    int pageSize = 1000;
-    int page = 0;
-    bool hasMore = true;
+    Future<List<Map<String, dynamic>>> fetchExisting({required bool filterBySchoolYear}) async {
+      final List<Map<String, dynamic>> results = [];
+      const int pageSize = 1000;
+      int page = 0;
+      bool hasMore = true;
+      final aliases = getPeriodAliases(gradingPeriod);
 
-    try {
       while (hasMore) {
-        final aliases = getPeriodAliases(gradingPeriod);
         var query = Supabase.instance.client
             .from('scores')
             .select('id, student_id, subject_code, category, item_label, grading_period, school_year')
@@ -2918,9 +3043,16 @@ class DatabaseHelper {
             .eq('section_name', sectionName)
             .inFilter('grading_period', aliases);
 
+        if (gradeLevel.isNotEmpty) {
+          query = query.eq('grade_level', gradeLevel);
+        }
+        if (filterBySchoolYear && hasSchoolYear) {
+          query = query.eq('school_year', schoolYear.trim());
+        }
+
         final pageResults = await query.range(page * pageSize, (page + 1) * pageSize - 1);
         final list = List<Map<String, dynamic>>.from(pageResults);
-        existingScores.addAll(list);
+        results.addAll(list);
 
         if (list.length < pageSize) {
           hasMore = false;
@@ -2928,14 +3060,29 @@ class DatabaseHelper {
           page++;
         }
       }
-    } catch (e) {
-      print('Note: Paginated reconciliation query returned: $e');
+      return results;
     }
 
-    // 3. Build in-memory lookup index by composite key
+    List<Map<String, dynamic>> existingScores = [];
+    try {
+      existingScores = await fetchExisting(filterBySchoolYear: hasSchoolYear);
+    } catch (e) {
+      if (hasSchoolYear && e.toString().toLowerCase().contains('school_year')) {
+        try {
+          existingScores = await fetchExisting(filterBySchoolYear: false);
+        } catch (fallbackErr) {
+          print('Note: Paginated reconciliation query fallback returned: $fallbackErr');
+        }
+      } else {
+        print('Note: Paginated reconciliation query returned: $e');
+      }
+    }
+
+    // 3. Build in-memory lookup index by composite key (preserving duplicate IDs for cleanup if any)
     final Map<String, dynamic> existingKeyMap = {};
+    final List<dynamic> duplicateExistingIds = [];
     for (final row in existingScores) {
-      final key = _buildScoreCompositeKey(
+      final key = buildScoreCompositeKey(
         studentId: row['student_id']?.toString() ?? '',
         subjectCode: row['subject_code']?.toString() ?? '',
         category: row['category']?.toString() ?? '',
@@ -2943,15 +3090,17 @@ class DatabaseHelper {
         gradingPeriod: row['grading_period']?.toString() ?? '',
         schoolYear: row['school_year']?.toString(),
       );
-      existingKeyMap[key] = row['id'];
+      if (existingKeyMap.containsKey(key)) {
+        if (row['id'] != null) duplicateExistingIds.add(row['id']);
+      } else {
+        existingKeyMap[key] = row['id'];
+      }
     }
 
-    // 4. Split incoming scores into updates (matching id) and inserts (new records)
-    List<Map<String, dynamic>> toUpdate = [];
-    List<Map<String, dynamic>> toInsert = [];
-
+    // 4. Deduplicate incoming scores by composite key, keeping last occurrence
+    final Map<String, Map<String, dynamic>> deduplicatedByKey = {};
     for (final score in scoreList) {
-      final key = _buildScoreCompositeKey(
+      final key = buildScoreCompositeKey(
         studentId: score['student_id']?.toString() ?? '',
         subjectCode: score['subject_code']?.toString() ?? '',
         category: score['category']?.toString() ?? '',
@@ -2959,10 +3108,17 @@ class DatabaseHelper {
         gradingPeriod: score['grading_period']?.toString() ?? '',
         schoolYear: score['school_year']?.toString(),
       );
+      deduplicatedByKey[key] = score;
+    }
 
-      final copy = Map<String, dynamic>.from(score);
-      if (existingKeyMap.containsKey(key)) {
-        copy['id'] = existingKeyMap[key];
+    // 5. Split incoming scores into updates (matching id) and inserts (new records)
+    List<Map<String, dynamic>> toUpdate = [];
+    List<Map<String, dynamic>> toInsert = [];
+
+    for (final entry in deduplicatedByKey.entries) {
+      final copy = Map<String, dynamic>.from(entry.value);
+      if (existingKeyMap.containsKey(entry.key)) {
+        copy['id'] = existingKeyMap[entry.key];
         toUpdate.add(copy);
       } else {
         toInsert.add(copy);
@@ -2970,9 +3126,10 @@ class DatabaseHelper {
     }
 
     int savedCount = 0;
+    bool hadWriteError = false;
     const int chunkSize = 150;
 
-    // 5. Process updates in chunks
+    // 6. Process updates in chunks
     for (int i = 0; i < toUpdate.length; i += chunkSize) {
       final chunk = toUpdate.sublist(i, (i + chunkSize > toUpdate.length) ? toUpdate.length : i + chunkSize);
       try {
@@ -2984,12 +3141,14 @@ class DatabaseHelper {
           try {
             await Supabase.instance.client.from('scores').update(row).eq('id', row['id']);
             savedCount++;
-          } catch (_) {}
+          } catch (_) {
+            hadWriteError = true;
+          }
         }
       }
     }
 
-    // 6. Process inserts in chunks
+    // 7. Process inserts in chunks
     for (int i = 0; i < toInsert.length; i += chunkSize) {
       final chunk = toInsert.sublist(i, (i + chunkSize > toInsert.length) ? toInsert.length : i + chunkSize);
       try {
@@ -3000,7 +3159,32 @@ class DatabaseHelper {
           try {
             await Supabase.instance.client.from('scores').insert(row);
             savedCount++;
-          } catch (_) {}
+          } catch (_) {
+            hadWriteError = true;
+          }
+        }
+      }
+    }
+
+    // 8. Prune stale scores for this class/period/year only if all incoming saves succeeded
+    if (pruneUnmatchedForClass && !hadWriteError && savedCount == deduplicatedByKey.length) {
+      final Set<String> incomingKeys = deduplicatedByKey.keys.toSet();
+      final List<dynamic> staleIds = [...duplicateExistingIds];
+      for (final entry in existingKeyMap.entries) {
+        if (!incomingKeys.contains(entry.key) && entry.value != null) {
+          staleIds.add(entry.value);
+        }
+      }
+
+      for (int i = 0; i < staleIds.length; i += chunkSize) {
+        final idChunk = staleIds.sublist(i, (i + chunkSize > staleIds.length) ? staleIds.length : i + chunkSize);
+        try {
+          await Supabase.instance.client
+              .from('scores')
+              .delete()
+              .inFilter('id', idChunk);
+        } catch (e) {
+          print('Note: pruning stale scores chunk error: $e');
         }
       }
     }
@@ -3008,7 +3192,7 @@ class DatabaseHelper {
     return savedCount;
   }
 
-  String _buildScoreCompositeKey({
+  static String buildScoreCompositeKey({
     required String studentId,
     required String subjectCode,
     required String category,
@@ -3028,7 +3212,8 @@ class DatabaseHelper {
                 : (lowerPeriod.contains('4th') || lowerPeriod.contains('q4')
                     ? 'q4'
                     : lowerPeriod)));
-    return '$cleanId|${subjectCode.toLowerCase()}|${category.toLowerCase()}|$cleanLabel|$periodNorm';
+    final yearNorm = (schoolYear ?? '').trim().toLowerCase();
+    return '$cleanId|${subjectCode.toLowerCase()}|${category.toLowerCase()}|$cleanLabel|$periodNorm|$yearNorm';
   }
 
   Future<Map<String, dynamic>> getGradeBreakdown({

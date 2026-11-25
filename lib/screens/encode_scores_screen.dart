@@ -29,7 +29,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
   List<Map<String, dynamic>> _assignedClasses = [];
   Map<String, dynamic>? _selectedClassRecord;
 
-  String _selectedPeriod = '1st Quarter';
+  String _selectedPeriod = '1st Term';
   String _selectedCategory = 'Written Works';
   String _selectedItem = 'Written Works 1';
   int _totalScore = 20;
@@ -867,13 +867,13 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
                         icon: Icons.calendar_today_outlined,
                         iconColor: const Color(0xFF0D6EFD),
                         items: const [
+                          '1st Term',
+                          '2nd Term',
+                          '3rd Term',
                           '1st Quarter',
                           '2nd Quarter',
                           '3rd Quarter',
                           '4th Quarter',
-                          '1st Term',
-                          '2nd Term',
-                          '3rd Term',
                         ],
                         onChanged: (val) {
                           _draftTotalScores.clear();

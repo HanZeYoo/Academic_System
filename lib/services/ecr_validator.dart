@@ -1,6 +1,37 @@
 import '../models/ecr_mapping_model.dart';
 
 class EcrValidator {
+  /// Returns a canonical uniqueness key for targets that may only be mapped once.
+  /// Returns null for targets that are allowed to appear across multiple columns.
+  static String? uniqueTargetKey(EcrTargetCategory target) {
+    switch (target) {
+      case EcrTargetCategory.ignore:
+      case EcrTargetCategory.calculatedIgnore:
+      case EcrTargetCategory.componentTotal:
+      case EcrTargetCategory.totalGrade:
+        return null;
+      case EcrTargetCategory.qa:
+      case EcrTargetCategory.qa1:
+        return 'QA1';
+      default:
+        return target.label.toUpperCase();
+    }
+  }
+
+  /// Returns groups of column mappings that collide on a unique target category.
+  static Map<String, List<EcrColumnMapping>> findDuplicateTargetMappings(
+    List<EcrColumnMapping> mappings,
+  ) {
+    final Map<String, List<EcrColumnMapping>> grouped = {};
+    for (final m in mappings) {
+      final key = uniqueTargetKey(m.target);
+      if (key == null) continue;
+      grouped.putIfAbsent(key, () => []).add(m);
+    }
+    grouped.removeWhere((_, list) => list.length < 2);
+    return grouped;
+  }
+
   /// Validates full matrix dataset against mapped column targets, checks HPS limits,
   /// detects in-file duplicates, and cross-checks component totals.
   EcrValidationSummary validateFullDataset({
@@ -32,6 +63,21 @@ class EcrValidator {
         errorRows: dataRows.length,
         errors: errors,
       );
+    }
+
+    final duplicateTargets = findDuplicateTargetMappings(mappings);
+    final bool hasDuplicateTargetErrors = duplicateTargets.isNotEmpty;
+    if (hasDuplicateTargetErrors) {
+      for (final entry in duplicateTargets.entries) {
+        final dupList = entry.value;
+        final headers = dupList.map((m) => '"${m.originalHeader}"').join(', ');
+        errors.add(EcrValidationError(
+          rowIndex: 0,
+          columnIndex: dupList.last.columnIndex,
+          columnName: dupList.last.originalHeader,
+          message: 'Duplicate Mapping: Target "${dupList.first.target.label}" is assigned to multiple columns ($headers). Please assign each column a unique target or ignore duplicates.',
+        ));
+      }
     }
 
     final numericMappings = mappings.where((m) =>
@@ -186,6 +232,10 @@ class EcrValidator {
       if (rowHasError) {
         errorRowCount++;
       }
+    }
+
+    if (hasDuplicateTargetErrors && errorRowCount == 0) {
+      errorRowCount = 1;
     }
 
     final validRows = dataRows.length - errorRowCount;

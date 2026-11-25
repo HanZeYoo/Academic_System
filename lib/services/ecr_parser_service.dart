@@ -673,7 +673,7 @@ class EcrParserService {
         if (a.isCandidate != b.isCandidate) {
           return a.isCandidate ? -1 : 1;
         }
-        return b.matchScore.compareTo(a.matchScore) * -1;
+        return b.matchScore.compareTo(a.matchScore);
       });
 
       return summaries;
