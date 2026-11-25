@@ -4,6 +4,7 @@ import '../database_helper.dart';
 import '../services/email_service.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -21,6 +22,8 @@ class _UserManagementScreenState extends State<UserManagementScreen>
   bool _isLoading = true;
   String _searchQuery = '';
   String _selectedTab = 'all';
+  int _currentPage = 1;
+  static const int _pageSize = 20;
 
   final List<Map<String, dynamic>> _tabs = [
     {'key': 'all', 'label': 'All Users', 'icon': Icons.people},
@@ -38,6 +41,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
       if (!_tabController.indexIsChanging) {
         setState(() {
           _selectedTab = _tabs[_tabController.index]['key'];
+          _currentPage = 1;
           _applyFilters();
         });
       }
@@ -507,6 +511,7 @@ class _UserManagementScreenState extends State<UserManagementScreen>
             onChanged: (val) {
               setState(() {
                 _searchQuery = val;
+                _currentPage = 1;
                 _applyFilters();
               });
             },
@@ -586,11 +591,18 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                           ],
                         ),
                       )
-                    : ListView.separated(
-                        itemCount: _filteredUsers.length,
-                        separatorBuilder: (context, index) => const SizedBox(height: 8),
-                        itemBuilder: (ctx, i) {
-                          final user = _filteredUsers[i];
+                    : Builder(
+                        builder: (context) {
+                          final safePage = clampPage(_currentPage, _filteredUsers.length, _pageSize);
+                          final pageItems = paginateList(_filteredUsers, safePage, _pageSize);
+                          return Column(
+                            children: [
+                              Expanded(
+                                child: ListView.separated(
+                                  itemCount: pageItems.length,
+                                  separatorBuilder: (context, index) => const SizedBox(height: 8),
+                                  itemBuilder: (ctx, i) {
+                                    final user = pageItems[i];
                           final role = user['role']?.toString() ?? '';
                           final username = user['username']?.toString() ?? '';
                           final roleColor = _roleColor(role);
@@ -677,6 +689,17 @@ class _UserManagementScreenState extends State<UserManagementScreen>
                                 ],
                               ),
                             ),
+                          );
+                                  },
+                                ),
+                              ),
+                              PaginationControls(
+                                currentPage: safePage,
+                                totalItems: _filteredUsers.length,
+                                pageSize: _pageSize,
+                                onPageChanged: (page) => setState(() => _currentPage = page),
+                              ),
+                            ],
                           );
                         },
                       ),

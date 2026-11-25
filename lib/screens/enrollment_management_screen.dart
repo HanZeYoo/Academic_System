@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class EnrollmentManagementScreen extends StatefulWidget {
@@ -15,6 +16,8 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
   late TabController _tabController;
   bool _isLoading = true;
   String _searchQuery = '';
+  int _currentPage = 1;
+  static const int _pageSize = 20;
 
   List<Map<String, dynamic>> _allStudents = [];
 
@@ -34,7 +37,9 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
     _tabController = TabController(length: _tabs.length, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
-        setState(() {}); // Trigger rebuild to update tab content
+        setState(() {
+          _currentPage = 1;
+        }); // Trigger rebuild to update tab content
       }
     });
     _loadStudents();
@@ -324,10 +329,25 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
                           ),
                         );
                       }
-                      return ListView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        itemCount: students.length,
-                        itemBuilder: (_, i) => _buildStudentCard(students[i]),
+                      final pageItems = paginateList(students, _currentPage, _pageSize);
+                      return Column(
+                        children: [
+                          Expanded(
+                            child: ListView.builder(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              itemCount: pageItems.length,
+                              itemBuilder: (_, i) => _buildStudentCard(pageItems[i]),
+                            ),
+                          ),
+                          PaginationControls(
+                            currentPage: clampPage(_currentPage, students.length, _pageSize),
+                            totalItems: students.length,
+                            pageSize: _pageSize,
+                            accentColor: const Color(0xFF1664C5),
+                            margin: const EdgeInsets.only(top: 10),
+                            onPageChanged: (page) => setState(() => _currentPage = page),
+                          ),
+                        ],
                       );
                     }).toList(),
                   ),
@@ -362,7 +382,10 @@ class _EnrollmentManagementScreenState extends State<EnrollmentManagementScreen>
           contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         ),
         onChanged: (v) {
-          setState(() { _searchQuery = v; });
+          setState(() {
+            _searchQuery = v;
+            _currentPage = 1;
+          });
         },
       ),
     );

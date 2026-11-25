@@ -12,6 +12,7 @@ import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
 import '../utils/avatar_utils.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
@@ -33,6 +34,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   List<Map<String, dynamic>> _schedule = [];
   List<Map<String, dynamic>> _subjectGrades = [];
   List<Map<String, dynamic>> _dbNotifications = [];
+  int _notifPage = 1;
+  static const int _notifPageSize = 15;
   double _overallAverage = 0.0;
   double _attendancePercentage = 0.0;
   bool _hasAttendance = false;
@@ -457,6 +460,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       setState(() {
         _selectedChildIndex = index;
         _isInterventionExpanded = false;
+        _notifPage = 1;
         _chatController.clear();
       });
       _fetchDashboardDataForChild(_children[index]);
@@ -1488,46 +1492,59 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             if (notifications.isEmpty)
               _emptyCard('No notifications at this time.')
             else
-              ...notifications.map((n) {
-                final Color color = n['color'] as Color;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: color.withOpacity(0.25)),
-                    boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.07), blurRadius: 6, offset: const Offset(0, 3))],
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-                        child: Icon(n['icon'] as IconData, color: color, size: 22),
+              ...() {
+                final safePage = clampPage(_notifPage, notifications.length, _notifPageSize);
+                final pageItems = paginateList(notifications, safePage, _notifPageSize);
+                return [
+                  ...pageItems.map((n) {
+                    final Color color = n['color'] as Color;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: color.withOpacity(0.25)),
+                        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.07), blurRadius: 6, offset: const Offset(0, 3))],
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+                            child: Icon(n['icon'] as IconData, color: color, size: 22),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(child: Text(n['title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color))),
-                                Text(n['time'], style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(child: Text(n['title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color))),
+                                    Text(n['time'], style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(n['body'], style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.4)),
                               ],
                             ),
-                            const SizedBox(height: 6),
-                            Text(n['body'], style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.4)),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
+                    );
+                  }),
+                  PaginationControls(
+                    currentPage: safePage,
+                    totalItems: notifications.length,
+                    pageSize: _notifPageSize,
+                    accentColor: const Color(0xFF0284C7),
+                    onPageChanged: (page) => setState(() => _notifPage = page),
                   ),
-                );
-              }),
+                ];
+              }(),
             const SizedBox(height: 32),
           ],
         ),

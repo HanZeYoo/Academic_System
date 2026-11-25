@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class AnnouncementManagementScreen extends StatefulWidget {
@@ -16,6 +17,8 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
   bool _isLoading = true;
   List<Map<String, dynamic>> _announcements = [];
   List<String> _audienceOptions = [];
+  int _currentPage = 1;
+  static const int _pageSize = 10;
 
   @override
   void initState() {
@@ -26,19 +29,28 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
   Future<void> _loadData() async {
     final db = DatabaseHelper();
 
+    final roleLower = (widget.role ?? '').toLowerCase();
+    final isStaffAdmin = roleLower == 'admin' ||
+        roleLower == 'superadmin' ||
+        roleLower == 'principal' ||
+        roleLower == 'registrar';
+
     final Future<List<String>> audienceFuture;
-    if (widget.role != 'student') {
-      if (widget.username != null) {
+    if (widget.role != 'student' && widget.role != 'parent') {
+      if (isStaffAdmin || widget.username == null) {
+        audienceFuture = Future.value(['System-wide', 'All Students', 'All Teachers']);
+      } else {
         audienceFuture = () async {
           final teacher = await db.getTeacherByEmail(widget.username!);
           if (teacher != null) {
             final classes = await db.getSubjectClassesByTeacher(teacher['name'].toString());
-            return classes.map((c) => '${c["grade_level"]} - ${c["section_name"]} (${c["subject_name"]})').toList();
+            final opts = classes
+                .map((c) => '${c["grade_level"]} - ${c["section_name"]} (${c["subject_name"]})')
+                .toList();
+            return opts.isNotEmpty ? opts : ['System-wide', 'All Students', 'All Teachers'];
           }
-          return <String>[];
+          return ['System-wide', 'All Students', 'All Teachers'];
         }();
-      } else {
-        audienceFuture = Future.value(['System-wide', 'All Students', 'All Teachers']);
       }
     } else {
       audienceFuture = Future.value(_audienceOptions);
@@ -127,9 +139,13 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
     final titleCtrl = TextEditingController(text: isEditing ? existingAnnouncement['title'] : '');
     final contentCtrl = TextEditingController(text: isEditing ? existingAnnouncement['content'] : '');
     
+    if (_audienceOptions.isEmpty) {
+      _audienceOptions = ['System-wide', 'All Students', 'All Teachers'];
+    }
+
     String selectedAudience = 'System-wide';
     if (isEditing) {
-      selectedAudience = existingAnnouncement['audience'];
+      selectedAudience = existingAnnouncement['audience']?.toString() ?? 'System-wide';
       if (!_audienceOptions.contains(selectedAudience)) {
         _audienceOptions.add(selectedAudience);
       }
@@ -430,8 +446,8 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
                   ],
                 ),
               )
-            else
-              ..._announcements.map((a) => _buildAnnouncementCard(
+            else ...[
+              ...paginateList(_announcements, _currentPage, _pageSize).map((a) => _buildAnnouncementCard(
                     id: a['id'] as int,
                     title: a['title']?.toString() ?? '',
                     date: a['date_posted']?.toString() ?? '',
@@ -442,6 +458,14 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
                     isPinned: (a['is_pinned'] as int?) == 1,
                     author: a['author']?.toString(),
                   )),
+              PaginationControls(
+                currentPage: clampPage(_currentPage, _announcements.length, _pageSize),
+                totalItems: _announcements.length,
+                pageSize: _pageSize,
+                accentColor: const Color(0xFF0F52BA),
+                onPageChanged: (page) => setState(() => _currentPage = page),
+              ),
+            ],
           ],
         ),
       ),
@@ -539,7 +563,13 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
     required bool isPinned,
     String? author,
   }) {
-    bool canEdit = widget.role != 'student' && widget.role != 'parent' && (widget.username == null || author == widget.username);
+    final roleLower = (widget.role ?? '').toLowerCase();
+    bool canEdit = roleLower != 'student' &&
+        roleLower != 'parent' &&
+        (widget.username == null ||
+            author == widget.username ||
+            roleLower == 'admin' ||
+            roleLower == 'superadmin');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),

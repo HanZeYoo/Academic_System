@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'add_subject_class_screen.dart';
 import '../database_helper.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class SubjectClassScreen extends StatefulWidget {
@@ -14,6 +15,8 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
   List<Map<String, dynamic>> _subjectClasses = [];
   bool _isLoading = true;
   String _searchQuery = '';
+  int _currentPage = 1;
+  static const int _pageSize = 20;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -63,6 +66,7 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
             onChanged: (val) {
               setState(() {
                 _searchQuery = val;
+                _currentPage = 1;
               });
             },
             decoration: InputDecoration(
@@ -207,16 +211,35 @@ class _SubjectClassScreenState extends State<SubjectClassScreen> {
                               ],
                             ),
                           )
-                        : RefreshIndicator(
-                            onRefresh: _loadSubjectClasses,
-                            child: ListView.builder(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              itemCount: _filteredSubjectClasses.length,
-                              itemBuilder: (context, index) {
-                                final item = _filteredSubjectClasses[index];
-                                return _buildSubjectClassCard(item);
-                              },
-                            ),
+                        : Column(
+                            children: [
+                              Expanded(
+                                child: RefreshIndicator(
+                                  onRefresh: _loadSubjectClasses,
+                                  child: Builder(
+                                    builder: (context) {
+                                      final pageItems = paginateList(_filteredSubjectClasses, _currentPage, _pageSize);
+                                      return ListView.builder(
+                                        physics: const AlwaysScrollableScrollPhysics(),
+                                        itemCount: pageItems.length,
+                                        itemBuilder: (context, index) {
+                                          final item = pageItems[index];
+                                          return _buildSubjectClassCard(item);
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              PaginationControls(
+                                currentPage: clampPage(_currentPage, _filteredSubjectClasses.length, _pageSize),
+                                totalItems: _filteredSubjectClasses.length,
+                                pageSize: _pageSize,
+                                accentColor: const Color(0xFF1664C5),
+                                margin: const EdgeInsets.only(top: 10),
+                                onPageChanged: (page) => setState(() => _currentPage = page),
+                              ),
+                            ],
                           ),
           ),
         ],

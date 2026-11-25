@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../widgets/pagination_controls.dart';
 
 class SchoolYearRolloverScreen extends StatefulWidget {
   const SchoolYearRolloverScreen({super.key});
@@ -16,6 +17,8 @@ class _SchoolYearRolloverScreenState extends State<SchoolYearRolloverScreen> {
   String _currentSchoolYear = '';
   String _newSchoolYear = '';
   List<Map<String, dynamic>> _previewData = [];
+  int _previewPage = 1;
+  static const int _previewPageSize = 25;
 
   final TextEditingController _confirmController = TextEditingController();
   bool _confirmTyped = false;
@@ -60,7 +63,11 @@ class _SchoolYearRolloverScreenState extends State<SchoolYearRolloverScreen> {
     setState(() { _isLoadingPreview = true; _previewLoaded = false; });
     try {
       final data = await DatabaseHelper().previewRollover();
-      setState(() { _previewData = data; _previewLoaded = true; });
+      setState(() {
+        _previewData = data;
+        _previewPage = 1;
+        _previewLoaded = true;
+      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -279,7 +286,14 @@ class _SchoolYearRolloverScreenState extends State<SchoolYearRolloverScreen> {
                 const Divider(),
                 _buildTableHeader(),
                 const Divider(height: 1),
-                ..._previewData.map((p) => _buildPreviewRow(p)),
+                ...paginateList(_previewData, _previewPage, _previewPageSize).map((p) => _buildPreviewRow(p)),
+                PaginationControls(
+                  currentPage: clampPage(_previewPage, _previewData.length, _previewPageSize),
+                  totalItems: _previewData.length,
+                  pageSize: _previewPageSize,
+                  accentColor: const Color(0xFF1E66B4),
+                  onPageChanged: (page) => setState(() => _previewPage = page),
+                ),
               ],
             )),
             const SizedBox(height: 16),
@@ -294,7 +308,7 @@ class _SchoolYearRolloverScreenState extends State<SchoolYearRolloverScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text('Type "" to enable the rollover button.', style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                Text('Type "$_confirmPhrase" to enable the rollover button.', style: const TextStyle(fontSize: 13, color: Colors.black54)),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _confirmController,

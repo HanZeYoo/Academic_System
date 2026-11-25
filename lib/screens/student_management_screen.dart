@@ -9,6 +9,7 @@ import '../utils/avatar_utils.dart';
 import '../utils/dialog_utils.dart';
 import 'add_student_screen.dart';
 import 'student_detail_screen.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class StudentManagementScreen extends StatefulWidget {
@@ -22,6 +23,8 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
   List<Map<String, dynamic>> _students = [];
   bool _isLoading = true;
   String _searchQuery = '';
+  int _currentPage = 1;
+  static const int _pageSize = 20;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -212,6 +215,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
               onChanged: (val) {
                 setState(() {
                   _searchQuery = val;
+                  _currentPage = 1;
                 });
               },
               decoration: InputDecoration(
@@ -225,6 +229,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                           _searchController.clear();
                           setState(() {
                             _searchQuery = '';
+                            _currentPage = 1;
                           });
                         },
                       )
@@ -449,16 +454,35 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                               ],
                             ),
                           )
-                        : RefreshIndicator(
-                            onRefresh: _loadStudents,
-                            child: ListView.builder(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              itemCount: _filteredStudents.length,
-                              itemBuilder: (context, index) {
-                                final s = _filteredStudents[index];
-                                return _buildStudentCard(context, s);
-                              },
-                            ),
+                        : Column(
+                            children: [
+                              Expanded(
+                                child: RefreshIndicator(
+                                  onRefresh: _loadStudents,
+                                  child: Builder(
+                                    builder: (context) {
+                                      final pageItems = paginateList(_filteredStudents, _currentPage, _pageSize);
+                                      return ListView.builder(
+                                        physics: const AlwaysScrollableScrollPhysics(),
+                                        itemCount: pageItems.length,
+                                        itemBuilder: (context, index) {
+                                          final s = pageItems[index];
+                                          return _buildStudentCard(context, s);
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              PaginationControls(
+                                currentPage: clampPage(_currentPage, _filteredStudents.length, _pageSize),
+                                totalItems: _filteredStudents.length,
+                                pageSize: _pageSize,
+                                accentColor: const Color(0xFF1664C5),
+                                margin: const EdgeInsets.only(top: 10),
+                                onPageChanged: (page) => setState(() => _currentPage = page),
+                              ),
+                            ],
                           ),
           ),
         ],

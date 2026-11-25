@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
 import '../services/email_service.dart';
 import '../utils/avatar_utils.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class ParentNotificationScreen extends StatefulWidget {
@@ -56,6 +57,9 @@ class _ParentNotificationScreenState
 
   // History List
   List<Map<String, dynamic>> _history = [];
+  int _needsAttentionPage = 1;
+  int _historyPage = 1;
+  static const int _pageSize = 15;
 
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
@@ -64,7 +68,7 @@ class _ParentNotificationScreenState
 
     List<Map<String, dynamic>> loadedStudents = [];
 
-    if (widget.username == 'admin' || widget.username.isEmpty) {
+    if (widget.username.toLowerCase() == 'admin' || widget.username.isEmpty) {
       loadedStudents = await db.getStudents();
     } else {
       final teacher = await db.getTeacherByEmail(widget.username);
@@ -92,6 +96,12 @@ class _ParentNotificationScreenState
               loadedStudents.add(s);
             }
           }
+        }
+      } else {
+        final user = await db.getUserByUsername(widget.username);
+        final r = (user?['role'] ?? '').toString().toLowerCase();
+        if (r == 'admin' || r == 'superadmin' || r == 'principal' || r == 'registrar') {
+          loadedStudents = await db.getStudents();
         }
       }
     }
@@ -400,62 +410,77 @@ class _ParentNotificationScreenState
       );
     }
 
-    return ListView.builder(
-      itemCount: _atRiskStudents.length,
-      itemBuilder: (context, index) {
-        final student = _atRiskStudents[index];
-        double ave = double.tryParse(student['general_average'].toString()) ?? 100;
-        bool isHighRisk = ave < 75;
+    final pageItems = paginateList(_atRiskStudents, _needsAttentionPage, _pageSize);
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            itemCount: pageItems.length,
+            itemBuilder: (context, index) {
+              final student = pageItems[index];
+              double ave = double.tryParse(student['general_average'].toString()) ?? 100;
+              bool isHighRisk = ave < 75;
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              AvatarUtils.buildAvatar(
-                photo: student['profile_picture']?.toString(),
-                name: student['name']?.toString(),
-                radius: 20,
-                backgroundColor: isHighRisk ? const Color(0xFFFDECEE) : const Color(0xFFFFF3CD),
-                foregroundColor: isHighRisk ? const Color(0xFFE74C3C) : Colors.orange,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(student['name']?.toString() ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Text('General Average: ${student['general_average']}%', style: TextStyle(color: isHighRisk ? Colors.red : Colors.orange, fontSize: 13, fontWeight: FontWeight.bold)),
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
                   ],
                 ),
-              ),
-              ElevatedButton(
-                onPressed: () => _notifyAtRiskStudent(student),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF3383B3),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  elevation: 0,
+                child: Row(
+                  children: [
+                    AvatarUtils.buildAvatar(
+                      photo: student['profile_picture']?.toString(),
+                      name: student['name']?.toString(),
+                      radius: 20,
+                      backgroundColor: isHighRisk ? const Color(0xFFFDECEE) : const Color(0xFFFFF3CD),
+                      foregroundColor: isHighRisk ? const Color(0xFFE74C3C) : Colors.orange,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(student['name']?.toString() ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          Text('General Average: ${student['general_average']}%', style: TextStyle(color: isHighRisk ? Colors.red : Colors.orange, fontSize: 13, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => _notifyAtRiskStudent(student),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF3383B3),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        elevation: 0,
+                      ),
+                      child: const Text('Send Warning', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
                 ),
-                child: const Text('Send Warning', style: TextStyle(fontSize: 12)),
-              ),
-            ],
+              );
+            },
           ),
-        );
-      },
+        ),
+        PaginationControls(
+          currentPage: clampPage(_needsAttentionPage, _atRiskStudents.length, _pageSize),
+          totalItems: _atRiskStudents.length,
+          pageSize: _pageSize,
+          accentColor: const Color(0xFF3383B3),
+          margin: const EdgeInsets.only(top: 10),
+          onPageChanged: (page) => setState(() => _needsAttentionPage = page),
+        ),
+      ],
     );
   }
 
@@ -464,10 +489,15 @@ class _ParentNotificationScreenState
       return const Center(child: Text("No notifications sent yet.", style: TextStyle(color: Colors.black54)));
     }
 
-    return ListView.builder(
-      itemCount: _history.length,
-      itemBuilder: (context, index) {
-        final item = _history[index];
+    final safePage = clampPage(_historyPage, _history.length, _pageSize);
+    final pageItems = paginateList(_history, safePage, _pageSize);
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            itemCount: pageItems.length,
+            itemBuilder: (context, index) {
+              final item = pageItems[index];
         return Align(
           alignment: Alignment.centerRight,
           child: Container(
@@ -522,6 +552,17 @@ class _ParentNotificationScreenState
           ),
         );
       },
+    ),
+        ),
+        PaginationControls(
+          currentPage: safePage,
+          totalItems: _history.length,
+          pageSize: _pageSize,
+          accentColor: const Color(0xFF3383B3),
+          margin: const EdgeInsets.only(top: 10),
+          onPageChanged: (page) => setState(() => _historyPage = page),
+        ),
+      ],
     );
   }
 

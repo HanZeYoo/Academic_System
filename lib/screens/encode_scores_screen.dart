@@ -397,9 +397,9 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       final sid = student['student_id']?.toString() ?? '';
       final cleanSid = sid.replaceAll(RegExp(r'[\s\-]'), '').toLowerCase();
       final sName = (student['name'] ?? '').toString().trim().toLowerCase();
-      final existing = scoreMap[sid] ?? scoreMap[cleanSid] ?? scoreByName[sName] ?? 0;
+      final double? existing = scoreMap[sid] ?? scoreMap[cleanSid] ?? scoreByName[sName];
       final ctrl = TextEditingController(
-          text: existing > 0 ? (existing % 1 == 0 ? existing.toInt().toString() : existing.toString()) : '');
+          text: existing != null ? (existing % 1 == 0 ? existing.toInt().toString() : existing.toString()) : '');
       
       // Save changes to draft on typing
       ctrl.addListener(() {
@@ -442,13 +442,22 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv'],
+        withData: true,
       );
 
       if (result != null) {
         setState(() => _isLoading = true);
-        File file = File(result.files.single.path!);
-        final input = file.openRead();
-        final fields = await input.transform(utf8.decoder).transform(csv.decoder).toList();
+        final picked = result.files.single;
+        final bytes = picked.bytes ?? (picked.path != null ? await File(picked.path!).readAsBytes() : null);
+        if (bytes == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not read CSV file data.')));
+          }
+          setState(() => _isLoading = false);
+          return;
+        }
+        final csvText = utf8.decode(bytes);
+        final fields = await Stream<String>.value(csvText).transform(csv.decoder).toList();
 
         if (fields.isEmpty || fields.length < 2) {
           if (mounted) {
@@ -566,8 +575,10 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     return DatabaseHelper().transmuteGrade(rawPct) >= 75.0;
   }
 
-  int get _encodedCount =>
-      _students.where((s) => _scoreOf(s['student_id']?.toString() ?? '') > 0).length;
+  int get _encodedCount => _students.where((s) {
+        final sid = s['student_id']?.toString() ?? '';
+        return (_scoreControllers[sid]?.text.trim().isNotEmpty ?? false);
+      }).length;
 
   int get _pendingCount => _students.length - _encodedCount;
 
@@ -618,6 +629,9 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
     final now = DateTime.now().toIso8601String();
 
     final db = DatabaseHelper();
+    final schoolYear = _selectedClassRecord!['school_year']?.toString().trim().isNotEmpty == true
+        ? _selectedClassRecord!['school_year'].toString()
+        : await db.getActiveSchoolYear();
     final List<Map<String, dynamic>> scorePayloads = [];
     final List<String> clearedStudentIds = [];
 
@@ -641,6 +655,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
         'category': _selectedCategory,
         'item_label': _selectedItem,
         'grading_period': _selectedPeriod,
+        'school_year': schoolYear,
         'score': score.toDouble(),
         'total_score': _totalScore.toDouble(),
         'teacher_name': _teacherName ?? '',
@@ -657,6 +672,7 @@ class _EncodeScoresScreenState extends State<EncodeScoresScreen> {
             category: _selectedCategory,
             itemLabel: _selectedItem,
             gradingPeriod: _selectedPeriod,
+            schoolYear: schoolYear,
           )));
     }
 

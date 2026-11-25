@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/role_theme.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class StudentAttendanceViewScreen extends StatefulWidget {
@@ -16,6 +17,8 @@ class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScree
   List<Map<String, dynamic>> _attendanceRecords = [];
   String? _selectedSchoolYear;
   List<String> _schoolYears = [];
+  int _currentPage = 1;
+  static const int _pageSize = 15;
   final theme = RoleTheme.studentTheme;
 
   @override
@@ -52,6 +55,7 @@ class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScree
       setState(() {
         _schoolYears = years.isNotEmpty ? years : [activeYear];
         _attendanceRecords = records;
+        _currentPage = 1;
         _isLoading = false;
       });
     }
@@ -297,8 +301,16 @@ class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScree
                   ],
                 ),
               )
-            else
-              ..._attendanceRecords.map((a) => _buildAttendanceCard(a)),
+            else ...[
+              ...paginateList(_attendanceRecords, _currentPage, _pageSize).map((a) => _buildAttendanceCard(a)),
+              PaginationControls(
+                currentPage: clampPage(_currentPage, _attendanceRecords.length, _pageSize),
+                totalItems: _attendanceRecords.length,
+                pageSize: _pageSize,
+                accentColor: theme.primary,
+                onPageChanged: (page) => setState(() => _currentPage = page),
+              ),
+            ],
           ],
         ),
       ),

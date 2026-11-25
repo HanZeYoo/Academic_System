@@ -59,11 +59,20 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
   // Filter for Validation Issues Table
   bool _showOnlyErrorsInValidation = false;
   bool _isGradingConfigExpanded = false;
+  bool _isEncodingLocked = false;
 
   @override
   void initState() {
     super.initState();
     _loadTeacherData();
+    _checkEncodingDeadline();
+  }
+
+  Future<void> _checkEncodingDeadline() async {
+    final allowed = await DatabaseHelper().isEncodingAllowed(_selectedPeriod);
+    if (mounted) {
+      setState(() => _isEncodingLocked = !allowed);
+    }
   }
 
   Future<void> _loadTeacherData() async {
@@ -88,6 +97,15 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
   // ── STEP 1: PICK AND PARSE FILE ──────────────────────────────────────────
 
   Future<void> _pickAndParseFile() async {
+    if (_isEncodingLocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Encoding for $_selectedPeriod is currently closed. Contact your Admin to extend the deadline.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     if (_selectedClassRecord == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -306,6 +324,19 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
 
   Future<void> _executeSave({bool skipErrors = false}) async {
     if (_parseResult == null || _selectedClassRecord == null) return;
+
+    final allowed = await DatabaseHelper().isEncodingAllowed(_selectedPeriod);
+    if (!allowed) {
+      if (mounted) {
+        setState(() => _isEncodingLocked = true);
+        AestheticDialogs.showErrorDialog(
+          context,
+          'Encoding Locked',
+          'The grading deadline for $_selectedPeriod has closed. Please contact your Admin to extend the deadline before importing.',
+        );
+      }
+      return;
+    }
 
     // If low roster match (< 40%), prompt user with explicit confirmation dialog
     if (_rosterMatchResult != null && _rosterMatchResult!.lowMatchWarning) {
@@ -897,6 +928,32 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (_isEncodingLocked)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.lock, color: Colors.red.shade700, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Encoding for $_selectedPeriod is currently closed. Contact your Admin to extend the deadline.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.red.shade800,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     _buildHeaderContextCard(isMobile),
                     const SizedBox(height: 16),
                     _buildStepIndicator(isMobile),
@@ -1053,7 +1110,10 @@ class _EcrImportScreenState extends State<EcrImportScreen> {
         DropdownMenuItem(value: '4th Quarter', child: Text('4th Quarter')),
       ],
       onChanged: (val) {
-        if (val != null) setState(() => _selectedPeriod = val);
+        if (val != null) {
+          setState(() => _selectedPeriod = val);
+          _checkEncodingDeadline();
+        }
       },
     );
 

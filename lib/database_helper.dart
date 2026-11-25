@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:academic_system/models/ecr_transmutation_model.dart';
@@ -62,6 +63,40 @@ class DatabaseHelper {
     return sha256.convert(bytes).toString();
   }
 
+  static const String _supabaseUrl = 'https://vslqselpnkpghtpnxryg.supabase.co';
+  static const String _supabasePublishableKey = 'sb_publishable_qAfWW1fw67Xb85gAtWyBZg_sKB-ISaW';
+
+  /// Registers a user in Supabase Auth via REST without replacing the currently
+  /// logged-in user's session (prevents Admin session hijacking).
+  Future<void> _signUpAuthWithoutSessionOverride(
+    String email,
+    String password, {
+    bool throwOnError = false,
+  }) async {
+    try {
+      final resp = await http.post(
+        Uri.parse('$_supabaseUrl/auth/v1/signup'),
+        headers: {
+          'apikey': _supabasePublishableKey,
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'email': email, 'password': password}),
+      );
+      if (resp.statusCode >= 400) {
+        final lower = resp.body.toLowerCase();
+        if (!lower.contains('already registered') && !lower.contains('already exists')) {
+          print('Supabase SignUp Error (${resp.statusCode}): ${resp.body}');
+          if (throwOnError) {
+            throw Exception('Failed to create authentication record (${resp.statusCode}).');
+          }
+        }
+      }
+    } catch (e) {
+      print('Supabase SignUp Error: $e');
+      if (throwOnError) rethrow;
+    }
+  }
+
   // Add a student
   Future<void> addStudent({
     required String studentId,
@@ -96,16 +131,9 @@ class DatabaseHelper {
       'school_year': activeYear,
     });
 
-    // Auto-create user account for student
+    // Auto-create user account for student (without replacing active Admin session)
     if (email.isNotEmpty) {
-      try {
-        await Supabase.instance.client.auth.signUp(
-          email: email,
-          password: 'student123',
-        );
-      } catch (e) {
-        print('Supabase SignUp Error (Student): $e');
-      }
+      await _signUpAuthWithoutSessionOverride(email, 'student123');
       try {
         await Supabase.instance.client.from('users').insert({
           'username': email,
@@ -116,16 +144,9 @@ class DatabaseHelper {
         // Ignore if already exists
       }
     }
-    // Auto-create user account for parent
+    // Auto-create user account for parent (without replacing active Admin session)
     if (parentEmail.isNotEmpty) {
-      try {
-        await Supabase.instance.client.auth.signUp(
-          email: parentEmail,
-          password: 'parent123',
-        );
-      } catch (e) {
-        print('Supabase SignUp Error (Parent): $e');
-      }
+      await _signUpAuthWithoutSessionOverride(parentEmail, 'parent123');
       try {
         await Supabase.instance.client.from('users').insert({
           'username': parentEmail,
@@ -226,15 +247,7 @@ class DatabaseHelper {
       throw Exception('Parent account already exists for this email.');
     }
 
-    try {
-      await Supabase.instance.client.auth.signUp(
-        email: parentEmail,
-        password: 'parent123',
-      );
-    } catch (e) {
-      print('Supabase SignUp Error (Parent): $e');
-      throw Exception('Failed to create authentication record: $e');
-    }
+    await _signUpAuthWithoutSessionOverride(parentEmail, 'parent123', throwOnError: true);
     
     try {
       await Supabase.instance.client.from('users').insert({
@@ -268,15 +281,7 @@ class DatabaseHelper {
       throw Exception('An account with this email already exists.');
     }
 
-    try {
-      await Supabase.instance.client.auth.signUp(
-        email: email,
-        password: password,
-      );
-    } catch (e) {
-      print('Supabase SignUp Error (Admin): $e');
-      throw Exception('Failed to create authentication record: $e');
-    }
+    await _signUpAuthWithoutSessionOverride(email, password, throwOnError: true);
 
     try {
       await Supabase.instance.client.from('users').insert({
@@ -322,11 +327,13 @@ class DatabaseHelper {
     String? extendedUntil,
   }) async {
     final activeYear = await getActiveSchoolYear();
+    final aliases = getPeriodAliases(quarter);
     final existing = await Supabase.instance.client
         .from('grading_deadlines')
         .select()
-        .eq('quarter', quarter)
+        .inFilter('quarter', aliases)
         .eq('school_year', activeYear)
+        .limit(1)
         .maybeSingle();
 
     final data = {
@@ -355,12 +362,14 @@ class DatabaseHelper {
   /// or if an extension is active and today <= extended_until.
   Future<bool> isEncodingAllowed(String quarter) async {
     final activeYear = await getActiveSchoolYear();
+    final aliases = getPeriodAliases(quarter);
     try {
       final result = await Supabase.instance.client
           .from('grading_deadlines')
           .select()
-          .eq('quarter', quarter)
+          .inFilter('quarter', aliases)
           .eq('school_year', activeYear)
+          .limit(1)
           .maybeSingle();
 
       if (result == null) return true; // No deadline set = allow by default
@@ -514,7 +523,7 @@ class DatabaseHelper {
       if (raw.contains('-')) {
         alternate = clean; // raw has dashes -> try continuous 9 digits
       } else {
-        alternate = '\-\-'; // raw is continuous 9 digits -> try ##-####-###
+        alternate = '${clean.substring(0, 2)}-${clean.substring(2, 6)}-${clean.substring(6)}'; // raw is continuous 9 digits -> try ##-####-###
       }
     }
 
@@ -1355,6 +1364,9 @@ class DatabaseHelper {
     bool filterBySetup = true,
   }) async {
     final aliases = getPeriodAliases(gradingPeriod);
+    final year = (schoolYear != null && schoolYear.isNotEmpty)
+        ? schoolYear
+        : await getActiveSchoolYear();
     List<Map<String, dynamic>> rawScores = [];
     try {
       final results = await Supabase.instance.client.from('scores')
@@ -1363,10 +1375,22 @@ class DatabaseHelper {
           .eq('section_name', sectionName)
           .eq('grade_level', gradeLevel)
           .inFilter('grading_period', aliases)
+          .eq('school_year', year)
           .order('student_name', ascending: true);
       rawScores = List<Map<String, dynamic>>.from(results);
     } catch (e) {
-      print('Note: getScoresForClass query: $e');
+      try {
+        final results = await Supabase.instance.client.from('scores')
+            .select()
+            .eq('subject_code', subjectCode)
+            .eq('section_name', sectionName)
+            .eq('grade_level', gradeLevel)
+            .inFilter('grading_period', aliases)
+            .order('student_name', ascending: true);
+        rawScores = List<Map<String, dynamic>>.from(results);
+      } catch (e2) {
+        print('Note: getScoresForClass query: $e2');
+      }
     }
 
     if (!filterBySetup) return rawScores;
@@ -1380,22 +1404,27 @@ class DatabaseHelper {
       );
       if (setup == null) return rawScores;
 
-      final Set<String> activeLabels = {};
-      void addLabels(dynamic data, int count, String prefix) {
+      final Set<String> activeAliases = {};
+      void addLabelsWithCategory(dynamic data, int count, String prefix, String category) {
+        final List<String> labels = [];
         if (data != null && data is String) {
           try {
             final decoded = jsonDecode(data);
             if (decoded is List && decoded.isNotEmpty) {
-              activeLabels.addAll(decoded.map((e) => e.toString()));
-              return;
+              labels.addAll(decoded.map((e) => e.toString()));
             }
           } catch (_) {}
         } else if (data is List && data.isNotEmpty) {
-          activeLabels.addAll(data.map((e) => e.toString()));
-          return;
+          labels.addAll(data.map((e) => e.toString()));
         }
-        for (int i = 1; i <= count; i++) {
-          activeLabels.add('$prefix $i');
+        if (labels.isEmpty) {
+          for (int i = 1; i <= count; i++) {
+            labels.add('$prefix $i');
+          }
+        }
+        for (final l in labels) {
+          activeAliases.add(l.toLowerCase().trim());
+          activeAliases.addAll(getItemAliases(category, l).map((a) => a.toLowerCase().trim()));
         }
       }
 
@@ -1403,40 +1432,16 @@ class DatabaseHelper {
       final ptCount = (setup['pt_items'] as num?)?.toInt() ?? 10;
       final teCount = (setup['te_items'] as num?)?.toInt() ?? 1;
 
-      addLabels(setup['ww_labels'], wwCount, 'Written Works');
-      addLabels(setup['pt_labels'], ptCount, 'Performance Tasks');
-      addLabels(setup['te_labels'], teCount, 'Term Exams');
+      addLabelsWithCategory(setup['ww_labels'], wwCount, 'Written Works', 'Written Works');
+      addLabelsWithCategory(setup['pt_labels'], ptCount, 'Performance Tasks', 'Performance Tasks');
+      addLabelsWithCategory(setup['te_labels'], teCount, 'Term Exams', 'Term Exams');
 
-      if (activeLabels.isEmpty) return rawScores;
+      if (activeAliases.isEmpty) return rawScores;
 
-      final Set<String> activeAliases = {};
-      for (final l in activeLabels) {
-        activeAliases.add(l.toLowerCase().trim());
-        activeAliases.addAll(getItemAliases('', l).map((a) => a.toLowerCase().trim()));
-      }
-
-      final filtered = rawScores.where((r) {
+      return rawScores.where((r) {
         final label = (r['item_label']?.toString() ?? '').toLowerCase().trim();
         return activeAliases.contains(label);
       }).toList();
-
-      // If orphaned items are detected, prune them from the database in a single batch call
-      if (filtered.length < rawScores.length) {
-        final orphanedIds = rawScores
-            .where((r) => !activeAliases.contains((r['item_label']?.toString() ?? '').toLowerCase().trim()))
-            .map((r) => r['id'])
-            .where((id) => id != null)
-            .toList();
-        if (orphanedIds.isNotEmpty) {
-          Supabase.instance.client
-              .from('scores')
-              .delete()
-              .inFilter('id', orphanedIds)
-              .then((_) {}, onError: (_) {});
-        }
-      }
-
-      return filtered;
     } catch (_) {
       return rawScores;
     }
@@ -1784,15 +1789,8 @@ class DatabaseHelper {
       'hiring_date': hiringDate,
       'assigned_section': assignedSection,
     });
-    // Automatically create a user account for the teacher
-    try {
-      await Supabase.instance.client.auth.signUp(
-        email: email,
-        password: 'teacher123',
-      );
-    } catch (e) {
-      print('Supabase SignUp Error (Teacher): $e');
-    }
+    // Automatically create a user account for the teacher (without replacing Admin session)
+    await _signUpAuthWithoutSessionOverride(email, 'teacher123');
     try {
       await Supabase.instance.client.from('users').insert({
         'username': email,
@@ -2023,12 +2021,23 @@ class DatabaseHelper {
     return null;
   }
 
-  // Method to update password
+  // Method to update password (updates both public.users and active Supabase Auth user)
   Future<int> updatePassword(String username, String newPassword) async {
     final hashedPassword = _hashPassword(newPassword);
     await Supabase.instance.client.from('users')
         .update({'password': hashedPassword})
         .eq('username', username);
+
+    try {
+      final currentAuthEmail = Supabase.instance.client.auth.currentUser?.email?.toLowerCase();
+      if (currentAuthEmail != null && currentAuthEmail == username.trim().toLowerCase()) {
+        await Supabase.instance.client.auth.updateUser(
+          UserAttributes(password: newPassword),
+        );
+      }
+    } catch (e) {
+      print('Supabase Auth updateUser password error: $e');
+    }
     return 1;
   }
 
@@ -3205,32 +3214,39 @@ class DatabaseHelper {
       // 1. Get student to find parent email
       final studentRes = await Supabase.instance.client.from('students').select('parent_email').eq('student_id', studentId).maybeSingle();
       if (studentRes == null || studentRes['parent_email'] == null) return;
-      final parentEmail = studentRes['parent_email'].toString();
+      final parentEmail = studentRes['parent_email'].toString().trim();
+      if (parentEmail.isEmpty) return;
 
-      // 2. Get parent FCM token
-      final userRes = await Supabase.instance.client.from('users').select('fcm_token').eq('username', parentEmail).maybeSingle();
-      if (userRes == null || userRes['fcm_token'] == null) return;
-      final fcmToken = userRes['fcm_token'].toString();
+      // 2. Get parent FCM token (optional — still save in-app notification if absent)
+      String fcmToken = '';
+      try {
+        final userRes = await Supabase.instance.client.from('users').select('fcm_token').eq('username', parentEmail).maybeSingle();
+        fcmToken = userRes?['fcm_token']?.toString().trim() ?? '';
+      } catch (_) {}
 
       // 3. Send Notification via Edge Function
-      String message = status == 'Absent' 
+      String message = status == 'Absent'
           ? "Si $studentName ay namarkahang Absent sa klase ng $className ngayong araw."
           : "Si $studentName ay pumasok sa klase ($className) at namarkahang $status ngayong araw.";
-          
+
       if (fcmToken.isNotEmpty) {
-        await Supabase.instance.client.functions.invoke('send-fcm', body: {
-          'token': fcmToken,
-          'title': 'Attendance Update',
-          'body': message,
-          'data': {'route': 'notifications'}
-        });
+        try {
+          await Supabase.instance.client.functions.invoke('send-fcm', body: {
+            'token': fcmToken,
+            'title': 'Attendance Update',
+            'body': message,
+            'data': {'route': 'notifications'}
+          });
+        } catch (e) {
+          print('Error sending attendance push: $e');
+        }
       }
-      
+
       // Also save to notifications table so they see it in-app
       await insertNotification({
         'sender_username': 'System',
         'receiver_username': parentEmail,
-        'student_id': int.parse(studentId),
+        'student_id': int.tryParse(studentId) ?? studentId,
         'title': 'Attendance Update',
         'message': message,
         'date': "${DateTime.now().month}/${DateTime.now().day}/${DateTime.now().year}",

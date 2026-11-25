@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../database_helper.dart';
 import '../models/ecr_transmutation_model.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 /// Screen for analyzing individual child academic performance,
@@ -58,6 +59,8 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
   String _selectedSection = 'All';
   List<String> _availableGradeLevels = ['All'];
   List<String> _availableSections = ['All'];
+  int _currentPage = 1;
+  static const int _pageSize = 15;
 
   @override
   void initState() {
@@ -81,16 +84,24 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
 
     List<Map<String, dynamic>> classes = [];
 
-    if (widget.username == 'admin') {
+    if (widget.username.toLowerCase() == 'admin') {
       classes = await db.getSubjectClasses();
     } else {
       final teacher = await db.getTeacherByEmail(widget.username);
       if (!mounted) return;
-      if (teacher == null) {
-        setState(() => _isLoading = false);
-        return;
+      if (teacher != null) {
+        classes = await db.getSubjectClassesByTeacher(teacher['name'].toString());
+      } else {
+        final user = await db.getUserByUsername(widget.username);
+        if (!mounted) return;
+        final r = (user?['role'] ?? '').toString().toLowerCase();
+        if (r == 'admin' || r == 'superadmin' || r == 'principal' || r == 'registrar') {
+          classes = await db.getSubjectClasses();
+        } else {
+          setState(() => _isLoading = false);
+          return;
+        }
       }
-      classes = await db.getSubjectClassesByTeacher(teacher['name'].toString());
     }
 
     Set<String> grades = {'All'};
@@ -139,7 +150,7 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
           gradeLevel: gradeLevel,
           gradingPeriod: _selectedPeriod,
         ),
-        db.getAttendanceForClass('$gradeLevel - $section'),
+        db.getAttendanceForClass('$subjectCode - $gradeLevel - $section'),
       ]);
 
       return {
@@ -1446,8 +1457,16 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
                       ],
                     ),
                   )
-                else
-                  ...filteredStudents.map((s) => _buildStudentPerformanceCard(s)),
+                else ...[
+                  ...paginateList(filteredStudents, _currentPage, _pageSize).map((s) => _buildStudentPerformanceCard(s)),
+                  PaginationControls(
+                    currentPage: clampPage(_currentPage, filteredStudents.length, _pageSize),
+                    totalItems: filteredStudents.length,
+                    pageSize: _pageSize,
+                    accentColor: const Color(0xFF2563EB),
+                    onPageChanged: (page) => setState(() => _currentPage = page),
+                  ),
+                ],
 
                 const SizedBox(height: 24),
               ],
@@ -1472,7 +1491,10 @@ class _PerformanceAnalyticsScreenState extends State<PerformanceAnalyticsScreen>
       selected: isSelected,
       onSelected: (selected) {
         if (selected) {
-          setState(() => _selectedFilter = label);
+          setState(() {
+            _selectedFilter = label;
+            _currentPage = 1;
+          });
         }
       },
       backgroundColor: Colors.white,

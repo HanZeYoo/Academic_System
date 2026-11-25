@@ -3,6 +3,7 @@ import '../database_helper.dart';
 import '../utils/avatar_utils.dart';
 import 'add_teacher_screen.dart';
 import 'teacher_detail_screen.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class TeacherManagementScreen extends StatefulWidget {
@@ -17,6 +18,8 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
   List<Map<String, dynamic>> _teachers = [];
   bool _isLoading = true;
   String _searchQuery = '';
+  int _currentPage = 1;
+  static const int _pageSize = 20;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -78,6 +81,7 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
               onChanged: (val) {
                 setState(() {
                   _searchQuery = val;
+                  _currentPage = 1;
                 });
               },
               decoration: InputDecoration(
@@ -288,16 +292,35 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
                               ],
                             ),
                           )
-                        : RefreshIndicator(
-                            onRefresh: _loadTeachers,
-                            child: ListView.builder(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              itemCount: _filteredTeachers.length,
-                              itemBuilder: (context, index) {
-                                final t = _filteredTeachers[index];
-                                return _buildTeacherCard(context, t);
-                              },
-                            ),
+                        : Column(
+                            children: [
+                              Expanded(
+                                child: RefreshIndicator(
+                                  onRefresh: _loadTeachers,
+                                  child: Builder(
+                                    builder: (context) {
+                                      final pageItems = paginateList(_filteredTeachers, _currentPage, _pageSize);
+                                      return ListView.builder(
+                                        physics: const AlwaysScrollableScrollPhysics(),
+                                        itemCount: pageItems.length,
+                                        itemBuilder: (context, index) {
+                                          final t = pageItems[index];
+                                          return _buildTeacherCard(context, t);
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              PaginationControls(
+                                currentPage: clampPage(_currentPage, _filteredTeachers.length, _pageSize),
+                                totalItems: _filteredTeachers.length,
+                                pageSize: _pageSize,
+                                accentColor: const Color(0xFF1664C5),
+                                margin: const EdgeInsets.only(top: 10),
+                                onPageChanged: (page) => setState(() => _currentPage = page),
+                              ),
+                            ],
                           ),
           ),
         ],

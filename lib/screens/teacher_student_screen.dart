@@ -5,6 +5,7 @@ import '../models/ecr_transmutation_model.dart';
 import 'student_detail_screen.dart';
 import 'student_grades_screen.dart';
 import '../utils/avatar_utils.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class TeacherStudentScreen extends StatefulWidget {
@@ -33,13 +34,18 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String? _teacherName;
+  int _currentPage = 1;
+  static const int _pageSize = 15;
 
   @override
   void initState() {
     super.initState();
     _loadData();
     _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.toLowerCase());
+      setState(() {
+        _searchQuery = _searchController.text.toLowerCase();
+        _currentPage = 1;
+      });
     });
   }
 
@@ -72,9 +78,10 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
     final Set<String> assignedKeys = {};
     final Set<String> uniqueGrades = {};
     final Set<String> uniqueSections = {};
-    final Map<String, ({String grade, String section})> uniqueAttendanceKeys = {};
+    final Map<String, ({String subjectCode, String grade, String section})> uniqueAttendanceKeys = {};
 
     for (final cls in classes) {
+      final subjectCode = cls['subject_code']?.toString() ?? '';
       final rawGrade = cls['grade_level']?.toString() ?? '';
       final rawSection = cls['section_name']?.toString() ?? '';
       final gradeLower = rawGrade.trim().toLowerCase();
@@ -84,10 +91,10 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
       }
       if (rawGrade.isNotEmpty) uniqueGrades.add(rawGrade);
       if (rawSection.isNotEmpty) uniqueSections.add(rawSection);
-      if (rawGrade.isNotEmpty && rawSection.isNotEmpty) {
+      if (subjectCode.isNotEmpty && rawGrade.isNotEmpty && rawSection.isNotEmpty) {
         uniqueAttendanceKeys.putIfAbsent(
-          '$rawGrade - $rawSection',
-          () => (grade: rawGrade, section: rawSection),
+          '$subjectCode - $rawGrade - $rawSection',
+          () => (subjectCode: subjectCode, grade: rawGrade, section: rawSection),
         );
       }
     }
@@ -172,6 +179,7 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
       }
 
       return {
+        'subjectCode': subjectCode,
         'gradeLevel': gradeLevel,
         'section': section,
         'setup': res[0] as Map<String, dynamic>?,
@@ -242,7 +250,17 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
       final gradeLevel = s['grade_level']?.toString() ?? '';
       final section = s['section']?.toString() ?? '';
       final matchingBundles = bundlesBySection['$gradeLevel|$section'] ?? const [];
-      final attPct = attendanceByClass['$gradeLevel - $section']?[studentId] ?? 0.0;
+      double attSum = 0.0;
+      int attCount = 0;
+      for (final b in matchingBundles) {
+        final sCode = b['subjectCode']?.toString() ?? '';
+        final classMap = attendanceByClass['$sCode - $gradeLevel - $section'];
+        if (classMap != null && classMap.containsKey(studentId)) {
+          attSum += classMap[studentId]!;
+          attCount++;
+        }
+      }
+      final attPct = attCount > 0 ? (attSum / attCount) : 0.0;
 
       double lowestGrade = 100;
       bool hasFailing = false;
@@ -624,10 +642,17 @@ class _TeacherStudentScreenState extends State<TeacherStudentScreen> {
                   // Student List or Empty State
                   if (_filteredStudents.isEmpty)
                     _buildEmptyState()
-                  else
-                    ..._filteredStudents
-                        .map((student) => _buildStudentCard(student))
-                        .toList(),
+                  else ...[
+                    ...paginateList(_filteredStudents, _currentPage, _pageSize)
+                        .map((student) => _buildStudentCard(student)),
+                    PaginationControls(
+                      currentPage: clampPage(_currentPage, _filteredStudents.length, _pageSize),
+                      totalItems: _filteredStudents.length,
+                      pageSize: _pageSize,
+                      accentColor: const Color(0xFF0D6EFD),
+                      onPageChanged: (page) => setState(() => _currentPage = page),
+                    ),
+                  ],
 
                   const SizedBox(height: 32),
                 ],

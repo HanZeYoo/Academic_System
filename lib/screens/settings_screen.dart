@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
 import 'school_year_rollover_screen.dart';
@@ -9,6 +10,7 @@ const List<String> _kQuarters = [
   '1st Term',
   '2nd Term',
   '3rd Term',
+  '4th Term',
 ];
 
 class SettingsScreen extends StatefulWidget {
@@ -45,8 +47,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _userRole;
 
   bool get _isAdmin {
-    final r = widget.role ?? _userRole;
-    if (r != null) return r.toLowerCase() == 'admin';
+    final r = (widget.role ?? _userRole)?.toLowerCase();
+    if (r != null) return r == 'admin' || r == 'superadmin';
     return widget.username.toLowerCase() == 'admin';
   }
 
@@ -184,14 +186,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
+    if (newPassword.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New password must be at least 6 characters.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
-    // Verify current password first
+    // Verify current password first (check public.users, and Supabase Auth if present)
     final dbHelper = DatabaseHelper();
-    final user = await dbHelper.login(widget.username, currentPassword);
+    var user = await dbHelper.login(widget.username, currentPassword);
 
     if (user == null) {
-      setState(() => _isLoading = false);
+      try {
+        final authRes = await Supabase.instance.client.auth.signInWithPassword(
+          email: widget.username,
+          password: currentPassword,
+        );
+        if (authRes.user != null) {
+          user = await dbHelper.getUserByUsername(widget.username);
+        }
+      } catch (_) {}
+    }
+
+    if (user == null) {
+      if (mounted) setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Incorrect current password!'), backgroundColor: Colors.red),
@@ -203,7 +224,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Update to new password
     await dbHelper.updatePassword(widget.username, newPassword);
 
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
 
     if (mounted) {
       AestheticDialogs.showSuccessDialog(

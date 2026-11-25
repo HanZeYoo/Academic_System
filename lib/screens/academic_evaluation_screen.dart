@@ -6,6 +6,7 @@ import '../utils/avatar_utils.dart';
 import 'class_evaluation_report_screen.dart';
 import 'student_evaluation_detail_screen.dart';
 import '../services/early_warning_service.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class AcademicEvaluationScreen extends StatefulWidget {
@@ -27,6 +28,8 @@ class _AcademicEvaluationScreenState
   String _selectedPeriod = '1st Quarter';
   String _searchQuery = '';
   bool _showOnlyAtRisk = false;
+  int _currentPage = 1;
+  static const int _pageSize = 15;
   final _searchController = TextEditingController();
 
   List<Map<String, dynamic>> _students = [];
@@ -69,9 +72,13 @@ class _AcademicEvaluationScreenState
 
   Future<void> _loadClasses() async {
     final db = DatabaseHelper();
-    
-    if (widget.role == 'admin') {
-      // Admin sees all classes
+    final roleLower = widget.role.toLowerCase();
+
+    if (roleLower == 'admin' ||
+        roleLower == 'superadmin' ||
+        roleLower == 'principal' ||
+        roleLower == 'registrar') {
+      // Admin / Principal / Registrar see all classes
       final classes = await db.getSubjectClasses();
       if (!mounted) return;
       setState(() {
@@ -79,12 +86,12 @@ class _AcademicEvaluationScreenState
         _selectedClassData = classes.isNotEmpty ? classes.first : null;
       });
       await _loadStudentData();
-    } else if (widget.role == 'teacher') {
+    } else if (roleLower == 'teacher') {
       // Teacher sees only assigned classes
       final teacher = await db.getTeacherByEmail(widget.username);
-      if (teacher == null) { 
-        if (mounted) setState(() => _isLoading = false); 
-        return; 
+      if (teacher == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
       }
       final classes = await db.getSubjectClassesByTeacher(teacher['name'].toString());
       if (!mounted) return;
@@ -93,6 +100,8 @@ class _AcademicEvaluationScreenState
         _selectedClassData = classes.isNotEmpty ? classes.first : null;
       });
       await _loadStudentData();
+    } else {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -129,7 +138,7 @@ class _AcademicEvaluationScreenState
         gradingPeriod: _selectedPeriod,
       ),
       db.getTransmutationTable(subjectCode, section),
-      db.getAttendanceForClass('$grade - $section'),
+      db.getAttendanceForClass('$subjectCode - $grade - $section'),
     ]);
 
     if (!mounted) return;
@@ -645,8 +654,8 @@ class _AcademicEvaluationScreenState
                   style: TextStyle(color: Colors.grey, fontSize: 14),
                 ),
               )
-            else
-              ...gradeList.map((student) {
+            else ...[
+              ...paginateList(gradeList, _currentPage, _pageSize).map((student) {
                 final sid = student['student_id'].toString();
                 final sName = student['name']?.toString();
                 final hasScores = _studentHasScores(sid, sName);
@@ -731,6 +740,14 @@ class _AcademicEvaluationScreenState
                   },
                 );
               }),
+              PaginationControls(
+                currentPage: clampPage(_currentPage, gradeList.length, _pageSize),
+                totalItems: gradeList.length,
+                pageSize: _pageSize,
+                accentColor: const Color(0xFF0F52BA),
+                onPageChanged: (page) => setState(() => _currentPage = page),
+              ),
+            ],
 
             const SizedBox(height: 16),
 
@@ -757,7 +774,10 @@ class _AcademicEvaluationScreenState
       ),
       child: TextField(
         controller: _searchController,
-        onChanged: (v) => setState(() => _searchQuery = v),
+        onChanged: (v) => setState(() {
+          _searchQuery = v;
+          _currentPage = 1;
+        }),
         decoration: InputDecoration(
           hintText: 'Search students by name or ID...',
           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),

@@ -1,10 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
+import 'web_download_helper.dart';
 
 class ReportService {
   /// Generate and preview a PDF report
@@ -106,9 +107,15 @@ class ReportService {
         return text;
       }
       String csvString = csvData.map((row) => row.map(escapeCsv).join(',')).join('\n');
-      
+      final filename = '${title.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.csv';
+
+      if (kIsWeb) {
+        downloadWebFile(Uint8List.fromList(utf8.encode(csvString)), filename);
+        return filename;
+      }
+
       final directory = await getApplicationDocumentsDirectory();
-      final path = '${directory.path}/${title.replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.csv';
+      final path = '${directory.path}/$filename';
       final file = File(path);
       await file.writeAsString(csvString);
       return path;

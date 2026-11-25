@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
+import '../widgets/pagination_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class AdminArchiveScreen extends StatefulWidget {
@@ -18,6 +19,8 @@ class _AdminArchiveScreenState extends State<AdminArchiveScreen> with SingleTick
   List<Map<String, dynamic>> _archivedTeachers = [];
   List<Map<String, dynamic>> _archivedStudents = [];
   List<Map<String, dynamic>> _archivedSubjects = [];
+  final Map<String, int> _pageByType = {'Teacher': 1, 'Student': 1, 'Subject': 1};
+  static const int _pageSize = 20;
 
   static const int retentionDays = 30;
 
@@ -291,13 +294,19 @@ class _AdminArchiveScreenState extends State<AdminArchiveScreen> with SingleTick
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: () => _loadArchives(runPurge: true),
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: items.length,
-        itemBuilder: (context, index) {
-          final item = items[index];
+    final safePage = clampPage(_pageByType[type] ?? 1, items.length, _pageSize);
+    final pageItems = paginateList(items, safePage, _pageSize);
+
+    return Column(
+      children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () => _loadArchives(runPurge: true),
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: pageItems.length,
+              itemBuilder: (context, index) {
+                final item = pageItems[index];
           final String name = type == 'Subject' ? (item['subject_name'] ?? 'Unknown') : (item['name'] ?? 'Unknown');
           final String subtitle = type == 'Subject'
               ? (item['subject_code'] ?? '')
@@ -393,6 +402,18 @@ class _AdminArchiveScreenState extends State<AdminArchiveScreen> with SingleTick
           );
         },
       ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: PaginationControls(
+            currentPage: safePage,
+            totalItems: items.length,
+            pageSize: _pageSize,
+            onPageChanged: (page) => setState(() => _pageByType[type] = page),
+          ),
+        ),
+      ],
     );
   }
 }
