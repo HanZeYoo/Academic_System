@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database_helper.dart';
-import '../widgets/pagination_controls.dart';
+import '../widgets/show_more_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class AnnouncementManagementScreen extends StatefulWidget {
@@ -19,8 +19,8 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
   List<Map<String, dynamic>> _archivedAnnouncements = [];
   List<String> _audienceOptions = [];
   bool _showArchived = false;
-  int _currentPage = 1;
-  static const int _pageSize = 10;
+  static const int _batchSize = 10;
+  int _visibleCount = _batchSize;
 
   bool get _canManageAnnouncements => widget.role != 'student' && widget.role != 'parent';
 
@@ -523,7 +523,7 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
                 ),
               )
             else ...[
-              ...paginateList(displayedList, _currentPage, _pageSize).map((a) {
+              ...takeVisibleItems(displayedList, _visibleCount).map((a) {
                 final statusStr = a['status']?.toString() ?? 'Active';
                 final isArchived = statusStr.toLowerCase() == 'archived';
                 return _buildAnnouncementCard(
@@ -538,12 +538,13 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
                   author: a['author']?.toString(),
                 );
               }),
-              PaginationControls(
-                currentPage: clampPage(_currentPage, displayedList.length, _pageSize),
+              ShowMoreControls(
+                visibleCount: _visibleCount,
                 totalItems: displayedList.length,
-                pageSize: _pageSize,
+                step: _batchSize,
                 accentColor: const Color(0xFF0F52BA),
-                onPageChanged: (page) => setState(() => _currentPage = page),
+                onShowMore: () => setState(() => _visibleCount += _batchSize),
+                onShowLess: () => setState(() => _visibleCount = _batchSize),
               ),
             ],
           ],
@@ -618,7 +619,7 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
             selected: !_showArchived,
             onTap: () => setState(() {
               _showArchived = false;
-              _currentPage = 1;
+              _visibleCount = _batchSize;
             }),
           ),
           const SizedBox(width: 4),
@@ -627,7 +628,7 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
             selected: _showArchived,
             onTap: () => setState(() {
               _showArchived = true;
-              _currentPage = 1;
+              _visibleCount = _batchSize;
             }),
           ),
         ],

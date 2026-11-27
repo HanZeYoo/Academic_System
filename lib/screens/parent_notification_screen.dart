@@ -4,6 +4,7 @@ import '../database_helper.dart';
 import '../services/email_service.dart';
 import '../utils/avatar_utils.dart';
 import '../widgets/pagination_controls.dart';
+import '../widgets/show_more_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class ParentNotificationScreen extends StatefulWidget {
@@ -58,8 +59,9 @@ class _ParentNotificationScreenState
   // History List
   List<Map<String, dynamic>> _history = [];
   int _needsAttentionPage = 1;
-  int _historyPage = 1;
   static const int _pageSize = 15;
+  static const int _historyBatchSize = 10;
+  int _historyVisibleCount = _historyBatchSize;
 
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
@@ -489,15 +491,23 @@ class _ParentNotificationScreenState
       return const Center(child: Text("No notifications sent yet.", style: TextStyle(color: Colors.black54)));
     }
 
-    final safePage = clampPage(_historyPage, _history.length, _pageSize);
-    final pageItems = paginateList(_history, safePage, _pageSize);
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.builder(
-            itemCount: pageItems.length,
-            itemBuilder: (context, index) {
-              final item = pageItems[index];
+    final visibleItems = takeVisibleItems(_history, _historyVisibleCount);
+    final showControls = _history.length > _historyBatchSize;
+    return ListView.builder(
+      itemCount: visibleItems.length + (showControls ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == visibleItems.length) {
+          return ShowMoreControls(
+            visibleCount: _historyVisibleCount,
+            totalItems: _history.length,
+            step: _historyBatchSize,
+            accentColor: const Color(0xFF3383B3),
+            margin: const EdgeInsets.only(top: 4, bottom: 16),
+            onShowMore: () => setState(() => _historyVisibleCount += _historyBatchSize),
+            onShowLess: () => setState(() => _historyVisibleCount = _historyBatchSize),
+          );
+        }
+        final item = visibleItems[index];
         return Align(
           alignment: Alignment.centerRight,
           child: Container(
@@ -552,17 +562,6 @@ class _ParentNotificationScreenState
           ),
         );
       },
-    ),
-        ),
-        PaginationControls(
-          currentPage: safePage,
-          totalItems: _history.length,
-          pageSize: _pageSize,
-          accentColor: const Color(0xFF3383B3),
-          margin: const EdgeInsets.only(top: 10),
-          onPageChanged: (page) => setState(() => _historyPage = page),
-        ),
-      ],
     );
   }
 

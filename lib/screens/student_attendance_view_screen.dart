@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
 import '../utils/role_theme.dart';
-import '../widgets/pagination_controls.dart';
+import '../widgets/show_more_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class StudentAttendanceViewScreen extends StatefulWidget {
@@ -17,8 +17,8 @@ class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScree
   List<Map<String, dynamic>> _attendanceRecords = [];
   String? _selectedSchoolYear;
   List<String> _schoolYears = [];
-  int _currentPage = 1;
-  static const int _pageSize = 15;
+  static const int _batchSize = 10;
+  int _visibleCount = _batchSize;
   final theme = RoleTheme.studentTheme;
 
   @override
@@ -55,7 +55,7 @@ class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScree
       setState(() {
         _schoolYears = years.isNotEmpty ? years : [activeYear];
         _attendanceRecords = records;
-        _currentPage = 1;
+        _visibleCount = _batchSize;
         _isLoading = false;
       });
     }
@@ -302,13 +302,14 @@ class _StudentAttendanceViewScreenState extends State<StudentAttendanceViewScree
                 ),
               )
             else ...[
-              ...paginateList(_attendanceRecords, _currentPage, _pageSize).map((a) => _buildAttendanceCard(a)),
-              PaginationControls(
-                currentPage: clampPage(_currentPage, _attendanceRecords.length, _pageSize),
+              ...takeVisibleItems(_attendanceRecords, _visibleCount).map((a) => _buildAttendanceCard(a)),
+              ShowMoreControls(
+                visibleCount: _visibleCount,
                 totalItems: _attendanceRecords.length,
-                pageSize: _pageSize,
+                step: _batchSize,
                 accentColor: theme.primary,
-                onPageChanged: (page) => setState(() => _currentPage = page),
+                onShowMore: () => setState(() => _visibleCount += _batchSize),
+                onShowLess: () => setState(() => _visibleCount = _batchSize),
               ),
             ],
           ],

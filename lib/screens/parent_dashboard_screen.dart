@@ -12,7 +12,7 @@ import '../database_helper.dart';
 import '../utils/dialog_utils.dart';
 import '../utils/role_theme.dart';
 import '../utils/avatar_utils.dart';
-import '../widgets/pagination_controls.dart';
+import '../widgets/show_more_controls.dart';
 import '../widgets/skeleton_loader.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
@@ -34,8 +34,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   List<Map<String, dynamic>> _schedule = [];
   List<Map<String, dynamic>> _subjectGrades = [];
   List<Map<String, dynamic>> _dbNotifications = [];
-  int _notifPage = 1;
-  static const int _notifPageSize = 15;
+  static const int _notifBatchSize = 10;
+  int _notifVisibleCount = _notifBatchSize;
   double _overallAverage = 0.0;
   double _attendancePercentage = 0.0;
   bool _hasAttendance = false;
@@ -460,7 +460,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       setState(() {
         _selectedChildIndex = index;
         _isInterventionExpanded = false;
-        _notifPage = 1;
+        _notifVisibleCount = _notifBatchSize;
         _chatController.clear();
       });
       _fetchDashboardDataForChild(_children[index]);
@@ -1491,60 +1491,56 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             const SizedBox(height: 20),
             if (notifications.isEmpty)
               _emptyCard('No notifications at this time.')
-            else
-              ...() {
-                final safePage = clampPage(_notifPage, notifications.length, _notifPageSize);
-                final pageItems = paginateList(notifications, safePage, _notifPageSize);
-                return [
-                  ...pageItems.map((n) {
-                    final Color color = n['color'] as Color;
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: color.withOpacity(0.25)),
-                        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.07), blurRadius: 6, offset: const Offset(0, 3))],
+            else ...[
+              ...takeVisibleItems(notifications, _notifVisibleCount).map((n) {
+                final Color color = n['color'] as Color;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: color.withOpacity(0.25)),
+                    boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.07), blurRadius: 6, offset: const Offset(0, 3))],
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+                        child: Icon(n['icon'] as IconData, color: color, size: 22),
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-                            child: Icon(n['icon'] as IconData, color: color, size: 22),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(child: Text(n['title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color))),
-                                    Text(n['time'], style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(n['body'], style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.4)),
+                                Expanded(child: Text(n['title'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color))),
+                                Text(n['time'], style: const TextStyle(fontSize: 11, color: Colors.grey)),
                               ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 6),
+                            Text(n['body'], style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.4)),
+                          ],
+                        ),
                       ),
-                    );
-                  }),
-                  PaginationControls(
-                    currentPage: safePage,
-                    totalItems: notifications.length,
-                    pageSize: _notifPageSize,
-                    accentColor: const Color(0xFF0284C7),
-                    onPageChanged: (page) => setState(() => _notifPage = page),
+                    ],
                   ),
-                ];
-              }(),
+                );
+              }),
+              ShowMoreControls(
+                visibleCount: _notifVisibleCount,
+                totalItems: notifications.length,
+                step: _notifBatchSize,
+                accentColor: const Color(0xFF0284C7),
+                onShowMore: () => setState(() => _notifVisibleCount += _notifBatchSize),
+                onShowLess: () => setState(() => _notifVisibleCount = _notifBatchSize),
+              ),
+            ],
             const SizedBox(height: 32),
           ],
         ),
@@ -3006,8 +3002,10 @@ class _ParentAttendanceWidget extends StatefulWidget {
 }
 
 class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
+  static const int _batchSize = 10;
   bool _isLoading = true;
   List<Map<String, dynamic>> _records = [];
+  int _visibleCount = _batchSize;
   int _presentCount = 0;
   int _absentCount = 0;
   int _lateCount = 0;
@@ -3042,6 +3040,9 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
     if (mounted) {
       setState(() {
         _records = records;
+        if (!isRefresh) {
+          _visibleCount = _batchSize;
+        }
         _presentCount = present;
         _absentCount = absent;
         _lateCount = late;
@@ -3182,8 +3183,8 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
                     style: TextStyle(color: Colors.grey, fontSize: 15)),
               ),
             )
-          else
-            ..._records.map((r) {
+          else ...[
+            ...takeVisibleItems(_records, _visibleCount).map((r) {
               final status = r['status'] ?? 'Present';
               Color statusColor = Colors.green;
               IconData statusIcon = Icons.check_circle_rounded;
@@ -3254,6 +3255,15 @@ class _ParentAttendanceWidgetState extends State<_ParentAttendanceWidget> {
                 ),
               );
             }),
+            ShowMoreControls(
+              visibleCount: _visibleCount,
+              totalItems: _records.length,
+              step: _batchSize,
+              accentColor: const Color(0xFF2B81B7),
+              onShowMore: () => setState(() => _visibleCount += _batchSize),
+              onShowLess: () => setState(() => _visibleCount = _batchSize),
+            ),
+          ],
           const SizedBox(height: 32),
         ],
       ),
