@@ -14,7 +14,6 @@ class AddStudentScreen extends StatefulWidget {
 }
 
 class _AddStudentScreenState extends State<AddStudentScreen> {
-  bool _sendCredentials = true;
   bool _isLoading = false;
 
   final TextEditingController _studentIdController = TextEditingController();
@@ -101,7 +100,39 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       }
       final existingUser = await DatabaseHelper().getUserByUsername(emailToCheck);
       if (existingUser != null && (widget.existingStudent == null || widget.existingStudent!['email'] != emailToCheck)) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email already exists! Please use a different email.')));
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email already exists! Please use a different email.')));
+        }
+        return;
+      }
+    }
+
+    final parentEmailToCheck = _parentEmailController.text.trim();
+    Map<String, dynamic>? existingParentUser;
+    if (parentEmailToCheck.isNotEmpty) {
+      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(parentEmailToCheck)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid guardian email address.')));
+        }
+        return;
+      }
+      if (!parentEmailToCheck.endsWith('.com') && !parentEmailToCheck.endsWith('.ph')) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Guardian email must end with .com or .ph')));
+        }
+        return;
+      }
+      if (emailToCheck.isNotEmpty && parentEmailToCheck == emailToCheck) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Parent email cannot be the same as student email.')));
+        }
+        return;
+      }
+      existingParentUser = await DatabaseHelper().getUserByUsername(parentEmailToCheck);
+      if (existingParentUser != null && existingParentUser['role'] != 'parent') {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Guardian email is already used by a non-parent account.')));
+        }
         return;
       }
     }
@@ -112,8 +143,8 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
     final dbHelper = DatabaseHelper();
     
     // Check if Student ID exists (only if adding new or changing ID)
-    if (widget.existingStudent == null || widget.existingStudent!['student_id'] != _studentIdController.text) {
-      final existingStudentId = await dbHelper.getStudentByStudentId(_studentIdController.text);
+    if (widget.existingStudent == null || widget.existingStudent!['student_id'] != rawStudentId) {
+      final existingStudentId = await dbHelper.getStudentByStudentId(rawStudentId);
       if (existingStudentId != null) {
         setState(() => _isLoading = false);
         if (mounted) {
@@ -147,32 +178,64 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
       await DatabaseHelper().updateStudent(
         widget.existingStudent!['id'],
         oldEmail: widget.existingStudent!['email']?.toString(),
-        studentId: _studentIdController.text,
+        studentId: rawStudentId,
         name: fullName,
         gradeLevel: _selectedGradeLevel ?? 'N/A',
         section: _selectedSection ?? 'N/A',
-        email: _emailController.text,
-        parentName: _parentNameController.text.isNotEmpty ? _parentNameController.text : null,
-        parentContact: _parentContactController.text.isNotEmpty ? _parentContactController.text : null,
-        parentEmail: _parentEmailController.text.isNotEmpty ? _parentEmailController.text : null,
+        email: emailToCheck,
+        parentName: _parentNameController.text.trim().isNotEmpty ? _parentNameController.text.trim() : null,
+        parentContact: _parentContactController.text.trim().isNotEmpty ? _parentContactController.text.trim() : null,
+        parentEmail: parentEmailToCheck.isNotEmpty ? parentEmailToCheck : null,
       );
     } else {
+      final parentAlreadyExists = parentEmailToCheck.isNotEmpty && existingParentUser != null;
+      final parentNameValue = _parentNameController.text.trim();
+      final parentContactValue = _parentContactController.text.trim();
+      final studentDefaultPassword = DatabaseHelper.defaultStudentPassword(rawStudentId);
+
       await DatabaseHelper().addStudent(
-        studentId: _studentIdController.text,
+        studentId: rawStudentId,
         name: fullName,
         gradeLevel: _selectedGradeLevel ?? 'N/A',
         section: _selectedSection ?? 'N/A',
-        email: _emailController.text,
-        parentEmail: '',
+        email: emailToCheck,
+        parentEmail: parentEmailToCheck,
+        parentName: parentNameValue.isNotEmpty ? parentNameValue : null,
+        parentContact: parentContactValue.isNotEmpty ? parentContactValue : null,
       );
 
-      // Send Welcome Email to Student
-      if (_sendCredentials) {
-        await EmailService.sendEmail(
-          toEmail: _emailController.text,
-          subject: 'Welcome to the Academic System!',
-          messageText: 'Hello $fullName,<br><br>Your student account has been created successfully.<br><br><b>Username/Email:</b> ${_emailController.text}<br><b>Temporary Password:</b> student123<br><br>Please log in to your account and change your password immediately.',
-        );
+      // Send Welcome Email to Student & Parent
+      if (emailToCheck.isNotEmpty) {
+        try {
+          await EmailService.sendEmail(
+            toEmail: emailToCheck,
+            subject: 'Welcome to the Academic System!',
+            messageText: 'Hello $fullName,<br><br>Your student account has been created successfully.<br><br><b>Username/Email:</b> $emailToCheck<br><b>Temporary Password:</b> $studentDefaultPassword<br><br>Please log in to your account and change your password immediately.',
+          );
+        } catch (e) {
+          debugPrint('Failed to send student welcome email: $e');
+        }
+      }
+
+      if (parentEmailToCheck.isNotEmpty) {
+        final greetingName = parentNameValue.isNotEmpty ? parentNameValue : 'Parent/Guardian';
+        try {
+          if (!parentAlreadyExists) {
+            await EmailService.sendEmail(
+              toEmail: parentEmailToCheck,
+              subject: 'Parent Portal - Academic System',
+              messageText: 'Hello $greetingName,<br><br>Your parent account for the Academic System has been created successfully. You can now monitor $fullName\'s academic progress.<br><br><b>Username/Email:</b> $parentEmailToCheck<br><b>Temporary Password:</b> parent123<br><br>Please log in to your account to get started and change your password.',
+            );
+          } else {
+            await EmailService.sendEmail(
+              toEmail: parentEmailToCheck,
+              subject: 'Parent Portal - Student Linked',
+              messageText: 'Hello $greetingName,<br><br>Student <b>$fullName</b> has been linked to your existing Parent Portal account (<b>$parentEmailToCheck</b>). You can log in with your existing password to monitor their academic progress.',
+            );
+          }
+        } catch (e) {
+          debugPrint('Failed to send parent welcome email: $e');
+        }
       }
     }
 
@@ -245,6 +308,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
         _lastNameController.text.isNotEmpty ||
         _emailController.text.isNotEmpty ||
         _parentNameController.text.isNotEmpty ||
+        _parentContactController.text.isNotEmpty ||
         _parentEmailController.text.isNotEmpty;
   }
 
@@ -549,65 +613,63 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
               ),
               const SizedBox(height: 16),
 
-              if (widget.existingStudent != null) ...[
-                _buildSectionContainer(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(Icons.family_restroom, color: Color(0xFF0F52BA), size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'Guardian Information',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1E293B),
-                            ),
+              _buildSectionContainer(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.family_restroom, color: Color(0xFF0F52BA), size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Guardian Information',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1E293B),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Updates to guardian info provided by the student.',
-                        style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildTextField(
-                              label: 'Guardian Name',
-                              hint: 'Enter guardian name',
-                              controller: _parentNameController,
-                            ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Parent/guardian contact and Parent Portal account details (optional).',
+                      style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTextField(
+                            label: 'Guardian Name',
+                            hint: 'Enter guardian name',
+                            controller: _parentNameController,
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildTextField(
-                              label: 'Guardian Contact',
-                              hint: 'Enter contact number',
-                              controller: _parentContactController,
-                            ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildTextField(
+                            label: 'Guardian Contact',
+                            hint: 'Enter contact number',
+                            controller: _parentContactController,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _buildTextField(
-                        label: 'Guardian Email',
-                        hint: 'Enter guardian email',
-                        controller: _parentEmailController,
-                        keyboardType: TextInputType.emailAddress,
-                        inputFormatters: [
-                          TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toLowerCase())),
-                        ],
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      label: 'Guardian Email',
+                      hint: 'Enter guardian email',
+                      controller: _parentEmailController,
+                      keyboardType: TextInputType.emailAddress,
+                      inputFormatters: [
+                        TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toLowerCase())),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-              ],
+              ),
+              const SizedBox(height: 16),
 
               // Account Setup Section
               Column(
@@ -640,7 +702,7 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                             ),
                             SizedBox(height: 2),
                             Text(
-                              'Credentials are created automatically for the student.',
+                              'Credentials are created automatically for the student (and parent, if guardian email is provided).',
                               style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
                             ),
                           ],
@@ -704,15 +766,26 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
-                                  Text('Default Password',
+                                children: [
+                                  const Text('Default Password',
                                       style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-                                  SizedBox(height: 2),
-                                  Text('student123',
-                                      style: TextStyle(
-                                          fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-                                  SizedBox(height: 2),
-                                  Text('Change after first login',
+                                  const SizedBox(height: 2),
+                                  ValueListenableBuilder<TextEditingValue>(
+                                    valueListenable: _studentIdController,
+                                    builder: (context, value, _) {
+                                      final enteredId = value.text.trim();
+                                      return Text(
+                                        enteredId.isNotEmpty ? enteredId : 'Student LRN',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1E293B),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text('Uses  • Change after first login',
                                       style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                                 ],
                               ),
@@ -721,29 +794,6 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Switch(
-                        value: _sendCredentials,
-                        onChanged: (value) => setState(() => _sendCredentials = value),
-                        activeColor: const Color(0xFF0F52BA),
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Send credentials via email',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF1E293B),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.info_outline, color: Color(0xFF94A3B8), size: 18),
-                    ],
                   ),
                 ],
               ),

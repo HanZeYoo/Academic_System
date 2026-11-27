@@ -1,0 +1,11 @@
+student_id,name,grade_level,section,email,parent_email,gender,birthdate,contact_number,parent_name,parent_contact,address
+25-1001-001,Sofia Isabella Cruz,Grade 7,Section A,sofia.cruz@student.edu.ph,roberto.cruz@parent.edu.ph,Female,3/12/2014,09181110001,Roberto Cruz,09171110001,"15 Sampaguita St., Quezon City"
+25-1001-002,Gabriel Mateo Mendoza,Grade 7,Section A,gabriel.mendoza@student.edu.ph,maricel.mendoza@parent.edu.ph,Male,7/24/2013,09181110002,Maricel Mendoza,09171110002,"42 Narra St., Pasig City"
+25-1001-003,Hannah Beatriz Reyes,Grade 7,Section A,hannah.reyes@student.edu.ph,eduardo.reyes@parent.edu.ph,Female,11/5/2013,09181110003,Eduardo Reyes,09171110003,"89 Molave Ave., Marikina City"
+25-1001-004,Lucas Adrian Santos,Grade 7,Section A,lucas.santos@student.edu.ph,claire.santos@parent.edu.ph,Male,2/18/2014,09181110004,Claire Santos,09171110004,"104 Kamagong Rd., Quezon City"
+25-1001-005,Chloe Andrea Garcia,Grade 7,Section A,chloe.garcia@student.edu.ph,fernando.garcia@parent.edu.ph,Female,6/9/2013,09181110005,Fernando Garcia,09171110005,"27 Acacia St., Mandaluyong City"
+25-1001-006,Ethan Rafael Bautista,Grade 7,Section A,ethan.bautista@student.edu.ph,teresa.bautista@parent.edu.ph,Male,9/30/2013,09181110006,Teresa Bautista,09171110006,"61 Mahogany St., San Juan City"
+25-1001-007,Mia Francine Villanueva,Grade 7,Section A,mia.villanueva@student.edu.ph,arnold.villanueva@parent.edu.ph,Female,1/21/2014,09181110007,Arnold Villanueva,09171110007,"133 Yakal St., Manila"
+25-1001-008,Liam Joaquin Ramos,Grade 7,Section A,liam.ramos@student.edu.ph,grace.ramos@parent.edu.ph,Male,5/14/2013,09181110008,Grace Ramos,09171110008,"78 Banaba Ave., Manila"
+25-1001-009,Aaliyah Nicole Navarro,Grade 7,Section A,aaliyah.navarro@student.edu.ph,dennis.navarro@parent.edu.ph,Female,10/2/2013,09181110009,Dennis Navarro,09171110009,"209 Dao St., Quezon City"
+25-1001-010,Noah Sebastian Flores,Grade 7,Section A,noah.flores@student.edu.ph,angela.flores@parent.edu.ph,Male,4/28/2014,09181110010,Angela Flores,09171110010,"50 Ipil St., Makati City"

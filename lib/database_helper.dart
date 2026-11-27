@@ -59,6 +59,13 @@ class DatabaseHelper {
     _assessmentSetupCache.clear();
   }
 
+  /// Returns the default password for a student account: their LRN / Student ID
+  /// (trimmed), falling back to 'student123' only if the ID is unexpectedly empty.
+  static String defaultStudentPassword(String? studentId) {
+    final trimmed = studentId?.trim() ?? '';
+    return trimmed.isNotEmpty ? trimmed : 'student123';
+  }
+
   String _hashPassword(String password) {
     final bytes = utf8.encode(password);
     return sha256.convert(bytes).toString();
@@ -114,10 +121,12 @@ class DatabaseHelper {
     String? address,
   }) async {
     final activeYear = await getActiveSchoolYear();
-    
+    final trimmedStudentId = studentId.trim();
+    final studentDefaultPassword = defaultStudentPassword(trimmedStudentId);
+
     // Insert student
     await Supabase.instance.client.from('students').insert({
-      'student_id': studentId,
+      'student_id': trimmedStudentId,
       'name': name,
       'grade_level': gradeLevel,
       'section': section,
@@ -134,11 +143,11 @@ class DatabaseHelper {
 
     // Auto-create user account for student (without replacing active Admin session)
     if (email.isNotEmpty) {
-      await _signUpAuthWithoutSessionOverride(email, 'student123');
+      await _signUpAuthWithoutSessionOverride(email, studentDefaultPassword);
       try {
         await Supabase.instance.client.from('users').insert({
           'username': email,
-          'password': _hashPassword('student123'),
+          'password': _hashPassword(studentDefaultPassword),
           'role': 'student',
         });
       } catch (e) {
@@ -219,20 +228,14 @@ class DatabaseHelper {
     required String gender,
     required String birthdate,
     required String contactNumber,
-    required String parentName,
-    required String parentContact,
-    required String parentEmail,
     required String address,
   }) async {
-    // 1. Update the student record
+    // 1. Update the student record (guardian info is managed by Admin/Registrar)
     await Supabase.instance.client.from('students').update({
       'name': name,
       'gender': gender,
       'birthdate': birthdate,
       'contact_number': contactNumber,
-      'parent_name': parentName,
-      'parent_contact': parentContact,
-      'parent_email': parentEmail,
       'address': address,
     }).eq('email', studentEmail);
     invalidateStudentCache(studentEmail);
@@ -2351,40 +2354,109 @@ class DatabaseHelper {
     return out;
   }
 
+  static const int announcementAutoArchiveDays = 30;
+
+  /// Returns true if an active, unpinned announcement is at least [archiveAfterDays]
+  /// days old based on its `date_posted` (YYYY-MM-DD) and should be auto-archived.
+  static bool shouldAutoArchiveAnnouncement(
+    Map<String, dynamic> announcement, {
+    DateTime? now,
+    int archiveAfterDays = announcementAutoArchiveDays,
+  }) {
+    final isPinned = announcement['is_pinned'] == 1 || announcement['is_pinned'] == true;
+    if (isPinned) return false;
+
+    final status = (announcement['status'] ?? 'Active').toString().trim().toLowerCase();
+    if (status == 'archived') return false;
+
+    final rawDate = announcement['date_posted']?.toString().trim();
+    if (rawDate == null || rawDate.isEmpty) return false;
+    final parsed = DateTime.tryParse(rawDate);
+    if (parsed == null) return false;
+
+    final reference = now ?? DateTime.now();
+    final today = DateTime(reference.year, reference.month, reference.day);
+    final postedDay = DateTime(parsed.year, parsed.month, parsed.day);
+    return today.difference(postedDay).inDays >= archiveAfterDays;
+  }
+
+  /// Returns true if the announcement is already archived or has passed the auto-archive threshold.
+  static bool isAnnouncementArchived(
+    Map<String, dynamic> announcement, {
+    DateTime? now,
+    int archiveAfterDays = announcementAutoArchiveDays,
+  }) {
+    final status = (announcement['status'] ?? 'Active').toString().trim().toLowerCase();
+    if (status == 'archived') return true;
+    return shouldAutoArchiveAnnouncement(
+      announcement,
+      now: now,
+      archiveAfterDays: archiveAfterDays,
+    );
+  }
+
   // Get Announcements
-  Future<List<Map<String, dynamic>>> getAnnouncements(String? username, {String? role}) async {
+  Future<List<Map<String, dynamic>>> getAnnouncements(
+    String? username, {
+    String? role,
+    bool includeArchived = false,
+  }) async {
+    late final List<dynamic> results;
     if (role == 'student' && username != null) {
       final s = await getStudentByEmail(username);
       if (s != null) {
         final sectionPattern = '${s["grade_level"]} - ${s["section"]}%';
-        final results = await Supabase.instance.client.from('announcements')
+        results = await Supabase.instance.client.from('announcements')
             .select()
             .or('audience.eq.System-wide,audience.eq.All Students,audience.like.$sectionPattern')
             .order('is_pinned', ascending: false)
             .order('id', ascending: false);
-        return List<Map<String, dynamic>>.from(results);
       } else {
-        final results = await Supabase.instance.client.from('announcements')
+        results = await Supabase.instance.client.from('announcements')
             .select()
             .or('audience.eq.System-wide,audience.eq.All Students')
             .order('is_pinned', ascending: false)
             .order('id', ascending: false);
-        return List<Map<String, dynamic>>.from(results);
       }
     } else if (username != null && role != 'admin') {
-      final results = await Supabase.instance.client.from('announcements')
+      results = await Supabase.instance.client.from('announcements')
           .select()
           .or('author.eq.$username,audience.eq.System-wide,audience.eq.All Teachers')
           .order('is_pinned', ascending: false)
           .order('id', ascending: false);
-      return List<Map<String, dynamic>>.from(results);
     } else {
-      final results = await Supabase.instance.client.from('announcements')
+      results = await Supabase.instance.client.from('announcements')
           .select()
           .order('is_pinned', ascending: false)
           .order('id', ascending: false);
-      return List<Map<String, dynamic>>.from(results);
     }
+
+    final list = List<Map<String, dynamic>>.from(results);
+    final List<dynamic> expiredIds = [];
+    for (final a in list) {
+      if (shouldAutoArchiveAnnouncement(a)) {
+        a['status'] = 'Archived';
+        if (a['id'] != null) {
+          expiredIds.add(a['id']);
+        }
+      }
+    }
+
+    if (expiredIds.isNotEmpty) {
+      try {
+        await Supabase.instance.client
+            .from('announcements')
+            .update({'status': 'Archived'})
+            .inFilter('id', expiredIds);
+      } catch (e) {
+        print('Error auto-archiving expired announcements: $e');
+      }
+    }
+
+    if (!includeArchived) {
+      return list.where((a) => !isAnnouncementArchived(a)).toList();
+    }
+    return list;
   }
 
   // Delete Announcement
@@ -2395,6 +2467,23 @@ class DatabaseHelper {
   // Update Announcement
   Future<void> updateAnnouncement(int id, Map<String, dynamic> announcementData) async {
     await Supabase.instance.client.from('announcements').update(announcementData).eq('id', id);
+  }
+
+  // Archive Announcement (unpins so it does not remain pinned in archive)
+  Future<void> archiveAnnouncement(int id) async {
+    await Supabase.instance.client
+        .from('announcements')
+        .update({'status': 'Archived', 'is_pinned': 0})
+        .eq('id', id);
+  }
+
+  // Restore Archived Announcement (refreshes date_posted so it stays active for another 30 days)
+  Future<void> restoreAnnouncement(int id) async {
+    final today = DateTime.now().toString().split(' ')[0];
+    await Supabase.instance.client
+        .from('announcements')
+        .update({'status': 'Active', 'date_posted': today})
+        .eq('id', id);
   }
 
   // --- NOTIFICATIONS --- //

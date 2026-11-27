@@ -310,15 +310,20 @@ class _UserManagementScreenState extends State<UserManagementScreen>
     );
   }
 
-  void _showResetPasswordDialog(Map<String, dynamic> user) {
+  Future<void> _showResetPasswordDialog(Map<String, dynamic> user) async {
     final role = user['role'] ?? 'user';
-    final defaultPass = role == 'student'
-        ? 'student123'
-        : role == 'teacher'
-            ? 'teacher123'
-            : role == 'parent'
-                ? 'parent123'
-                : 'admin123';
+    String defaultPass;
+    if (role == 'student') {
+      final student = await DatabaseHelper().getStudentByEmail(user['username']?.toString() ?? '');
+      if (!mounted) return;
+      defaultPass = DatabaseHelper.defaultStudentPassword(student?['student_id']?.toString());
+    } else {
+      defaultPass = role == 'teacher'
+          ? 'teacher123'
+          : role == 'parent'
+              ? 'parent123'
+              : 'admin123';
+    }
 
     showDialog(
       context: context,

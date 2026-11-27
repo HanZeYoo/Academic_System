@@ -62,6 +62,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
   Future<void> _loadStudents() async {
     setState(() => _isLoading = true);
     final students = await DatabaseHelper().getStudents();
+    if (!mounted) return;
     setState(() {
       _students = students;
       _isLoading = false;
@@ -70,122 +71,270 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
 
   Future<void> _importCSV() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final picked = result.files.single;
+      final bytes = picked.bytes ??
+          (picked.path != null ? await File(picked.path!).readAsBytes() : null);
+      if (bytes == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not read CSV file data.')),
+          );
+        }
+        return;
+      }
+
+      var csvText = utf8.decode(bytes);
+      if (csvText.startsWith('\uFEFF')) {
+        csvText = csvText.substring(1);
+      }
+
+      final fields =
+          await Stream<String>.value(csvText).transform(csv.decoder).toList();
+
+      if (fields.length <= 1) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('CSV file is empty or only contains headers.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      final dataRows = fields
+          .skip(1)
+          .where((row) => row.any((cell) => cell.toString().trim().isNotEmpty))
+          .toList();
+
+      if (dataRows.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('CSV file is empty or only contains headers.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+
+      bool sendWelcomeEmails = false;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogCtx) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Import Students from CSV'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'File: ${picked.name}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                Text('Detected ${dataRows.length} student record(s) to import.'),
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: sendWelcomeEmails,
+                  onChanged: (val) =>
+                      setDialogState(() => sendWelcomeEmails = val ?? false),
+                  title: const Text(
+                    'Send welcome emails with credentials',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(dialogCtx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1664C5),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Import'),
+              ),
+            ],
+          ),
+        ),
       );
 
-      if (result != null) {
-        setState(() => _isLoading = true);
-        File file = File(result.files.single.path!);
-        final input = file.openRead();
-        final fields = await input.transform(utf8.decoder).transform(csv.decoder).toList();
+      if (confirmed != true || !mounted) return;
 
-        if (fields.isEmpty || fields.length == 1) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CSV file is empty or only contains headers.')));
-          }
-          setState(() => _isLoading = false);
-          return;
+      setState(() => _isLoading = true);
+
+      final headerRow = fields.first;
+      final Map<String, int> headerIndex = {};
+      for (int c = 0; c < headerRow.length; c++) {
+        final key = headerRow[c]
+            .toString()
+            .trim()
+            .toLowerCase()
+            .replaceAll(RegExp(r'[\s\-]+'), '_');
+        if (key.isNotEmpty) {
+          headerIndex[key] = c;
+        }
+      }
+
+      String readField(List<dynamic> row, String headerName, int fallbackIndex) {
+        final idx = headerIndex[headerName] ?? fallbackIndex;
+        if (idx < 0 || idx >= row.length) return '';
+        return row[idx].toString().trim();
+      }
+
+      int importedCount = 0;
+      int duplicateCount = 0;
+      int invalidCount = 0;
+      final db = DatabaseHelper();
+      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+      final neuIdRegex = RegExp(r'^\d{2}-\d{4}-\d{3}$');
+      final nineDigitsRegex = RegExp(r'^\d{9}$');
+      final lrnRegex = RegExp(r'^\d{12}$');
+
+      for (final row in dataRows) {
+        final studentId = readField(row, 'student_id', 0);
+        final name = readField(row, 'name', 1);
+        final gradeLevel = readField(row, 'grade_level', 2);
+        final section = readField(row, 'section', 3);
+        final email = readField(row, 'email', 4).toLowerCase();
+        final parentEmail = readField(row, 'parent_email', 5).toLowerCase();
+        final gender = readField(row, 'gender', 6);
+        final birthdate = readField(row, 'birthdate', 7);
+        final contactNumber = readField(row, 'contact_number', 8);
+        final parentName = readField(row, 'parent_name', 9);
+        final parentContact = readField(row, 'parent_contact', 10);
+        final address = readField(row, 'address', 11);
+
+        final cleanStudentId = studentId.replaceAll(RegExp(r'[\s\-]'), '');
+        final isValidNeuId = neuIdRegex.hasMatch(studentId) ||
+            nineDigitsRegex.hasMatch(cleanStudentId);
+        final isValidLrn = lrnRegex.hasMatch(cleanStudentId);
+
+        if ((!isValidNeuId && !isValidLrn) || name.isEmpty) {
+          invalidCount++;
+          continue;
         }
 
-        int importedCount = 0;
-        int duplicateCount = 0;
-        final db = DatabaseHelper();
-        
-        for (int i = 1; i < fields.length; i++) {
-          final row = fields[i];
-          if (row.isEmpty || row[0].toString().trim().isEmpty) continue;
+        if (email.isNotEmpty &&
+            (!emailRegex.hasMatch(email) ||
+                (!email.endsWith('.com') && !email.endsWith('.ph')))) {
+          invalidCount++;
+          continue;
+        }
 
-          while (row.length < 12) {
-             row.add('');
-          }
+        // Duplicate Checks
+        final existingId = await db.getStudentByStudentId(studentId);
+        final existingEmail = email.isNotEmpty
+            ? await db.getStudentByEmail(email, forceRefresh: true)
+            : null;
+        final existingUser =
+            email.isNotEmpty ? await db.getUserByUsername(email) : null;
 
-          final studentId = row[0].toString().trim();
-          final email = row[4].toString().trim();
-          
-          // Duplicate Checks
-          final existingId = await db.getStudentByStudentId(studentId);
-          final existingEmail = await db.getStudentByEmail(email);
-          
-          if (existingId != null || existingEmail != null) {
-            duplicateCount++;
-            continue; // Skip this row
-          }
+        if (existingId != null ||
+            existingEmail != null ||
+            existingUser != null) {
+          duplicateCount++;
+          continue;
+        }
 
-          final name = row[1].toString().trim();
-          final gradeLevel = row[2].toString().trim();
-          final section = row[3].toString().trim();
-          final parentEmail = row[5].toString().trim();
-          final gender = row[6].toString().trim();
-          final birthdate = row[7].toString().trim();
-          final contactNumber = row[8].toString().trim();
-          final parentName = row[9].toString().trim();
-          final parentContact = row[10].toString().trim();
-          final address = row[11].toString().trim();
+        await db.addStudent(
+          studentId: studentId,
+          name: name,
+          gradeLevel: gradeLevel.isEmpty ? 'N/A' : gradeLevel,
+          section: section.isEmpty ? 'N/A' : section,
+          email: email,
+          parentEmail: parentEmail,
+          gender: gender.isEmpty ? null : gender,
+          birthdate: birthdate.isEmpty ? null : birthdate,
+          contactNumber: contactNumber.isEmpty ? null : contactNumber,
+          parentName: parentName.isEmpty ? null : parentName,
+          parentContact: parentContact.isEmpty ? null : parentContact,
+          address: address.isEmpty ? null : address,
+        );
 
-          await db.addStudent(
-            studentId: studentId,
-            name: name,
-            gradeLevel: gradeLevel,
-            section: section,
-            email: email,
-            parentEmail: parentEmail,
-            gender: gender.isEmpty ? null : gender,
-            birthdate: birthdate.isEmpty ? null : birthdate,
-            contactNumber: contactNumber.isEmpty ? null : contactNumber,
-            parentName: parentName.isEmpty ? null : parentName,
-            parentContact: parentContact.isEmpty ? null : parentContact,
-            address: address.isEmpty ? null : address,
-          );
-          
+        if (sendWelcomeEmails) {
+          final studentDefaultPassword =
+              DatabaseHelper.defaultStudentPassword(studentId);
           // Send Welcome Email to Student
           if (email.isNotEmpty) {
             try {
               await EmailService.sendEmail(
                 toEmail: email,
                 subject: 'Welcome to the Academic System!',
-                messageText: 'Hello $name,<br><br>Your student account has been created successfully.<br><br><b>Username/Email:</b> $email<br><b>Temporary Password:</b> student123<br><br>Please log in to your account and change your password immediately.',
+                messageText:
+                    'Hello $name,<br><br>Your student account has been created successfully.<br><br><b>Username/Email:</b> $email<br><b>Temporary Password:</b> $studentDefaultPassword<br><br>Please log in to your account and change your password immediately.',
               );
             } catch (e) {
-              print('Failed to send student welcome email to $email: $e');
+              debugPrint('Failed to send student welcome email to $email: $e');
             }
           }
-          
+
           // Send Welcome Email to Parent
           if (parentEmail.isNotEmpty) {
             try {
               await EmailService.sendEmail(
                 toEmail: parentEmail,
                 subject: 'Parent Portal - Academic System',
-                messageText: 'Hello Parent of $name,<br><br>Your parent account has been created successfully. You can now monitor your child\'s academic progress.<br><br><b>Username/Email:</b> $parentEmail<br><b>Temporary Password:</b> parent123<br><br>Please log in to your account to get started.',
+                messageText:
+                    'Hello Parent of $name,<br><br>Your parent account has been created successfully. You can now monitor your child\'s academic progress.<br><br><b>Username/Email:</b> $parentEmail<br><b>Temporary Password:</b> parent123<br><br>Please log in to your account to get started.',
               );
             } catch (e) {
-              print('Failed to send parent welcome email to $parentEmail: $e');
+              debugPrint(
+                  'Failed to send parent welcome email to $parentEmail: $e');
             }
           }
-          
-          importedCount++;
         }
 
-        if (mounted) {
-          String msg = 'Successfully imported $importedCount students!';
-          if (duplicateCount > 0) {
-            msg += '\n(Skipped $duplicateCount duplicates)';
-          }
-          AestheticDialogs.showSuccessDialog(
-            context,
-            title: 'Import Successful',
-            message: msg,
-          );
+        importedCount++;
+      }
+
+      await _loadStudents();
+
+      if (mounted) {
+        final buffer = StringBuffer(
+          'Successfully imported $importedCount student(s)!',
+        );
+        if (duplicateCount > 0) {
+          buffer.write('\n(Skipped $duplicateCount duplicate(s))');
         }
-        _loadStudents();
+        if (invalidCount > 0) {
+          buffer.write('\n(Skipped $invalidCount invalid row(s))');
+        }
+        await AestheticDialogs.showSuccessDialog(
+          context,
+          title: 'Import Successful',
+          message: buffer.toString(),
+        );
       }
     } catch (e) {
       if (mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error importing CSV: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error importing CSV: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _isLoading = false);
       }
-      setState(() => _isLoading = false);
     }
   }
 

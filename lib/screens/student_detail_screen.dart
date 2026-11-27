@@ -77,11 +77,12 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No email found for this student.')));
       return;
     }
+    final defaultPass = DatabaseHelper.defaultStudentPassword(widget.student['student_id']?.toString());
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Reset Password'),
-        content: Text('Are you sure you want to reset the password for $email to "student123"?'),
+        content: Text('Are you sure you want to reset the password for $email to "$defaultPass"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -91,12 +92,12 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               Navigator.pop(ctx);
-              await DatabaseHelper().updatePassword(email, 'student123');
+              await DatabaseHelper().updatePassword(email, defaultPass);
               if (mounted) {
                 AestheticDialogs.showSuccessDialog(
                   context,
                   title: 'Password Reset',
-                  message: 'Password for $email has been reset successfully to "student123".',
+                  message: 'Password for $email has been reset successfully to "$defaultPass".',
                 );
               }
             },

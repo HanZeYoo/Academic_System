@@ -16,9 +16,13 @@ class AnnouncementManagementScreen extends StatefulWidget {
 class _AnnouncementManagementScreenState extends State<AnnouncementManagementScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _announcements = [];
+  List<Map<String, dynamic>> _archivedAnnouncements = [];
   List<String> _audienceOptions = [];
+  bool _showArchived = false;
   int _currentPage = 1;
   static const int _pageSize = 10;
+
+  bool get _canManageAnnouncements => widget.role != 'student' && widget.role != 'parent';
 
   @override
   void initState() {
@@ -36,7 +40,7 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
         roleLower == 'registrar';
 
     final Future<List<String>> audienceFuture;
-    if (widget.role != 'student' && widget.role != 'parent') {
+    if (_canManageAnnouncements) {
       if (isStaffAdmin || widget.username == null) {
         audienceFuture = Future.value(['System-wide', 'All Students', 'All Teachers']);
       } else {
@@ -58,18 +62,29 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
 
     final results = await Future.wait([
       audienceFuture,
-      db.getAnnouncements(widget.username, role: widget.role),
+      db.getAnnouncements(
+        widget.username,
+        role: widget.role,
+        includeArchived: _canManageAnnouncements,
+      ),
     ]);
 
     final audienceOptions = results[0] as List<String>;
-    final announcements = results[1] as List<Map<String, dynamic>>;
+    final allAnnouncements = results[1] as List<Map<String, dynamic>>;
+    final activeList = allAnnouncements
+        .where((a) => !DatabaseHelper.isAnnouncementArchived(a))
+        .toList();
+    final archivedList = allAnnouncements
+        .where((a) => DatabaseHelper.isAnnouncementArchived(a))
+        .toList();
 
     if (mounted) {
       setState(() {
         if (widget.role != 'student') {
           _audienceOptions = audienceOptions;
         }
-        _announcements = announcements;
+        _announcements = activeList;
+        _archivedAnnouncements = archivedList;
         _isLoading = false;
       });
     }
@@ -77,6 +92,26 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
 
   Future<void> _deleteAnnouncement(int id) async {
     await DatabaseHelper().deleteAnnouncement(id);
+    _loadData();
+  }
+
+  Future<void> _archiveAnnouncement(int id) async {
+    await DatabaseHelper().archiveAnnouncement(id);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Announcement moved to Archived.')),
+      );
+    }
+    _loadData();
+  }
+
+  Future<void> _restoreAnnouncement(int id) async {
+    await DatabaseHelper().restoreAnnouncement(id);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Announcement restored to Active feed.')),
+      );
+    }
     _loadData();
   }
 
@@ -251,7 +286,7 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
                           ),
                           const Expanded(
                             child: Text(
-                              'Pin announcement to the top of notice boards',
+                              'Pin announcement to the top of notice boards (exempt from 30-day auto-archive)',
                               style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: Color(0xFF334155)),
                             ),
                           ),
@@ -363,6 +398,10 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
       );
     }
 
+    final displayedList = (_canManageAnnouncements && _showArchived)
+        ? _archivedAnnouncements
+        : _announcements;
+
     return RefreshIndicator(
       onRefresh: _loadData,
       color: const Color(0xFF0F52BA),
@@ -373,19 +412,25 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildHeader(),
-            if (widget.role != 'student' && widget.role != 'parent') ...[
+            if (_canManageAnnouncements) ...[
               const SizedBox(height: 18),
               _buildPostButton(),
+              const SizedBox(height: 16),
+              _buildViewToggle(),
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             Row(
               children: [
-                const Icon(Icons.campaign_outlined, size: 20, color: Color(0xFF0F52BA)),
+                Icon(
+                  _showArchived ? Icons.inventory_2_outlined : Icons.campaign_outlined,
+                  size: 20,
+                  color: _showArchived ? const Color(0xFF475569) : const Color(0xFF0F52BA),
+                ),
                 const SizedBox(width: 8),
-                const Flexible(
+                Flexible(
                   child: Text(
-                    'Bulletin Feed',
-                    style: TextStyle(
+                    _showArchived ? 'Archived Announcements' : 'Bulletin Feed',
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF0F172A),
@@ -398,22 +443,47 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0F52BA).withValues(alpha: 0.1),
+                    color: (_showArchived ? const Color(0xFF475569) : const Color(0xFF0F52BA))
+                        .withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    _announcements.length.toString(),
-                    style: const TextStyle(
+                    displayedList.length.toString(),
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F52BA),
+                      color: _showArchived ? const Color(0xFF475569) : const Color(0xFF0F52BA),
                     ),
                   ),
                 ),
               ],
             ),
+            if (_canManageAnnouncements && _showArchived) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF64748B)),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Unpinned announcements older than ${DatabaseHelper.announcementAutoArchiveDays} days are automatically archived and hidden from students and parents.',
+                        style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
-            if (_announcements.isEmpty)
+            if (displayedList.isEmpty)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
@@ -426,41 +496,51 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
                   children: [
                     Container(
                       padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF1F5F9),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.notifications_off_outlined, size: 36, color: Color(0xFF94A3B8)),
+                      child: Icon(
+                        _showArchived ? Icons.inventory_2_outlined : Icons.notifications_off_outlined,
+                        size: 36,
+                        color: const Color(0xFF94A3B8),
+                      ),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'No announcements posted yet',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                    Text(
+                      _showArchived ? 'No archived announcements' : 'No announcements posted yet',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
-                      'Important institutional notices and circulars will be published here.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                    Text(
+                      _showArchived
+                          ? 'Unpinned announcements older than ${DatabaseHelper.announcementAutoArchiveDays} days will appear here automatically.'
+                          : 'Important institutional notices and circulars will be published here.',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                       textAlign: TextAlign.center,
                     ),
                   ],
                 ),
               )
             else ...[
-              ...paginateList(_announcements, _currentPage, _pageSize).map((a) => _buildAnnouncementCard(
-                    id: a['id'] as int,
-                    title: a['title']?.toString() ?? '',
-                    date: a['date_posted']?.toString() ?? '',
-                    audience: a['audience']?.toString() ?? '',
-                    status: a['status']?.toString() ?? 'Active',
-                    statusColor: const Color(0xFF10B981),
-                    content: a['content']?.toString() ?? '',
-                    isPinned: (a['is_pinned'] as int?) == 1,
-                    author: a['author']?.toString(),
-                  )),
+              ...paginateList(displayedList, _currentPage, _pageSize).map((a) {
+                final statusStr = a['status']?.toString() ?? 'Active';
+                final isArchived = statusStr.toLowerCase() == 'archived';
+                return _buildAnnouncementCard(
+                  id: a['id'] as int,
+                  title: a['title']?.toString() ?? '',
+                  date: a['date_posted']?.toString() ?? '',
+                  audience: a['audience']?.toString() ?? '',
+                  status: statusStr,
+                  statusColor: isArchived ? const Color(0xFF64748B) : const Color(0xFF10B981),
+                  content: a['content']?.toString() ?? '',
+                  isPinned: (a['is_pinned'] as int?) == 1,
+                  author: a['author']?.toString(),
+                );
+              }),
               PaginationControls(
-                currentPage: clampPage(_currentPage, _announcements.length, _pageSize),
-                totalItems: _announcements.length,
+                currentPage: clampPage(_currentPage, displayedList.length, _pageSize),
+                totalItems: displayedList.length,
                 pageSize: _pageSize,
                 accentColor: const Color(0xFF0F52BA),
                 onPageChanged: (page) => setState(() => _currentPage = page),
@@ -522,6 +602,74 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
     );
   }
 
+  Widget _buildViewToggle() {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleTab(
+            label: 'Active (${_announcements.length})',
+            selected: !_showArchived,
+            onTap: () => setState(() {
+              _showArchived = false;
+              _currentPage = 1;
+            }),
+          ),
+          const SizedBox(width: 4),
+          _buildToggleTab(
+            label: 'Archived (${_archivedAnnouncements.length})',
+            selected: _showArchived,
+            onTap: () => setState(() {
+              _showArchived = true;
+              _currentPage = 1;
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleTab({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+            color: selected ? const Color(0xFF0F52BA) : const Color(0xFF64748B),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPostButton() {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -563,6 +711,7 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
     required bool isPinned,
     String? author,
   }) {
+    final isArchived = status.toLowerCase() == 'archived';
     final roleLower = (widget.role ?? '').toLowerCase();
     bool canEdit = roleLower != 'student' &&
         roleLower != 'parent' &&
@@ -638,13 +787,13 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
                   vertical: 3,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
+                  color: isArchived ? const Color(0xFFF1F5F9) : const Color(0xFFDCFCE7),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   status.toUpperCase(),
-                  style: const TextStyle(
-                    color: Color(0xFF15803D),
+                  style: TextStyle(
+                    color: isArchived ? const Color(0xFF475569) : const Color(0xFF15803D),
                     fontWeight: FontWeight.bold,
                     fontSize: 10,
                     letterSpacing: 0.3,
@@ -697,18 +846,33 @@ class _AnnouncementManagementScreenState extends State<AnnouncementManagementScr
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                _buildActionButton(Icons.edit_outlined, 'Edit', const Color(0xFF0F52BA), () {
-                  _showPostDialog(existingAnnouncement: {
-                    'id': id,
-                    'title': title,
-                    'content': content,
-                    'audience': audience,
-                    'is_pinned': isPinned ? 1 : 0,
-                    'date_posted': date,
-                    'author': author,
-                  });
-                }),
-                const SizedBox(width: 18),
+                if (!isArchived) ...[
+                  _buildActionButton(Icons.edit_outlined, 'Edit', const Color(0xFF0F52BA), () {
+                    _showPostDialog(existingAnnouncement: {
+                      'id': id,
+                      'title': title,
+                      'content': content,
+                      'audience': audience,
+                      'is_pinned': isPinned ? 1 : 0,
+                      'date_posted': date,
+                      'author': author,
+                    });
+                  }),
+                  const SizedBox(width: 14),
+                  _buildActionButton(
+                    Icons.archive_outlined,
+                    'Archive',
+                    const Color(0xFF64748B),
+                    () => _archiveAnnouncement(id),
+                  ),
+                ] else
+                  _buildActionButton(
+                    Icons.unarchive_outlined,
+                    'Restore',
+                    const Color(0xFF0F52BA),
+                    () => _restoreAnnouncement(id),
+                  ),
+                const SizedBox(width: 14),
                 _buildActionButton(Icons.delete_outline_rounded, 'Delete', const Color(0xFFEF4444), () => _confirmDelete(id)),
               ],
             ),

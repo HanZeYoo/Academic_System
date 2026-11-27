@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../database_helper.dart';
-import '../services/email_service.dart';
 import '../utils/dialog_utils.dart';
 import 'student_dashboard_screen.dart';
 
@@ -20,9 +19,6 @@ class _StudentProfileSetupScreenState extends State<StudentProfileSetupScreen> {
   final TextEditingController _middleNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _contactNumberController = TextEditingController();
-  final TextEditingController _parentNameController = TextEditingController();
-  final TextEditingController _parentContactController = TextEditingController();
-  final TextEditingController _parentEmailController = TextEditingController();
   final TextEditingController _homeAddressController = TextEditingController();
 
   String? _selectedGender;
@@ -71,25 +67,11 @@ class _StudentProfileSetupScreenState extends State<StudentProfileSetupScreen> {
         _selectedGender == null ||
         _birthdate == null ||
         _contactNumberController.text.isEmpty ||
-        _homeAddressController.text.isEmpty ||
-        _parentNameController.text.isEmpty ||
-        _parentContactController.text.isEmpty) {
+        _homeAddressController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all required fields.')),
       );
       return;
-    }
-
-    final parentEmailToCheck = _parentEmailController.text.trim();
-    if (parentEmailToCheck.isNotEmpty) {
-      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(parentEmailToCheck)) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid parent email address.')));
-        return;
-      }
-      if (!parentEmailToCheck.endsWith('.com') && !parentEmailToCheck.endsWith('.ph')) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Parent email must end with .com or .ph')));
-        return;
-      }
     }
 
     setState(() => _isLoading = true);
@@ -106,9 +88,6 @@ class _StudentProfileSetupScreenState extends State<StudentProfileSetupScreen> {
         gender: _selectedGender!,
         birthdate: '${_birthdate!.month}/${_birthdate!.day}/${_birthdate!.year}',
         contactNumber: _contactNumberController.text,
-        parentName: _parentNameController.text,
-        parentContact: _parentContactController.text,
-        parentEmail: _parentEmailController.text,
         address: _homeAddressController.text,
       );
 
@@ -235,7 +214,7 @@ class _StudentProfileSetupScreenState extends State<StudentProfileSetupScreen> {
                             hint: 'Select gender',
                             isRequired: true,
                             value: _selectedGender,
-                            items: const ['Male', 'Female', 'Other'],
+                            items: const ['Male', 'Female'],
                             onChanged: (val) => setState(() => _selectedGender = val),
                           ),
                         ),
@@ -266,62 +245,6 @@ class _StudentProfileSetupScreenState extends State<StudentProfileSetupScreen> {
                       isRequired: true,
                       maxLines: 3,
                       controller: _homeAddressController,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              _buildSectionContainer(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: const [
-                        Icon(Icons.family_restroom, color: Color(0xFF0F52BA), size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Parent/Guardian Details',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1E293B),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            label: 'Name',
-                            hint: 'Parent/guardian name',
-                            isRequired: true,
-                            controller: _parentNameController,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildTextField(
-                            label: 'Contact Number',
-                            hint: 'Parent contact number',
-                            isRequired: true,
-                            controller: _parentContactController,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      label: 'Parent Email Address',
-                      hint: 'Enter parent email (Optional)',
-                      labelSuffix: '(For Parent Portal Access)',
-                      controller: _parentEmailController,
-                      keyboardType: TextInputType.emailAddress,
-                      inputFormatters: [
-                        TextInputFormatter.withFunction((oldValue, newValue) => newValue.copyWith(text: newValue.text.toLowerCase())),
-                      ],
                     ),
                   ],
                 ),

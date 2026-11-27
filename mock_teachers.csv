@@ -1,0 +1,11 @@
+teacher_id,name,department,email,gender,birthdate,contact_number,address,specialization,employment_status,hiring_date,assigned_section
+TCH-000101,Maria Clara Santos,Mathematics Department,maria.santos@school.edu.ph,Female,3/15/1987,09171234501,"142 Rizal Avenue, Quezon City",Mathematics,Full-Time,6/1/2018,Section A
+TCH-000102,Jose Miguel Reyes,Science Department,jose.reyes@school.edu.ph,Male,7/22/1985,09171234502,"88 Mabini Street, Pasig City",Science,Full-Time,6/3/2019,Section B
+TCH-000103,Elena Grace Mendoza,English Department,elena.mendoza@school.edu.ph,Female,11/8/1990,09171234503,"25 Katipunan Road, Quezon City",English,Full-Time,8/10/2020,Section C
+TCH-000104,Roberto Paolo Bautista,Filipino Department,roberto.bautista@school.edu.ph,Male,1/19/1983,09171234504,"19 Bonifacio Drive, Marikina City",Filipino,Full-Time,6/5/2017,
+TCH-000105,Liza Mae Villanueva,Araling Panlipunan (Social Studies),liza.villanueva@school.edu.ph,Female,5/27/1989,09171234505,"310 Shaw Boulevard, Mandaluyong City",Araling Panlipunan (Social Studies),Full-Time,6/1/2021,Section A
+TCH-000106,Mark Anthony Dela Cruz,MAPEH Department,mark.delacruz@school.edu.ph,Male,9/4/1992,09171234506,"54 Ortigas Avenue, San Juan City",MAPEH,Part-Time,8/15/2022,
+TCH-000107,Carmela Joy Ramos,TLE Department,carmela.ramos@school.edu.ph,Female,4/12/1986,09171234507,"77 Taft Avenue, Manila",TLE / TVL,Full-Time,6/4/2018,Section B
+TCH-000108,Danilo Luis Navarro,EsP Department,danilo.navarro@school.edu.ph,Male,12/3/1981,09171234508,"118 Espana Boulevard, Manila",EsP (Values Education),Full-Time,6/1/2016,
+TCH-000109,Patricia Anne Aquino,SHS Core Subjects,patricia.aquino@school.edu.ph,Female,8/30/1993,09171234509,"205 Aurora Boulevard, Quezon City",Research / Capstone,Contract,8/1/2023,Section C
+TCH-000110,Christian Jay Flores,SHS Applied/Specialized,christian.flores@school.edu.ph,Male,2/14/1991,09171234510,"63 Ayala Avenue, Makati City","STEM (Science, Tech, Eng, & Math)",Full-Time,6/6/2022,

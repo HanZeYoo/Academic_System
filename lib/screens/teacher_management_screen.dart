@@ -1,6 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:csv/csv.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import '../services/email_service.dart';
 import '../utils/avatar_utils.dart';
+import '../utils/dialog_utils.dart';
 import 'add_teacher_screen.dart';
 import 'teacher_detail_screen.dart';
 import '../widgets/pagination_controls.dart';
@@ -49,10 +55,260 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
   Future<void> _loadTeachers() async {
     setState(() => _isLoading = true);
     final teachers = await DatabaseHelper().getTeachers();
+    if (!mounted) return;
     setState(() {
       _teachers = teachers;
       _isLoading = false;
     });
+  }
+
+  String? _normalizeEmploymentStatus(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+    final lower = trimmed.toLowerCase();
+    if (lower == 'full-time') return 'Full-Time';
+    if (lower == 'part-time') return 'Part-Time';
+    if (lower == 'contract') return 'Contract';
+    return trimmed;
+  }
+
+  Future<void> _importCSV() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final picked = result.files.single;
+      final bytes = picked.bytes ??
+          (picked.path != null ? await File(picked.path!).readAsBytes() : null);
+      if (bytes == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not read CSV file data.')),
+          );
+        }
+        return;
+      }
+
+      var csvText = utf8.decode(bytes);
+      if (csvText.startsWith('\uFEFF')) {
+        csvText = csvText.substring(1);
+      }
+
+      final fields =
+          await Stream<String>.value(csvText).transform(csv.decoder).toList();
+
+      if (fields.length <= 1) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('CSV file is empty or only contains headers.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      final dataRows = fields
+          .skip(1)
+          .where((row) => row.any((cell) => cell.toString().trim().isNotEmpty))
+          .toList();
+
+      if (dataRows.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('CSV file is empty or only contains headers.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      if (!mounted) return;
+
+      bool sendWelcomeEmails = false;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogCtx) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Import Teachers from CSV'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'File: ${picked.name}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                Text('Detected ${dataRows.length} teacher record(s) to import.'),
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: sendWelcomeEmails,
+                  onChanged: (val) =>
+                      setDialogState(() => sendWelcomeEmails = val ?? false),
+                  title: const Text(
+                    'Send welcome emails with credentials',
+                    style: TextStyle(fontSize: 14),
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(dialogCtx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1664C5),
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Import'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (confirmed != true || !mounted) return;
+
+      setState(() => _isLoading = true);
+
+      final headerRow = fields.first;
+      final Map<String, int> headerIndex = {};
+      for (int c = 0; c < headerRow.length; c++) {
+        final key = headerRow[c]
+            .toString()
+            .trim()
+            .toLowerCase()
+            .replaceAll(RegExp(r'[\s\-]+'), '_');
+        if (key.isNotEmpty) {
+          headerIndex[key] = c;
+        }
+      }
+
+      String readField(List<dynamic> row, String headerName, int fallbackIndex) {
+        final idx = headerIndex[headerName] ?? fallbackIndex;
+        if (idx < 0 || idx >= row.length) return '';
+        return row[idx].toString().trim();
+      }
+
+      int importedCount = 0;
+      int duplicateCount = 0;
+      int invalidCount = 0;
+      final db = DatabaseHelper();
+      final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+
+      for (final row in dataRows) {
+        var teacherId = readField(row, 'teacher_id', 0);
+        final name = readField(row, 'name', 1);
+        final department = readField(row, 'department', 2);
+        final email = readField(row, 'email', 3).toLowerCase();
+        final gender = readField(row, 'gender', 4);
+        final birthdate = readField(row, 'birthdate', 5);
+        final contactNumber = readField(row, 'contact_number', 6);
+        final address = readField(row, 'address', 7);
+        final specialization = readField(row, 'specialization', 8);
+        final employmentStatus =
+            _normalizeEmploymentStatus(readField(row, 'employment_status', 9));
+        final hiringDate = readField(row, 'hiring_date', 10);
+        final assignedSection = readField(row, 'assigned_section', 11);
+
+        if (name.isEmpty ||
+            email.isEmpty ||
+            !emailRegex.hasMatch(email) ||
+            (!email.endsWith('.com') && !email.endsWith('.ph'))) {
+          invalidCount++;
+          continue;
+        }
+
+        if (teacherId.isEmpty) {
+          teacherId = await db.generateNextTeacherId();
+        }
+
+        final existingId = await db.getTeacherByTeacherId(teacherId);
+        final existingEmail =
+            await db.getTeacherByEmail(email, forceRefresh: true);
+        final existingUser = await db.getUserByUsername(email);
+
+        if (existingId != null ||
+            existingEmail != null ||
+            existingUser != null) {
+          duplicateCount++;
+          continue;
+        }
+
+        await db.addTeacher(
+          teacherId: teacherId,
+          name: name,
+          department: department.isEmpty ? 'Unknown Department' : department,
+          email: email,
+          gender: gender.isEmpty ? null : gender,
+          birthdate: birthdate.isEmpty ? null : birthdate,
+          contactNumber: contactNumber.isEmpty ? null : contactNumber,
+          address: address.isEmpty ? null : address,
+          specialization: specialization.isEmpty ? null : specialization,
+          employmentStatus: employmentStatus,
+          hiringDate: hiringDate.isEmpty ? null : hiringDate,
+          assignedSection: assignedSection.isEmpty ? null : assignedSection,
+        );
+
+        if (sendWelcomeEmails) {
+          try {
+            await EmailService.sendEmail(
+              toEmail: email,
+              subject: 'Welcome to the Academic System!',
+              messageText:
+                  'Hello $name,<br><br>Your teacher account has been created successfully.<br><br><b>Username/Email:</b> $email<br><b>Temporary Password:</b> teacher123<br><br>Please log in to your account and change your password immediately.',
+            );
+          } catch (e) {
+            debugPrint('Failed to send teacher welcome email to $email: $e');
+          }
+        }
+
+        importedCount++;
+      }
+
+      await _loadTeachers();
+
+      if (mounted) {
+        final buffer = StringBuffer(
+          'Successfully imported $importedCount teacher(s)!',
+        );
+        if (duplicateCount > 0) {
+          buffer.write('\n(Skipped $duplicateCount duplicate(s))');
+        }
+        if (invalidCount > 0) {
+          buffer.write('\n(Skipped $invalidCount invalid row(s))');
+        }
+        await AestheticDialogs.showSuccessDialog(
+          context,
+          title: 'Import Complete',
+          message: buffer.toString(),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error importing CSV: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -131,31 +387,51 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
                       style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                     ),
                     const SizedBox(height: 14),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const AddTeacherScreen(),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _importCSV,
+                            icon: const Icon(Icons.upload_file_rounded, size: 18),
+                            label: const Text('Import CSV'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF1664C5),
+                              side: const BorderSide(color: Color(0xFFCBD5E1)),
+                              backgroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                             ),
-                          );
-                          if (result == true) {
-                            _loadTeachers();
-                          }
-                        },
-                        icon: const Icon(Icons.person_add_rounded, size: 18),
-                        label: const Text('Add Teacher'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1664C5),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                      ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const AddTeacherScreen(),
+                                ),
+                              );
+                              if (result == true) {
+                                _loadTeachers();
+                              }
+                            },
+                            icon: const Icon(Icons.person_add_rounded, size: 18),
+                            label: const Text('Add Teacher'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF1664C5),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 );
@@ -182,29 +458,48 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
                       ),
                     ],
                   ),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AddTeacherScreen(),
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _importCSV,
+                        icon: const Icon(Icons.upload_file_rounded, size: 18),
+                        label: const Text('Import CSV'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF1664C5),
+                          side: const BorderSide(color: Color(0xFFCBD5E1)),
+                          backgroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
-                      );
-                      if (result == true) {
-                        _loadTeachers();
-                      }
-                    },
-                    icon: const Icon(Icons.person_add_rounded, size: 18),
-                    label: const Text('Add Teacher'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1664C5),
-                      foregroundColor: Colors.white,
-                      elevation: 2,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AddTeacherScreen(),
+                            ),
+                          );
+                          if (result == true) {
+                            _loadTeachers();
+                          }
+                        },
+                        icon: const Icon(Icons.person_add_rounded, size: 18),
+                        label: const Text('Add Teacher'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1664C5),
+                          foregroundColor: Colors.white,
+                          elevation: 2,
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               );
@@ -262,7 +557,7 @@ class _TeacherManagementScreenState extends State<TeacherManagementScreen> {
                             ),
                             const SizedBox(height: 4),
                             const Text(
-                              'Tap "Add Teacher" to add faculty members.',
+                              'Tap "Add Teacher" or "Import CSV" to add faculty members.',
                               style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
                             ),
                           ],

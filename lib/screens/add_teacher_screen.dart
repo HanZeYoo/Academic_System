@@ -14,8 +14,6 @@ class AddTeacherScreen extends StatefulWidget {
 }
 
 class _AddTeacherScreenState extends State<AddTeacherScreen> {
-  bool _sendCredentials = true;
-  
   final TextEditingController _teacherIdController = TextEditingController();
   final TextEditingController _firstNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
@@ -78,7 +76,14 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
         'GAS (General Academic Strand)',
         'Research / Capstone'
       ].contains(data['specialization'])) _selectedSubjectSpecialization = data['specialization'];
-      if (['Full-time', 'Part-time', 'Contract'].contains(data['employment_status'])) _selectedEmploymentStatus = data['employment_status'];
+      final rawStatus = data['employment_status']?.toString().trim().toLowerCase();
+      if (rawStatus == 'full-time') {
+        _selectedEmploymentStatus = 'Full-Time';
+      } else if (rawStatus == 'part-time') {
+        _selectedEmploymentStatus = 'Part-Time';
+      } else if (rawStatus == 'contract') {
+        _selectedEmploymentStatus = 'Contract';
+      }
       if (['Section A', 'Section B', 'Section C', 'Section D'].contains(data['assigned_section'])) _selectedAssignedSection = data['assigned_section'];
       
       _contactNumberController.text = data['contact_number']?.toString() ?? '';
@@ -233,13 +238,11 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
       );
 
       // Send Welcome Email
-      if (_sendCredentials) {
-        await EmailService.sendEmail(
-          toEmail: _emailController.text,
-          subject: 'Welcome to the Academic System!',
-          messageText: 'Hello $fullName,<br><br>Your teacher account has been created successfully.<br><br><b>Username/Email:</b> ${_emailController.text}<br><b>Temporary Password:</b> teacher123<br><br>Please log in to your account and change your password immediately.',
-        );
-      }
+      await EmailService.sendEmail(
+        toEmail: _emailController.text,
+        subject: 'Welcome to the Academic System!',
+        messageText: 'Hello $fullName,<br><br>Your teacher account has been created successfully.<br><br><b>Username/Email:</b> ${_emailController.text}<br><b>Temporary Password:</b> teacher123<br><br>Please log in to your account and change your password immediately.',
+      );
     }
     
     if (_profilePicture != null) {
@@ -855,37 +858,6 @@ class _AddTeacherScreenState extends State<AddTeacherScreen> {
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Switch(
-                        value: _sendCredentials,
-                        onChanged: (value) {
-                          setState(() {
-                            _sendCredentials = value;
-                          });
-                        },
-                        activeColor: const Color(0xFF0F52BA),
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'Send credentials via email',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF1E293B),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(
-                        Icons.info_outline,
-                        color: Color(0xFF94A3B8),
-                        size: 18,
-                      ),
-                    ],
                   ),
                 ],
               ),
